@@ -1,0 +1,53 @@
+# Compose de PRODUCCIÓN — vive en el VPS (ej. /opt/gs-monolito/docker-compose.yml),
+# no se reconstruye en cada deploy: el pipeline de CD solo hace
+# `docker compose pull app && docker compose up -d app` contra este archivo.
+#
+# Setup inicial en el servidor (una sola vez):
+#   1. Copiar este archivo + docker-entrypoint-initdb.d/ al VPS.
+#   2. Copiar .env.example a .env y completar los valores reales.
+#   3. docker compose up -d
+
+services:
+  app:
+    image: ${GS_IMAGE:-ghcr.io/OWNER/gs-monolito:latest}
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+volumes:
+  mysql_data:
+  minio_data:

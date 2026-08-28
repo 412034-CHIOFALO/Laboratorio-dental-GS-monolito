@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Compilar y correr tests unitarios
+        run: mvn -B clean verify
+
+      - name: Crear los 5 schemas (equivalente al init-schemas.sql de producción)
+        run: |
+          mysql -h127.0.0.1 -uroot -proot -e "
+            CREATE DATABASE IF NOT EXISTS gs_auth;
+            CREATE DATABASE IF NOT EXISTS gs_catalogo;
+            CREATE DATABASE IF NOT EXISTS gs_stock;
+            CREATE DATABASE IF NOT EXISTS gs_finanzas;
+            CREATE DATABASE IF NOT EXISTS gs_pedidos;
+          "
+
+      - name: Empaquetar
+        run: mvn -B -DskipTests package
+
+      # Smoke test: esto es lo que "mvn compile" NO puede detectar — colisiones
+      # de nombre de bean entre módulos, un @Order mal puesto, un securityMatcher
+      # que deja una ruta sin cubrir, etc. Solo aparecen al levantar el
+      # ApplicationContext real contra una base de datos real.
+      - name: Levantar la app y verificar que bootea sin errores
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: "3306"
+          DB_NAME: gs_auth
+          DB_USERNAME: root
+          DB_PASSWORD: root
+          MINIO_ENABLED: "false"
+        run: |
+          JAR=$(ls target/monolito-*.jar)
+          java -jar "$JAR" &
+          APP_PID=$!
+
+          ok=false
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/actuator/health > /dev/null; then
+              ok=true
+              break
+            fi
+            sleep 2
+          done
+
+          kill "$APP_PID" 2>/dev/null || true
+
+          if [ "$ok" = true ]; then
+            echo "OK: la app levantó sin colisiones de bean ni errores de arranque."
+            exit 0
+          else
+            echo "La app no respondió a tiempo en /actuator/health — revisar logs del step anterior."
+            exit 1
+          fi

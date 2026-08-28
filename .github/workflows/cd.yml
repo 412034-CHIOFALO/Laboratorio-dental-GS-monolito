@@ -1,0 +1,79 @@
+name: CD
+
+# Se dispara al mergear a main. Requiere estos secrets en el repo
+# (Settings > Secrets and variables > Actions):
+#   VPS_HOST      IP o dominio del servidor
+#   VPS_USER      usuario SSH
+#   VPS_SSH_KEY   clave privada SSH (la pública debe estar en el servidor)
+# GITHUB_TOKEN ya existe automáticamente, no hace falta crearlo.
+#
+# Requiere que en el VPS ya exista /opt/gs-monolito con docker-compose.yml
+# y .env configurados (ver docker-compose.yml del repo — setup inicial manual,
+# una sola vez).
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Correr tests antes de desplegar
+        run: mvn -B clean verify
+
+      - name: Login a GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Definir nombre de imagen (ghcr exige minúsculas)
+        id: image
+        run: echo "name=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build y push de la imagen
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:latest
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Desplegar en el VPS por SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/gs-monolito
+            docker compose pull app
+            docker compose up -d app
+            docker image prune -f
