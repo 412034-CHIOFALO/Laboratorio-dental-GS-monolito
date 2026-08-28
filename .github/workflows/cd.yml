@@ -1,6 +1,6 @@
 name: CD
 
-# Se dispara al mergear a main. Requiere estos secrets en el repo
+# Se dispara al mergear a master. Requiere estos secrets en el repo
 # (Settings > Secrets and variables > Actions):
 #   VPS_HOST      IP o dominio del servidor
 #   VPS_USER      usuario SSH
@@ -13,7 +13,7 @@ name: CD
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 jobs:
   build-and-push:
