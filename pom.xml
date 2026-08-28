@@ -61,6 +61,13 @@
 			<version>8.5.12</version>
 		</dependency>
 
+		<!-- OpenPDF: generación de reportes en PDF (cierre diario / resumen mensual) -->
+		<dependency>
+			<groupId>com.github.librepdf</groupId>
+			<artifactId>openpdf</artifactId>
+			<version>1.3.35</version>
+		</dependency>
+
 		<!-- Rate limiting del login (token bucket) -->
 		<dependency>
 			<groupId>com.bucket4j</groupId>
