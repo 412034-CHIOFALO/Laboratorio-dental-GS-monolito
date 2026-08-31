@@ -1,0 +1,53 @@
+.faq-page { padding: 1.5rem; max-width: 900px; display: flex; flex-direction: column; gap: 1.25rem; }
+
+.page-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.header-left { display: flex; align-items: center; gap: 0.75rem; }
+.page-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.page-icon.amber { background: rgba(245,158,11,0.12); color: #f59e0b; }
+h1 { font-size: 1.4rem; font-weight: 700; color: var(--text); margin: 0; }
+.subtitle { font-size: 0.8rem; color: var(--gs-text-muted); margin: 0.15rem 0 0; }
+
+.faq-buscador {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.7rem 1rem;
+  background: var(--gs-card); border: 1px solid var(--gs-border-md); border-radius: 10px;
+  color: var(--gs-text-muted);
+}
+.faq-buscador input {
+  flex: 1; border: none; outline: none; background: transparent;
+  font-size: 0.88rem; color: var(--text); font-family: inherit;
+}
+.faq-buscador input::placeholder { color: var(--gs-text-muted); }
+
+.faq-vacio { text-align: center; padding: 2rem 1rem; color: var(--gs-text-muted); font-size: 0.88rem; }
+
+.faq-categoria h2 {
+  font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--gs-green); margin: 0 0 0.6rem;
+}
+
+.faq-lista { display: flex; flex-direction: column; gap: 0.6rem; }
+
+.faq-item {
+  background: var(--gs-card); border: 1px solid var(--gs-border); border-radius: 10px;
+  overflow: hidden; transition: border-color 0.15s;
+}
+.faq-item.abierta { border-color: var(--gs-green-border); }
+
+.faq-pregunta {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.85rem 1rem; background: transparent; border: none; cursor: pointer;
+  font-family: inherit; font-size: 0.88rem; font-weight: 600; color: var(--text); text-align: left;
+}
+.faq-chevron { flex-shrink: 0; color: var(--gs-text-muted); transition: transform 0.2s; }
+.faq-item.abierta .faq-chevron { transform: rotate(180deg); color: var(--gs-green); }
+
+.faq-respuesta {
+  padding: 0 1rem 1rem;
+  font-size: 0.85rem; line-height: 1.6; color: var(--gs-text-muted);
+}
+
+@media (max-width: 600px) {
+  .faq-page { padding: 1rem; }
+  .faq-pregunta { font-size: 0.85rem; }
+}

@@ -1,0 +1,385 @@
+<div class="page">
+
+  <!-- ── OVERLAY MENÚ MÓVIL ── -->
+  <div class="nav-overlay" [class.visible]="mobileMenuOpen" (click)="closeMenu()"></div>
+
+  <!-- ── NAVBAR ── -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2C8 2 5 5 5 8c0 2 1 4 2.5 5.5L12 22l4.5-8.5C18 12 19 10 19 8c0-3-3-6-7-6z"/>
+          <circle cx="12" cy="8" r="2"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-name">GS Ortodoncia</span>
+        <span class="brand-tag">Laboratorio Dental</span>
+      </div>
+    </div>
+
+    <nav class="nav-links">
+      <a href="#servicios">Servicios</a>
+      <a href="#trabajos">Trabajos</a>
+      <a href="#nosotros">Nosotros</a>
+      <a href="#contacto">Contacto</a>
+    </nav>
+
+    <div class="nav-actions">
+      <button class="theme-toggle" (click)="themeService.toggle()"
+              [attr.aria-label]="themeService.current() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"
+              [title]="themeService.current() === 'dark' ? 'Modo claro' : 'Modo oscuro'">
+        @if (themeService.current() === 'dark') {
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+        } @else {
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        }
+      </button>
+      <a class="btn-wa" href="https://wa.me/3516588576" target="_blank">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+        </svg>
+        WhatsApp
+      </a>
+      <button class="btn-login" routerLink="/login">Acceder</button>
+      <!-- Hamburger — solo móvil -->
+      <button class="hamburger" (click)="toggleMenu()" aria-label="Abrir menú" [class.open]="mobileMenuOpen">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── MENÚ MÓVIL DRAWER ── -->
+  <nav class="mobile-nav" [class.open]="mobileMenuOpen">
+    <a href="#servicios" (click)="closeMenu()">Servicios</a>
+    <a href="#trabajos" (click)="closeMenu()">Trabajos</a>
+    <a href="#nosotros" (click)="closeMenu()">Nosotros</a>
+    <a href="#contacto" (click)="closeMenu()">Contacto</a>
+    <div class="mobile-nav-actions">
+      <button class="theme-toggle" (click)="themeService.toggle()"
+              [attr.aria-label]="themeService.current() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'">
+        @if (themeService.current() === 'dark') {
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <span>Modo claro</span>
+        } @else {
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <span>Modo oscuro</span>
+        }
+      </button>
+      <a class="btn-wa" href="https://wa.me/3516588576" target="_blank" (click)="closeMenu()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+        </svg>
+        Escribir por WhatsApp
+      </a>
+      <button class="btn-login full" routerLink="/login" (click)="closeMenu()">Acceder al sistema</button>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="hero">
+    <div class="hero-left">
+      <div class="hero-badges">
+        <span class="badge-pill badge-green">
+          <span class="badge-dot"></span>
+          +20 años de experiencia
+        </span>
+        <span class="badge-pill badge-gray">Córdoba, Argentina</span>
+      </div>
+
+      <h1 class="hero-title">
+        Cotizamos confianza.<br>
+        <span class="title-highlight">Entregamos calidad.</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        Laboratorio de ortodoncia, ortopedia y ATM. Realizamos aparatos
+        removibles a medida para profesionales de toda Córdoba y del país —
+        con precisión, materiales seguros y entrega en tiempo.
+      </p>
+
+      <p class="hero-owner">
+        <strong>Rebeca González</strong> · Técnica dental · Matrícula 1666
+      </p>
+
+      <div class="hero-actions">
+        <a class="btn-primary" href="https://wa.me/3516588576" target="_blank">
+          Contactar por WhatsApp
+        </a>
+        <button class="btn-ghost" routerLink="/login">
+          Acceder al sistema
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="hero-stats">
+        <div class="stat"><span class="stat-number">+20</span><span class="stat-label">Años en el rubro</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-number">3.9K</span><span class="stat-label">Seguidores</span></div>
+        <div class="stat-divider"></div>
+        <div class="stat"><span class="stat-number">100%</span><span class="stat-label">A medida</span></div>
+      </div>
+    </div>
+
+    <!-- Mosaico de fotos del laboratorio -->
+    <div class="hero-right">
+      <div class="photo-mosaic">
+        <div class="photo-main">
+          <img
+            src="https://images.unsplash.com/photo-1776406987595-ba14f3510c07?auto=format&fit=crop&w=700&q=80"
+            alt="Técnico dental ajustando una prótesis con instrumental de precisión"
+            loading="eager"
+            onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1606811971618-4486d14f3f99?auto=format&fit=crop&w=700&q=80';">
+          <div class="photo-badge">Orden, precisión y seguimiento en cada detalle</div>
+        </div>
+        <div class="photo-side">
+          <div class="photo-sm">
+            <img
+              src="https://images.unsplash.com/photo-1562330743-fbc6ef07ca78?auto=format&fit=crop&w=400&q=80"
+              alt="Modelos dentales de yeso"
+              loading="lazy"
+              onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1609840114035-3c981b782dfe?auto=format&fit=crop&w=400&q=80';">
+          </div>
+          <div class="photo-sm photo-dark-overlay">
+            <img
+              src="https://images.unsplash.com/photo-1609840114035-3c981b782dfe?auto=format&fit=crop&w=400&q=80"
+              alt="Paciente colocándose un alineador transparente personalizado"
+              loading="lazy"
+              onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=400&q=80';">
+            <div class="overlay-text">
+              <span class="overlay-tag">Personalización</span>
+              <span>Lo pedís, lo tenés</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── STRIP DE STATS ── -->
+  <div class="stats-strip">
+    <div class="strip-item">
+      <strong>+20 años</strong><span>acompañando profesionales</span>
+    </div>
+    <div class="strip-sep"></div>
+    <div class="strip-item">
+      <strong>Ortodoncia · Ortopedia · ATM</strong><span>tres especialidades bajo un mismo techo</span>
+    </div>
+    <div class="strip-sep"></div>
+    <div class="strip-item">
+      <strong>Envío gratis</strong><span>en pedidos seleccionados dentro de Córdoba</span>
+    </div>
+    <div class="strip-sep"></div>
+    <div class="strip-item">
+      <strong>Matrícula 1666</strong><span>Rebeca González · Técnica dental</span>
+    </div>
+  </div>
+
+  <!-- ── SERVICIOS ── -->
+  <section class="servicios" id="servicios">
+    <div class="section-header">
+      <span class="section-tag">Lo que hacemos</span>
+      <h2>Aparatología a medida para cada caso clínico</h2>
+      <p>Desde la placa más simple hasta los aparatos de mayor complejidad — todos con materiales de calidad y terminaciones prolijas.</p>
+    </div>
+
+    <div class="servicios-grid">
+      <div class="servicio-card servicio-featured">
+        <div class="servicio-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+        </div>
+        <h3>Placa Hawley</h3>
+        <p>Con tornillo de expansión, resortes mesializadores y diseños personalizados. La más solicitada de nuestra cartera.</p>
+        <span class="servicio-tag">Ortodoncia removible</span>
+      </div>
+
+      <div class="servicio-card">
+        <div class="servicio-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <h3>Disyuntor McNamara</h3>
+        <p>Con y sin tracción para máscara. Construcción robusta para expansión maxilar eficiente.</p>
+        <span class="servicio-tag">Ortopedia</span>
+      </div>
+
+      <div class="servicio-card">
+        <div class="servicio-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <h3>Klammt</h3>
+        <p>Clase 2 con escudillas labiales. Aparato funcional de alta precisión para corrección intermaxilar.</p>
+        <span class="servicio-tag">Funcional</span>
+      </div>
+
+      <div class="servicio-card">
+        <div class="servicio-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        </div>
+        <h3>Placas de Relajación ATM</h3>
+        <p>Para pacientes con bruxismo y trastornos de la articulación temporomandibular. Adaptadas a cada mordida.</p>
+        <span class="servicio-tag">ATM</span>
+      </div>
+
+      <div class="servicio-card">
+        <div class="servicio-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+        </div>
+        <h3>Ortodoncia Invisible</h3>
+        <p>Alineadores transparentes por fases. Estética y comodidad sin sacrificar eficacia clínica.</p>
+        <span class="servicio-tag">Invisible</span>
+      </div>
+
+      <div class="servicio-card">
+        <div class="servicio-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <h3>Bimler y aparatos 3D</h3>
+        <p>Diseños impresos en 3D con personalización total: colores, decoraciones y motivos a elección del paciente.</p>
+        <span class="servicio-tag">Personalizado</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── GALERÍA DE TRABAJOS ── -->
+  <section class="trabajos" id="trabajos">
+    <div class="trabajos-split">
+      <div class="gallery-grid">
+        @for (item of galeria; track item.archivo) {
+          <div class="gallery-item">
+            @if (item.tipo === 'video') {
+              <video [src]="'instagram/' + item.archivo" [attr.aria-label]="item.alt"
+                     autoplay muted controls loop playsinline preload="metadata"></video>
+              <div class="gallery-caption">{{ item.caption }}</div>
+            } @else {
+              <img [src]="'instagram/' + item.archivo" [alt]="item.alt" loading="lazy">
+              <div class="gallery-overlay">
+                <span>{{ item.caption }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="section-header">
+        <span class="section-tag">Nuestros trabajos</span>
+        <h2>Cada pieza, hecha a mano con detalle</h2>
+        <p>Una muestra de lo que fabricamos a diario en el laboratorio.</p>
+      </div>
+    </div>
+
+    <div class="gallery-cta">
+      <a href="https://www.instagram.com/gs_ortodoncia/" target="_blank" class="btn-ig">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+        </svg>
+        Ver más en Instagram &#64;gs_ortodoncia
+      </a>
+    </div>
+  </section>
+
+  <!-- ── POR QUÉ ELEGIRNOS ── -->
+  <section class="nosotros" id="nosotros">
+    <div class="nosotros-left">
+      <span class="section-tag">¿Por qué elegirnos?</span>
+      <h2>Orden, precisión y seguimiento en cada detalle</h2>
+      <p class="nosotros-intro">
+        En GS Ortodoncia sabemos que cada detalle importa. Por eso nos eligen
+        profesionales de toda Córdoba y del país, y seguimos creciendo juntos.
+      </p>
+
+      <div class="razones">
+        <div class="razon">
+          <div class="razon-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><strong>Más de 20 años de experiencia</strong><p>Acompañando a odontólogos y mecánicos dentales en cada trabajo.</p></div>
+        </div>
+        <div class="razon">
+          <div class="razon-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><strong>Envíos gratis dentro de la ciudad</strong><p>En pedidos seleccionados, sin costo adicional.</p></div>
+        </div>
+        <div class="razon">
+          <div class="razon-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><strong>Materiales seguros y terminaciones prolijas</strong><p>Procesos pensados para obtener resultados profesionales.</p></div>
+        </div>
+        <div class="razon">
+          <div class="razon-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><strong>Personalización total</strong><p>Llaveros y accesorios incluidos. Diseños a elección del paciente.</p></div>
+        </div>
+        <div class="razon">
+          <div class="razon-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></div>
+          <div><strong>Cumplimiento de tiempos</strong><p>Clientes que nos eligen desde hace años por cumplir siempre con los plazos.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nosotros-right">
+      <div class="quote-card">
+        <div class="quote-marks">"</div>
+        <p class="quote-text">Cotizamos confianza.<br>Entregamos calidad.</p>
+        <div class="quote-author">
+          <div class="quote-avatar">R</div>
+          <div>
+            <strong>Rebeca González</strong>
+            <span>Técnica dental · Matrícula 1666</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="nosotros-photo">
+        <img src="https://images.unsplash.com/photo-1760205622418-035b2f552845?auto=format&fit=crop&w=600&q=80"
+             alt="Técnico dental trabajando en el banco de laboratorio, rodeado de moldes"
+             loading="lazy"
+             onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1551884170-09fb70a3a2ed?auto=format&fit=crop&w=600&q=80';">
+        <div class="nosotros-photo-badge">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Matrícula Profesional 1666
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CONTACTO ── -->
+  <section class="contacto" id="contacto">
+    <div class="contacto-inner">
+      <h2>Empecemos a trabajar juntos</h2>
+      <p>Contactanos por WhatsApp o seguinos en Instagram para ver nuestros últimos trabajos.</p>
+      <div class="contacto-actions">
+        <a class="btn-primary large" href="https://wa.me/3516588576" target="_blank">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+          </svg>
+          Escribinos al WhatsApp
+        </a>
+        <a class="btn-outline" href="https://www.instagram.com/gs_ortodoncia/" target="_blank">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+          </svg>
+          &#64;gs_ortodoncia
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ── -->
+  <footer class="footer">
+    <div class="footer-left">
+      <span class="brand-name-sm">GS Ortodoncia</span>
+      <span>Laboratorio de ortodoncia, ortopedia y ATM · Córdoba, Argentina</span>
+    </div>
+    <div class="footer-right">
+      <span>Rebeca González · Matrícula 1666</span>
+      <span>·</span>
+      <a href="https://wa.me/3516588576" target="_blank">351 658 8576</a>
+    </div>
+  </footer>
+
+</div>

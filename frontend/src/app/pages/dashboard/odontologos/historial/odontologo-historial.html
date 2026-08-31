@@ -1,0 +1,297 @@
+<div class="historial-page">
+
+  <!-- BACK -->
+  <a class="back-link" routerLink="/dashboard/odontologos">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+    </svg>
+    Volver a Odontólogos
+  </a>
+
+  @if (loading) {
+    <div class="loading-wrap">
+      <div class="spinner-lg"></div>
+      <span>Cargando historial...</span>
+    </div>
+  } @else if (errorCarga || !odontologo) {
+    <div class="empty-state">
+      <p>{{ errorCarga || 'No se encontró el odontólogo' }}</p>
+    </div>
+  } @else {
+
+    <!-- ── HERO DEL ODONTÓLOGO ── -->
+    <header class="hero">
+      <div class="hero-avatar">{{ iniciales(odontologo.nombre) }}</div>
+      <div class="hero-info">
+        <h1>{{ odontologo.nombre }}</h1>
+        <div class="hero-meta">
+          @if (odontologo.matricula) { <span><strong>Mat.</strong> {{ odontologo.matricula }}</span> }
+          @if (odontologo.clinica)   { <span>· {{ odontologo.clinica }}</span> }
+          @if (odontologo.email)     { <span>· {{ odontologo.email }}</span> }
+          @if (odontologo.telefono)  { <span>· {{ odontologo.telefono }}</span> }
+        </div>
+      </div>
+      @if (puedeVerFinanzas) {
+        <div class="hero-saldo" [class.deuda]="saldoDeuda > 0">
+          <span class="saldo-label">Te debe</span>
+          <span class="saldo-val">{{ formatMoney(saldoDeuda) }}</span>
+          @if (saldoDeuda > 0) {
+            <button class="btn-registrar-pago" (click)="abrirModalPago()">Registrar pago</button>
+          }
+        </div>
+      }
+    </header>
+
+    <!-- ── KPIs ── -->
+    <div class="kpi-row">
+      <div class="kpi">
+        <span class="kpi-label">Pedidos totales</span>
+        <strong>{{ pedidos.length }}</strong>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Activos</span>
+        <strong data-color="amber">{{ pedidosActivos.length }}</strong>
+      </div>
+      <div class="kpi">
+        <span class="kpi-label">Entregados</span>
+        <strong data-color="green">{{ pedidosEntregados.length }}</strong>
+      </div>
+      @if (puedeVerFinanzas) {
+        <div class="kpi">
+          <span class="kpi-label">Facturado total</span>
+          <strong>{{ formatMoney(totalFacturado) }}</strong>
+        </div>
+      }
+      <div class="kpi">
+        <span class="kpi-label">Último pedido</span>
+        <strong>{{ formatFecha(fechaUltimoPedido) }}</strong>
+      </div>
+    </div>
+
+    <!-- ── TABS ── -->
+    <div class="tabs">
+      @for (t of tabs; track t.id) {
+        <button class="tab" [class.active]="tabActiva === t.id" (click)="cambiarTab(t.id)">
+          {{ t.label }}
+          @if (t.count) { <span class="tab-count">{{ t.count() }}</span> }
+        </button>
+      }
+    </div>
+
+    <!-- ── CONTENIDO POR TAB ── -->
+    <div class="tab-content">
+
+      @if (tabActiva === 'resumen') {
+        <div class="resumen-grid">
+          <section class="card-sec">
+            <h3>Pedidos recientes</h3>
+            @if (pedidos.length === 0) {
+              <p class="empty-mini">No hay pedidos registrados</p>
+            } @else {
+              <ul class="list-resumen">
+                @for (p of pedidos.slice(0, 5); track p.id) {
+                  <li class="row-clickable" (click)="abrirDetallePedido(p.id)">
+                    <span class="mini-nro">{{ p.nroPedido }}</span>
+                    <span class="mini-trabajo">{{ p.trabajo }}</span>
+                    <span class="mini-estado" [attr.data-color]="colorEstado(p.estado)">{{ labelEstado(p.estado) }}</span>
+                    <span class="mini-precio">{{ formatMoney(p.precioAcordado ?? 0) }}</span>
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+
+          <section class="card-sec">
+            <h3>Datos de contacto</h3>
+            <dl class="data-list">
+              @if (odontologo.dni)        { <dt>DNI</dt><dd>{{ odontologo.dni }}</dd> }
+              @if (odontologo.cuit)       { <dt>CUIT</dt><dd>{{ odontologo.cuit }}</dd> }
+              @if (odontologo.matricula)  { <dt>Matrícula</dt><dd>{{ odontologo.matricula }}</dd> }
+              @if (odontologo.email)      { <dt>Email</dt><dd>{{ odontologo.email }}</dd> }
+              @if (odontologo.telefono)   { <dt>Teléfono</dt><dd>{{ odontologo.telefono }}</dd> }
+              @if (odontologo.direccion)  { <dt>Dirección</dt><dd>{{ odontologo.direccion }}</dd> }
+              @if (odontologo.clinica)    { <dt>Clínica</dt><dd>{{ odontologo.clinica }}</dd> }
+            </dl>
+          </section>
+        </div>
+      }
+
+      @if (tabActiva === 'pedidos') {
+        @if (pedidos.length === 0) {
+          <p class="empty-mini">No hay pedidos registrados con este odontólogo</p>
+        } @else {
+          <div class="tabla-wrap">
+            <table class="pedidos-tabla">
+              <thead>
+                <tr>
+                  <th>N°</th>
+                  <th>Paciente</th>
+                  <th>Trabajo</th>
+                  <th>Estado</th>
+                  <th>Fecha creación</th>
+                  <th>Entrega</th>
+                  <th class="num">Precio</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (p of pedidos; track p.id) {
+                  <tr class="row-clickable" (click)="abrirDetallePedido(p.id)">
+                    <td><strong>{{ p.nroPedido }}</strong></td>
+                    <td>{{ p.paciente }}</td>
+                    <td>{{ p.trabajo }}</td>
+                    <td><span class="mini-estado" [attr.data-color]="colorEstado(p.estado)">{{ labelEstado(p.estado) }}</span></td>
+                    <td class="muted">{{ formatFecha(p.fechaCreacion) }}</td>
+                    <td class="muted">{{ formatFecha(p.fechaEntrega) }}</td>
+                    <td class="num"><strong>{{ formatMoney(p.precioAcordado ?? 0) }}</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+
+      @if (tabActiva === 'finanzas' && puedeVerFinanzas) {
+        <div class="finanzas-resumen">
+          <div class="big-stat" [class.deuda]="saldoDeuda > 0">
+            <span class="big-label">Saldo pendiente</span>
+            <span class="big-val">{{ formatMoney(saldoDeuda) }}</span>
+            @if (saldoDeuda > 0) {
+              <span class="big-sub">El odontólogo te debe esta suma</span>
+            } @else {
+              <span class="big-sub">Al día — sin deuda pendiente</span>
+            }
+          </div>
+        </div>
+
+        @if (pedidosActivos.length > 0) {
+          <section class="card-sec fin-sec">
+            <h3>Trabajos activos (por cobrar)</h3>
+            <div class="tabla-wrap">
+              <table class="pedidos-tabla">
+                <thead>
+                  <tr>
+                    <th>N°</th>
+                    <th>Trabajo</th>
+                    <th>Estado</th>
+                    <th class="num">Precio acordado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (p of pedidosActivos; track p.id) {
+                    <tr class="row-clickable" (click)="abrirDetallePedido(p.id)">
+                      <td><strong>{{ p.nroPedido }}</strong></td>
+                      <td>{{ p.trabajo }}</td>
+                      <td><span class="mini-estado" [attr.data-color]="colorEstado(p.estado)">{{ labelEstado(p.estado) }}</span></td>
+                      <td class="num">{{ p.precioAcordado ? formatMoney(p.precioAcordado) : '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+                <tfoot>
+                  <tr class="total-row">
+                    <td colspan="3" class="total-label">Subtotal activos</td>
+                    <td class="num total-val">{{ formatMoney(subtotalActivos) }}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </section>
+        }
+
+        @if (pedidosActivos.length === 0 && pedidosEntregados.length === 0) {
+          <p class="empty-mini">No hay pedidos registrados con este odontólogo todavía.</p>
+        }
+
+        <!-- Comprobantes: a diferencia de "Trabajos activos" (que es la lista de
+             pedidos), esto es el estado REAL de cobro de cada uno — cuánto se
+             pagó, cuánto falta, y cuándo. Un pedido entregado puede seguir
+             apareciendo acá como PENDIENTE o PARCIAL hasta que se cobre entero. -->
+        <section class="card-sec fin-sec">
+          <h3>Comprobantes</h3>
+          @if (comprobantes.length === 0) {
+            <p class="cc-empty">Sin comprobantes emitidos todavía.</p>
+          } @else {
+            <div class="tabla-wrap">
+              <table class="cc-tabla">
+                <thead>
+                  <tr>
+                    <th>Comprobante</th>
+                    <th>Trabajo</th>
+                    <th class="num">Monto</th>
+                    <th class="num">Pagado</th>
+                    <th class="num">Saldo</th>
+                    <th>Estado</th>
+                    <th>Cobro</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of comprobantes; track c.id) {
+                    <tr [class.saldado]="c.estadoPago === 'COBRADO'">
+                      <td>{{ c.nroComprobante }}</td>
+                      <td>{{ c.trabajo }}</td>
+                      <td class="num">{{ formatMoney(c.monto) }}</td>
+                      <td class="num">{{ formatMoney(c.montoPagado) }}</td>
+                      <td class="num">{{ formatMoney(c.saldoPendiente) }}</td>
+                      <td><span class="cc-estado" [attr.data-estado]="c.estadoPago">{{ c.estadoPago }}</span></td>
+                      <td class="muted">{{ c.fechaCobro ? formatFecha(c.fechaCobro) : '—' }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
+
+        <!-- Últimos pagos: los registrados manualmente desde "Registrar pago".
+             Los saldados vía triangulado del bot (un odontólogo que pagó por
+             cuenta del lab) no generan un registro acá — se ven reflejados en
+             el saldo/estado de arriba, pero no como una línea de pago propia. -->
+        <section class="card-sec fin-sec">
+          <h3>Últimos pagos</h3>
+          @if (historialPagos.length === 0) {
+            <p class="cc-empty">Sin pagos registrados manualmente todavía.</p>
+          } @else {
+            <div class="cc-historial">
+              @for (p of historialPagos; track p.id) {
+                <div class="cc-pago">
+                  <span>{{ formatFecha(p.fecha) }} · {{ p.medio }}</span>
+                  <strong>{{ formatMoney(p.montoImputado) }}</strong>
+                </div>
+              }
+            </div>
+          }
+        </section>
+      }
+
+      @if (tabActiva === 'escaneres') {
+        <div class="placeholder">
+          <p>Aún no hay escáneres 3D asociados.</p>
+          <p class="placeholder-info">Cuando se active el módulo de mail scraping, aquí aparecerán los archivos STL/OBJ enviados por este odontólogo.</p>
+        </div>
+      }
+
+      @if (tabActiva === 'documentos') {
+        <div class="placeholder">
+          <p>Aún no hay documentos asociados.</p>
+          <p class="placeholder-info">Acá vas a ver PDFs, fotos y otros adjuntos recibidos por mail o WhatsApp del odontólogo.</p>
+        </div>
+      }
+
+    </div>
+
+  }
+
+</div>
+
+@if (showModalPago && odontologo) {
+  <app-pago-cuenta-corriente-modal
+    [odontologoId]="odontologo.id"
+    [odontologoNombre]="odontologo.nombre"
+    [saldoActual]="saldoDeuda"
+    (cerrar)="cerrarModalPago()"
+    (pagado)="onPagoRegistrado()" />
+}
+
+@if (detalleAbiertoId !== null) {
+  <app-pedido-detalle-modal [pedidoId]="detalleAbiertoId" (cerrar)="cerrarDetallePedido()" />
+}

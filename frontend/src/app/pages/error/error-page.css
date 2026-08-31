@@ -1,0 +1,86 @@
+.error-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: var(--bg, #0c1118);
+}
+
+.error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 440px;
+  padding: 2.5rem 2rem;
+  background: var(--card, #161c26);
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+  border-radius: 18px;
+}
+
+.error-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin-bottom: 1rem;
+}
+.error-icon[data-icono='ban']    { background: rgba(244, 63, 94, 0.12); color: #f43f5e; }
+.error-icon[data-icono='lock']   { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+.error-icon[data-icono='search'] { background: rgba(59, 130, 246, 0.12); color: #3b82f6; }
+.error-icon[data-icono='server'] { background: rgba(168, 85, 247, 0.12); color: #a855f7; }
+
+.error-codigo {
+  font-size: 3rem;
+  font-weight: 800;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--text, #fff);
+  line-height: 1;
+}
+
+.error-card h1 {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 1.4rem;
+  color: var(--text, #fff);
+}
+
+.error-card p {
+  margin: 0 0 1.75rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--muted, #9ca3af);
+}
+
+.error-acciones {
+  display: flex;
+  gap: 0.6rem;
+}
+.btn-volver, .btn-inicio {
+  padding: 0.65rem 1.4rem;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.15s, background 0.15s;
+}
+.btn-volver {
+  background: transparent;
+  border: 1px solid var(--border, rgba(255,255,255,0.15));
+  color: var(--text, #fff);
+}
+.btn-volver:hover { background: color-mix(in srgb, var(--text, #fff) 6%, transparent); }
+.btn-inicio {
+  background: var(--gs-gradient-green, linear-gradient(135deg, #22c55e, #16a34a));
+  border: none;
+  color: #fff;
+}
+.btn-inicio:hover { opacity: 0.9; }
+
+@media (max-width: 480px) {
+  .error-acciones { flex-direction: column; width: 100%; }
+  .btn-volver, .btn-inicio { width: 100%; }
+}

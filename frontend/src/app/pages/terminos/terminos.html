@@ -1,0 +1,66 @@
+<div class="terminos-page">
+  <div class="terminos-card">
+
+    <div class="terminos-header">
+      <div class="terminos-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Términos y condiciones</h1>
+        <p>Antes de continuar, leé y aceptá las condiciones de uso del sistema</p>
+      </div>
+    </div>
+
+    <div class="terminos-texto">
+      <h2>1. Objeto del sistema</h2>
+      <p>Este sistema es una herramienta interna de gestión del Laboratorio G&amp;S (Rebeca González, Mat. 1666)
+      para la administración de pedidos, producción, finanzas, stock y comunicación con odontólogos y
+      proveedores. Su uso está reservado exclusivamente al personal autorizado por el laboratorio.</p>
+
+      <h2>2. Uso de la cuenta</h2>
+      <p>Tu cuenta y contraseña son de uso personal e intransferible. Sos responsable de mantener la
+      confidencialidad de tus credenciales y de toda actividad realizada desde tu usuario. Ante la sospecha
+      de un uso indebido, notificá de inmediato al administrador del sistema.</p>
+
+      <h2>3. Datos e información tratada</h2>
+      <p>El sistema almacena datos de pedidos, escaneos 3D, documentos, movimientos financieros y datos de
+      contacto de odontólogos y proveedores. Esta información es confidencial y debe utilizarse únicamente
+      para las tareas propias de tu función dentro del laboratorio. No está permitido extraer, compartir
+      o divulgar esta información fuera del ámbito laboral.</p>
+
+      <h2>4. Bot de WhatsApp</h2>
+      <p>El laboratorio utiliza un bot de WhatsApp para recibir comprobantes de pago y agilizar su carga en
+      el sistema. Los mensajes enviados a los grupos monitoreados por el bot (imágenes, PDFs y su información
+      asociada) son procesados automáticamente y quedan registrados en el sistema con fines contables.</p>
+
+      <h2>5. Responsabilidad por la carga de datos</h2>
+      <p>La información que cargues (pedidos, movimientos de stock, pagos, escaneos) debe ser veraz y
+      corresponder a operaciones reales del laboratorio. Los registros quedan auditados: cada acción relevante
+      se guarda con usuario, fecha y detalle en la bitácora de auditoría del sistema.</p>
+
+      <h2>6. Disponibilidad</h2>
+      <p>El sistema se ofrece "tal cual", en el marco de un trabajo final de grado universitario. Si bien se
+      procura su correcto funcionamiento, puede haber interrupciones puntuales por mantenimiento o mejoras.</p>
+
+      <h2>7. Aceptación</h2>
+      <p>Al aceptar estos términos confirmás que entendiste las condiciones de uso descriptas y te
+      comprometés a utilizar el sistema de forma responsable, dentro de los alcances de tu rol asignado.</p>
+    </div>
+
+    <label class="terminos-check">
+      <input type="checkbox" [(ngModel)]="leido" name="leido">
+      <span>Leí y acepto los términos y condiciones de uso del sistema.</span>
+    </label>
+
+    <div class="terminos-acciones">
+      <button type="button" class="btn-salir" (click)="cerrarSesion()">Cerrar sesión</button>
+      <button type="button" class="btn-aceptar" [disabled]="!leido || guardando" (click)="aceptar()">
+        @if (!guardando) { Aceptar y continuar } @else { <span class="spinner"></span> }
+      </button>
+    </div>
+
+  </div>
+</div>

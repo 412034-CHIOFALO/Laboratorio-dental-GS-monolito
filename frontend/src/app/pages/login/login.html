@@ -1,0 +1,103 @@
+<div class="login-page">
+  <div class="login-center">
+
+    @if (!esPwa) {
+      <a class="back-link" routerLink="/">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+        Volver al inicio
+      </a>
+    }
+
+    <div class="form-card">
+
+      <div class="form-header">
+        <h1>Bienvenido</h1>
+        <p>Ingresá tus credenciales para acceder al sistema</p>
+      </div>
+
+      <form class="login-form" (ngSubmit)="onSubmit()" #loginForm="ngForm">
+        <div class="field-group">
+          <label for="username">Usuario</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            <input type="text" id="username" name="username" [(ngModel)]="username"
+              placeholder="Tu nombre de usuario" autocomplete="username" required>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="password">Contraseña</label>
+          <div class="input-wrap">
+            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <input [type]="mostrarPassword ? 'text' : 'password'" id="password" name="password" [(ngModel)]="password"
+              placeholder="Tu contraseña" autocomplete="current-password" required>
+            <button type="button" class="toggle-pass" (click)="mostrarPassword = !mostrarPassword"
+                    [attr.aria-label]="mostrarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                    [attr.title]="mostrarPassword ? 'Ocultar' : 'Mostrar'">
+              @if (mostrarPassword) {
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              } @else {
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
+            </button>
+          </div>
+        </div>
+
+        @if (errorMessage) {
+          <div class="error-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            {{ errorMessage }}
+          </div>
+        }
+
+        <button type="submit" class="btn-submit" [disabled]="!loginForm.form.valid || loginLoading">
+          @if (!loginLoading) {
+            <span>
+              Iniciar sesión
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </span>
+          } @else {
+            <span class="spinner"></span>
+          }
+        </button>
+
+        @if (mostrarDemoHint) {
+          <div class="demo-hint">
+            <div class="demo-hint-title">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+              <span>Modo demo — credenciales de prueba</span>
+            </div>
+            <div class="demo-hint-creds">
+              <button type="button" class="demo-cred" (click)="usarCreds('admin', 'admin123')">
+                <strong>admin</strong> <span>/</span> <code>admin123</code> <em>· administradora</em>
+              </button>
+              <button type="button" class="demo-cred" (click)="usarCreds('tecnico1', 'tecnico123')">
+                <strong>tecnico1</strong> <span>/</span> <code>tecnico123</code> <em>· técnico</em>
+              </button>
+              <button type="button" class="demo-cred" (click)="usarCreds('recepcion', 'dev1234')">
+                <strong>recepcion</strong> <span>/</span> <code>dev1234</code> <em>· administrativa</em>
+              </button>
+            </div>
+          </div>
+        }
+      </form>
+
+      <div class="form-footer">
+        <span>Acceso restringido · Solo personal autorizado de GS Ortodoncia</span>
+      </div>
+
+    </div>
+  </div>
+</div>

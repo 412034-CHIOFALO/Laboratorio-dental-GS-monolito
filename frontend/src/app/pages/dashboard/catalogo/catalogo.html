@@ -1,0 +1,491 @@
+<div class="cat-page">
+
+  <!-- ── HEADER ── -->
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Catálogo <span class="accent">de Trabajos</span></h1>
+      <p>{{ totalItems }} trabajos · {{ totalCategorias }} categorías · Precio promedio {{ formatPrecio(promedioPrecios) }}</p>
+    </div>
+    <button class="btn-create" (click)="abrirCrear()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Nuevo trabajo
+    </button>
+  </div>
+
+  <!-- ── LOADING / ERROR ── -->
+  @if (loading) {
+    <div class="loading-wrap">
+      <div class="spinner-lg"></div>
+      <span>Cargando catálogo...</span>
+    </div>
+  }
+  @if (error) {
+    <div class="alert-error" style="margin-bottom:1rem">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      {{ error }}
+    </div>
+  }
+
+  <!-- ── FILTER BAR ── -->
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input
+        class="search-input"
+        type="text"
+        placeholder="Buscar por nombre o descripción..."
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="filtrar()"
+      />
+      @if (searchQuery) {
+        <button class="search-clear" (click)="searchQuery = ''; filtrar()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      }
+    </div>
+
+    <div class="cat-pills">
+      @for (cat of categorias; track cat.valor) {
+        <button
+          class="cat-pill"
+          [class.active]="categoriaActiva === cat.valor"
+          [attr.data-cat]="cat.valor"
+          (click)="setCategoriaActiva(cat.valor)"
+        >
+          {{ cat.label }}
+          <span class="pill-count">{{ countByCategoria(cat.valor) }}</span>
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ── EMPTY STATE ── -->
+  @if (filtrados.length === 0) {
+    <div class="empty-state">
+      <div class="empty-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+      </div>
+      @if (searchQuery) {
+        <p>Sin resultados para <strong>"{{ searchQuery }}"</strong></p>
+      } @else {
+        <p>Sin trabajos en esta categoría aún</p>
+      }
+      <button class="btn-create sm" (click)="abrirCrear()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Agregar trabajo
+      </button>
+    </div>
+  }
+
+  <!-- ── CARDS GRID ── -->
+  @if (filtrados.length > 0) {
+    <div class="cards-grid">
+      @for (trabajo of filtrados; track trabajo.id) {
+        <div class="work-card" [class.deleting]="deleteConfirmId === trabajo.id"
+             (click)="abrirDetalle(trabajo)">
+
+          <!-- PHOTO AREA -->
+          <div class="card-photo" [attr.data-cat]="trabajo.categoria">
+            @if (trabajo.foto) {
+              <img [src]="trabajo.foto" [alt]="trabajo.nombre" class="photo-img"/>
+            } @else {
+              <div class="photo-placeholder">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2C8.5 2 5 5 5 8c0 3 1 5 2 7s2 4 2 6c0 .5.5 1 1 1s1-.5 1-1v-3c0-.5.5-1 1-1s1 .5 1 1v3c0 .5.5 1 1 1s1-.5 1-1c0-2 1-4 2-6s2-4 2-7c0-3-3.5-6-7-6z"/>
+                </svg>
+              </div>
+            }
+            <span class="cat-badge" [attr.data-cat]="trabajo.categoria">
+              {{ categoriaLabel(trabajo.categoria) }}
+            </span>
+          </div>
+
+          <!-- CARD BODY -->
+          <div class="card-body">
+            <h3 class="card-title">{{ trabajo.nombre }}</h3>
+            <p class="card-desc">{{ trabajo.descripcion }}</p>
+
+            <!-- PRICE ROW -->
+            <div class="card-price-row">
+              @if (editandoPrecioId !== trabajo.id) {
+                <span class="card-price" [class.convenir]="!trabajo.precio">
+                  {{ formatPrecio(trabajo.precio) }}
+                </span>
+                @if (trabajo.tiempoEstimadoDias > 0) {
+                  <span class="card-time">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    {{ trabajo.tiempoEstimadoDias }} días
+                  </span>
+                }
+              } @else {
+                <div class="price-inline-edit" (click)="$event.stopPropagation()">
+                  <span class="price-symbol">$</span>
+                  <input
+                    type="number"
+                    class="price-inline-input"
+                    [(ngModel)]="precioTemporal"
+                    (keyup.enter)="guardarPrecio(trabajo)"
+                    (keyup.escape)="cancelarPrecio()"
+                    autofocus
+                  />
+                  <button class="btn-price-ok" (click)="guardarPrecio(trabajo)" title="Confirmar">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  </button>
+                  <button class="btn-price-cancel" (click)="cancelarPrecio()" title="Cancelar">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- CARD ACTIONS — los clicks NO propagan a la card para no abrir el detalle -->
+          <div class="card-actions" (click)="$event.stopPropagation()">
+            <button class="btn-action edit" (click)="abrirEditar(trabajo)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              Editar
+            </button>
+            <button class="btn-action price" (click)="abrirEditarPrecio(trabajo)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+              </svg>
+              Precio
+            </button>
+            <button class="btn-action delete" (click)="pedirConfirmEliminar(trabajo.id)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                <path d="M10 11v6"/><path d="M14 11v6"/>
+                <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+              </svg>
+              Eliminar
+            </button>
+          </div>
+
+          <!-- DELETE CONFIRM OVERLAY -->
+          @if (deleteConfirmId === trabajo.id) {
+            <div class="delete-overlay" (click)="$event.stopPropagation()">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <p>¿Eliminar <strong>{{ trabajo.nombre }}</strong>?<br/>
+                <small>Esta acción no se puede deshacer.</small>
+              </p>
+              <div class="overlay-btns">
+                <button class="btn-confirm-yes" (click)="eliminar(trabajo.id)">Sí, eliminar</button>
+                <button class="btn-confirm-no"  (click)="cancelarEliminar()">Cancelar</button>
+              </div>
+            </div>
+          }
+
+        </div>
+      }
+    </div>
+  }
+
+  <!-- ── MODAL ── -->
+  @if (showModal) {
+    <div class="modal-backdrop" (click)="cerrarModal()"></div>
+
+    <div class="modal" role="dialog" [attr.aria-label]="modalTitle">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-title-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+              <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
+              <line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
+          </div>
+          <h2>{{ modalTitle }}</h2>
+        </div>
+        <button class="modal-close" (click)="cerrarModal()" aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-form">
+
+        <!-- FOTO UPLOAD -->
+        <div
+          class="photo-upload-area"
+          [class.dragging]="arrastrando"
+          [class.has-photo]="!!fotoPreview"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave()"
+          (drop)="onDrop($event)"
+          (click)="fotoInput.click()"
+        >
+          @if (fotoPreview) {
+            <img [src]="fotoPreview" class="upload-preview" alt="Vista previa"/>
+            <button class="remove-photo" (click)="quitarFoto(); $event.stopPropagation()" title="Quitar foto">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          } @else {
+            <div class="upload-placeholder">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <span>Foto del trabajo</span>
+              <small>PNG · JPG hasta 5 MB · Arrastrar o clic</small>
+            </div>
+          }
+          <input #fotoInput type="file" accept="image/*" (change)="onFotoChange($event)" style="display:none"/>
+        </div>
+
+        <!-- NOMBRE -->
+        <div class="field-group">
+          <label>Nombre del trabajo <span class="req">*</span></label>
+          <input type="text" [(ngModel)]="form.nombre" placeholder="Ej: Corona de Porcelana"/>
+        </div>
+
+        <!-- CATEGORÍA + TIEMPO -->
+        <div class="fields-row">
+          <div class="field-group">
+            <label>Categoría <span class="req">*</span></label>
+            <select [(ngModel)]="form.categoria">
+              @for (c of categoriasForm; track c.valor) {
+                <option [value]="c.valor">{{ c.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="field-group">
+            <label>Tiempo estimado (días)</label>
+            <input type="number" min="0" [(ngModel)]="form.tiempoEstimadoDias" placeholder="0 = variable"/>
+          </div>
+        </div>
+
+        <!-- PRECIO -->
+        <div class="field-group">
+          <label>Precio en ARS <span class="req">*</span><span class="field-hint"> · 0 = "A convenir"</span></label>
+          <div class="price-input-wrap">
+            <span class="price-prefix">$</span>
+            <input type="number" [(ngModel)]="form.precio" placeholder="85000"/>
+          </div>
+        </div>
+
+        <!-- DESCRIPCIÓN -->
+        <div class="field-group">
+          <label>Descripción</label>
+          <textarea [(ngModel)]="form.descripcion" rows="3" placeholder="Descripción breve del trabajo y sus características..."></textarea>
+        </div>
+
+        <!-- ── RECETA / INGREDIENTES ────────────────────────────── -->
+        <div class="receta-section">
+          <div class="receta-head">
+            <div>
+              <h3>Receta de materiales</h3>
+              <p class="receta-hint">Lista de materiales que se consumen al fabricar este trabajo. Sirve para trazabilidad — el sistema avisa si el stock no alcanza, no bloquea.</p>
+            </div>
+            <button type="button" class="btn-add-ing" (click)="agregarIngrediente()" [disabled]="materiales.length === 0">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Agregar
+            </button>
+          </div>
+
+          @if (formReceta.length === 0) {
+            <div class="receta-empty">Sin materiales en la receta. Hacé click en "Agregar" para sumar uno.</div>
+          } @else {
+            <div class="ing-list">
+              @for (item of formReceta; track $index; let i = $index) {
+                <div class="ing-row">
+                  <!-- Autocomplete buscable de material -->
+                  <div class="ing-cell ing-material">
+                    <label>Material</label>
+                    <div class="material-autocomplete">
+                      <input
+                        type="text"
+                        [(ngModel)]="item.searchQuery"
+                        (ngModelChange)="onSearchInput(i)"
+                        (focus)="abrirDropdownMaterial(i)"
+                        (blur)="cerrarDropdownMaterialConDelay(i)"
+                        [name]="'mat-' + i"
+                        placeholder="Buscar material por nombre o categoría..."
+                        autocomplete="off"
+                      />
+                      @if (item.materialId) {
+                        <button type="button" class="btn-clear-mat" (click)="limpiarMaterial(i)" title="Quitar selección">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      }
+                      @if (item.dropdownOpen) {
+                        @let opciones = materialesFiltrados(i);
+                        <div class="mat-dropdown">
+                          @if (opciones.length === 0) {
+                            <div class="mat-empty">Sin coincidencias para "{{ item.searchQuery }}"</div>
+                          } @else {
+                            @for (m of opciones; track m.id) {
+                              <button type="button" class="mat-option" [class.bajo]="m.bajoStock"
+                                      (mousedown)="seleccionarMaterial(i, m)">
+                                <div class="mat-option-main">
+                                  <strong>{{ m.nombre }}</strong>
+                                  @if (!m.descuentaStock) {
+                                    <span class="badge-por-uso-mini">⚙ por uso</span>
+                                  }
+                                </div>
+                                <div class="mat-option-meta">
+                                  <span class="mat-cat">{{ m.categoria }}</span>
+                                  <span class="mat-stock" [class.warning]="m.bajoStock">
+                                    {{ m.stockActual }} {{ m.unidadMedida }} en stock
+                                  </span>
+                                </div>
+                              </button>
+                            }
+                          }
+                        </div>
+                      }
+                    </div>
+                  </div>
+                  <div class="ing-cell ing-cantidad">
+                    <label>Cantidad</label>
+                    <input type="number" min="0" step="0.01" [(ngModel)]="item.cantidad" [name]="'cant-' + i" placeholder="0"/>
+                  </div>
+                  <div class="ing-cell ing-unidad">
+                    <label>Unidad</label>
+                    <input type="text" [(ngModel)]="item.unidad" [name]="'uni-' + i" placeholder="gr / ml"/>
+                  </div>
+                  <button type="button" class="btn-del-ing" (click)="eliminarIngrediente(i)" title="Quitar este material">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6"/></svg>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- ACTIONS -->
+        <div class="modal-actions">
+          <button class="btn-cancel" type="button" (click)="cerrarModal()">Cancelar</button>
+          <button class="btn-save" type="button" [disabled]="!formValido || saving" (click)="guardar()">
+            @if (saving) {
+              <span class="spinner-sm"></span>
+            }
+            {{ saving ? 'Guardando...' : (editMode ? 'Guardar cambios' : 'Crear trabajo') }}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       MODAL DETALLE (read-only) — se abre al hacer click en una card
+       ═══════════════════════════════════════════════════════════════ -->
+  @if (detalleAbierto) {
+    <div class="modal-backdrop" (click)="cerrarDetalle()"></div>
+    <div class="modal modal-detalle" role="dialog">
+
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="cat-badge" [attr.data-cat]="detalleAbierto.categoria">
+            {{ categoriaLabel(detalleAbierto.categoria) }}
+          </span>
+          <h2>{{ detalleAbierto.nombre }}</h2>
+        </div>
+        <button class="modal-close" (click)="cerrarDetalle()" aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Cuerpo del detalle: foto a la izquierda, info a la derecha -->
+      <div class="detalle-body">
+
+        <div class="detalle-photo" [attr.data-cat]="detalleAbierto.categoria">
+          @if (detalleAbierto.foto) {
+            <img [src]="detalleAbierto.foto" [alt]="detalleAbierto.nombre"/>
+          } @else {
+            <div class="photo-placeholder lg">
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2C8.5 2 5 5 5 8c0 3 1 5 2 7s2 4 2 6c0 .5.5 1 1 1s1-.5 1-1v-3c0-.5.5-1 1-1s1 .5 1 1v3c0 .5.5 1 1 1s1-.5 1-1c0-2 1-4 2-6s2-4 2-7c0-3-3.5-6-7-6z"/>
+              </svg>
+            </div>
+          }
+        </div>
+
+        <div class="detalle-info">
+          <div class="detalle-stats">
+            <div class="stat-box">
+              <span class="stat-label">Precio</span>
+              <strong [class.convenir]="!detalleAbierto.precio">{{ formatPrecio(detalleAbierto.precio) }}</strong>
+            </div>
+            @if (detalleAbierto.tiempoEstimadoDias > 0) {
+              <div class="stat-box">
+                <span class="stat-label">Tiempo estimado</span>
+                <strong>{{ detalleAbierto.tiempoEstimadoDias }} días</strong>
+              </div>
+            }
+            <div class="stat-box">
+              <span class="stat-label">Receta</span>
+              <strong>{{ detalleAbierto.receta.length }} {{ detalleAbierto.receta.length === 1 ? 'material' : 'materiales' }}</strong>
+            </div>
+          </div>
+
+          @if (detalleAbierto.descripcion) {
+            <div class="detalle-desc">
+              <span class="detalle-section-label">Descripción</span>
+              <p>{{ detalleAbierto.descripcion }}</p>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Receta (read-only) -->
+      <div class="detalle-receta">
+        <span class="detalle-section-label">Receta de materiales</span>
+        @if (detalleAbierto.receta.length === 0) {
+          <p class="muted">Este trabajo no tiene receta cargada.</p>
+        } @else {
+          <div class="receta-table">
+            <div class="receta-table-head">
+              <span>Material</span>
+              <span>Cantidad</span>
+              <span>Notas</span>
+            </div>
+            @for (r of detalleAbierto.receta; track r.id) {
+              <div class="receta-table-row">
+                <span class="rec-mat">{{ r.materialNombre }}</span>
+                <span class="rec-cant">{{ r.cantidad }} {{ r.unidad ?? '' }}</span>
+                <span class="rec-notas muted">{{ r.notas ?? '—' }}</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="detalle-actions">
+        <button class="btn-cancel" type="button" (click)="cerrarDetalle()">Cerrar</button>
+        <button class="btn-save" type="button" (click)="editarDesdeDetalle()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Editar este trabajo
+        </button>
+      </div>
+    </div>
+  }
+
+</div>

@@ -1,0 +1,123 @@
+<div class="perfil-page">
+  <div class="page-header">
+    <div class="header-left">
+      <div class="page-icon green">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Mi perfil</h1>
+        <p class="subtitle">Gestioná tus datos y tu contraseña</p>
+      </div>
+    </div>
+  </div>
+
+  @if (cargando()) {
+    <div class="perfil-loading">Cargando tu perfil…</div>
+  } @else if (perfil(); as p) {
+
+    <!-- Tarjeta identidad -->
+    <section class="perfil-card identidad">
+      <div class="perfil-avatar">{{ iniciales }}</div>
+      <div class="identidad-info">
+        <strong>{{ p.nombre }} {{ p.apellido }}</strong>
+        <span class="perfil-user">&#64;{{ p.username }}</span>
+        <span class="perfil-rol">{{ rolLabel }}</span>
+      </div>
+    </section>
+
+    <!-- Datos editables -->
+    <section class="perfil-card">
+      <h2>Mis datos</h2>
+      <div class="perfil-grid">
+        <div class="form-row">
+          <label>Nombre *</label>
+          <input type="text" class="form-input" [(ngModel)]="form.nombre" placeholder="Tu nombre"/>
+        </div>
+        <div class="form-row">
+          <label>Apellido</label>
+          <input type="text" class="form-input" [(ngModel)]="form.apellido" placeholder="Tu apellido"/>
+        </div>
+        <div class="form-row">
+          <label>Teléfono</label>
+          <input type="text" class="form-input" [(ngModel)]="form.telefono"
+                 (ngModelChange)="form.telefono = sanitizarTelefono($event)"
+                 inputmode="tel" placeholder="Ej: 3511234567"/>
+          <small class="form-hint">El bot usa tu teléfono para identificarte al enviar comprobantes.</small>
+        </div>
+        <div class="form-row">
+          <label>Usuario</label>
+          <input type="text" class="form-input" [value]="p.username" disabled/>
+          <small class="form-hint">El usuario y el rol solo los cambia un administrador.</small>
+        </div>
+      </div>
+      <div class="perfil-acciones">
+        <button class="btn-primary" (click)="guardarPerfil()" [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : 'Guardar cambios' }}
+        </button>
+      </div>
+    </section>
+
+    <!-- Cambiar contraseña -->
+    <section class="perfil-card">
+      <h2>Cambiar contraseña</h2>
+      <div class="perfil-grid">
+        <div class="form-row full">
+          <label>Contraseña actual *</label>
+          <div class="pass-wrap">
+            <input [type]="mostrarPass.actual ? 'text' : 'password'" class="form-input" [(ngModel)]="pass.actual" autocomplete="current-password"/>
+            <button type="button" class="toggle-pass" (click)="mostrarPass.actual = !mostrarPass.actual"
+                    [attr.aria-label]="mostrarPass.actual ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+              @if (mostrarPass.actual) {
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              } @else {
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
+            </button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Nueva contraseña *</label>
+          <div class="pass-wrap">
+            <input [type]="mostrarPass.nueva ? 'text' : 'password'" class="form-input" [(ngModel)]="pass.nueva" autocomplete="new-password"/>
+            <button type="button" class="toggle-pass" (click)="mostrarPass.nueva = !mostrarPass.nueva"
+                    [attr.aria-label]="mostrarPass.nueva ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+              @if (mostrarPass.nueva) {
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              } @else {
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
+            </button>
+          </div>
+          <small class="form-hint">Mínimo 6 caracteres.</small>
+        </div>
+        <div class="form-row">
+          <label>Repetir nueva *</label>
+          <div class="pass-wrap">
+            <input [type]="mostrarPass.repetir ? 'text' : 'password'" class="form-input" [(ngModel)]="pass.repetir" autocomplete="new-password"/>
+            <button type="button" class="toggle-pass" (click)="mostrarPass.repetir = !mostrarPass.repetir"
+                    [attr.aria-label]="mostrarPass.repetir ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+              @if (mostrarPass.repetir) {
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              } @else {
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              }
+            </button>
+          </div>
+          @if (pass.repetir && pass.nueva !== pass.repetir) {
+            <small class="form-hint err">No coinciden.</small>
+          }
+        </div>
+      </div>
+      <div class="perfil-acciones">
+        <button class="btn-primary" (click)="cambiarPassword()" [disabled]="!passValido || cambiandoPass()">
+          {{ cambiandoPass() ? 'Cambiando…' : 'Cambiar contraseña' }}
+        </button>
+      </div>
+    </section>
+
+  } @else {
+    <div class="perfil-loading">No se pudo cargar tu perfil.</div>
+  }
+</div>

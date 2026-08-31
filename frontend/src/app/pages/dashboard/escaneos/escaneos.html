@@ -1,0 +1,193 @@
+<div class="esc-page">
+
+  <!-- Header -->
+  <div class="esc-header">
+    <div class="header-left">
+      <div class="page-icon green">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Escaneos 3D</h1>
+        <p class="subtitle">Modelos digitales (STL, OBJ, PLY) vinculados a cada pedido</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="esc-layout">
+
+    <!-- Panel izquierdo: pedidos -->
+    <aside class="pedidos-panel">
+      <div class="search-wrap">
+        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="search-input" type="text" placeholder="Buscar pedido, paciente…"
+               [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" />
+      </div>
+
+      @if (cargandoPedidos()) {
+        <div class="panel-msg">Cargando…</div>
+      } @else if (errorPedidos()) {
+        <div class="panel-msg err">{{ errorPedidos() }}</div>
+      } @else if (pedidosFiltrados().length === 0) {
+        <div class="panel-msg">Sin resultados.</div>
+      } @else {
+        <ul class="pedido-list">
+          @for (p of pedidosFiltrados(); track p.id) {
+            <li class="pedido-item"
+                [class.active]="pedidoSeleccionado()?.id === p.id"
+                (click)="seleccionar(p)">
+              <div class="pi-top">
+                <span class="pi-nro">{{ p.nroPedido }}</span>
+                <span class="pi-badge" [class]="claseEstado(p.estado)">{{ p.estado }}</span>
+              </div>
+              <div class="pi-paciente">{{ p.paciente }}</div>
+              <div class="pi-meta">{{ p.odontologoNombre }}</div>
+            </li>
+          }
+        </ul>
+      }
+    </aside>
+
+    <!-- Panel derecho: escaneos -->
+    <section class="escaneos-panel">
+
+      @if (!pedidoSeleccionado()) {
+        <div class="empty-select">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.3">
+            <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+          </svg>
+          <p>Seleccioná un pedido para ver sus escaneos.</p>
+        </div>
+
+      } @else {
+        <!-- Sub-header -->
+        <div class="escaneos-subheader">
+          <div>
+            <button class="sel-nro sel-nro-link" (click)="abrirDetallePedido()" title="Ver detalle completo del pedido">
+              {{ pedidoSeleccionado()!.nroPedido }}
+            </button>
+            <span class="sel-paciente">— {{ pedidoSeleccionado()!.paciente }}</span>
+            <span class="sel-trabajo">{{ pedidoSeleccionado()!.trabajo }}</span>
+          </div>
+          <div class="upload-row">
+            <input class="desc-input" type="text" placeholder="Descripción (ej: Arcada superior)"
+                   [(ngModel)]="descripcionInput" [disabled]="subiendo()" />
+            <label class="btn-upload" [class.loading]="subiendo()">
+              @if (subiendo()) {
+                <span class="btn-spinner"></span> Subiendo {{ subidosCount() + 1 }}/{{ subiendoTotal() }} ({{ progresoActual() }}%)…
+              } @else {
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Subir escaneo(s)
+              }
+              <input type="file" class="hidden-input" (change)="onFileInput($event)"
+                     [disabled]="subiendo()" [accept]="accept" multiple />
+            </label>
+          </div>
+        </div>
+
+        <!-- Zona drag & drop -->
+        <div class="gallery-zone"
+             [class.dragging]="arrastrando()"
+             (dragover)="onDragOver($event)"
+             (dragleave)="onDragLeave()"
+             (drop)="onDrop($event)">
+
+          @if (cargandoEscaneos()) {
+            <div class="zone-msg"><div class="spinner-sm"></div><span>Cargando…</span></div>
+
+          } @else if (escaneos().length === 0) {
+            <div class="drop-empty">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.35">
+                <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+                <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+              </svg>
+              <p>Sin escaneos adjuntos.</p>
+              <span>Arrastrá uno o varios archivos STL/OBJ/PLY o usá el botón "Subir escaneo(s)".</span>
+            </div>
+
+          } @else {
+            <div class="escaneo-list">
+              @for (e of escaneos(); track e.id) {
+                <div class="escaneo-card">
+                  <!-- Ícono 3D con badge de extensión -->
+                  <div class="escaneo-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+                    </svg>
+                    <span class="ext-badge" [class]="colorExt(e.fileName)">{{ extension(e.fileName).slice(1).toUpperCase() }}</span>
+                  </div>
+
+                  <!-- Info -->
+                  <div class="escaneo-info">
+                    <span class="escaneo-name" [title]="e.fileName">
+                      {{ e.fileName.length > 28 ? e.fileName.slice(0, 28) + '…' : e.fileName }}
+                    </span>
+                    @if (e.descripcion) {
+                      <span class="escaneo-desc">{{ e.descripcion }}</span>
+                    }
+                    <span class="escaneo-meta">
+                      {{ formatSize(e.tamanioBytes) }} · {{ e.fechaSubida | date:'dd/MM/yy HH:mm' }}
+                      @if (e.subidoPor) { · {{ e.subidoPor }} }
+                    </span>
+                  </div>
+
+                  <!-- Acciones -->
+                  <div class="escaneo-actions">
+                    @if (esVisualizable3d(e.fileName)) {
+                      <button class="btn-accion ver3d"
+                              [disabled]="cargandoVisorId() === e.id"
+                              (click)="verEscaneo(e)" title="Ver en 3D">
+                        @if (cargandoVisorId() === e.id) {
+                          <span class="btn-spinner sm"></span>
+                        } @else {
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        }
+                      </button>
+                    }
+                    <button class="btn-accion download"
+                            [disabled]="descargandoId() === e.id"
+                            (click)="descargarEscaneo(e)" title="Descargar">
+                      @if (descargandoId() === e.id) {
+                        <span class="btn-spinner sm"></span>
+                      } @else {
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      }
+                    </button>
+                    <button class="btn-accion delete"
+                            [disabled]="eliminandoId() === e.id"
+                            (click)="eliminar(e)" title="Eliminar">
+                      @if (eliminandoId() === e.id) {
+                        <span class="btn-spinner sm"></span>
+                      } @else {
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6m4-6v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                      }
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          @if (arrastrando()) {
+            <div class="drag-overlay">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
+              <span>Soltá para subir el escaneo</span>
+            </div>
+          }
+        </div>
+      }
+    </section>
+  </div>
+
+  @if (visorAbierto()) {
+    <app-visor3d [url]="visorUrl()" [fileName]="visorFileName()" (cerrar)="cerrarVisor()" />
+  }
+
+  @if (detalleAbiertoId() !== null) {
+    <app-pedido-detalle-modal [pedidoId]="detalleAbiertoId()!" (cerrar)="cerrarDetallePedido()" />
+  }
+
+</div>

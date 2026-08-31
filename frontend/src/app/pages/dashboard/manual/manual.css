@@ -1,0 +1,159 @@
+:host { display: block; }
+
+.manual-page {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 1.5rem;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Nav lateral ── */
+.manual-nav {
+  border-right: 1px solid var(--border);
+  padding-right: 1rem;
+  overflow-y: auto;
+}
+.manual-nav h2 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin: 0 0 0.75rem;
+}
+.manual-nav nav { display: flex; flex-direction: column; gap: 2px; }
+.manual-nav-group-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 0.9rem 0 0.3rem 0.7rem;
+}
+.manual-nav-group-label:first-child { margin-top: 0.2rem; }
+.manual-nav-item {
+  text-align: left;
+  padding: 0.5rem 0.7rem;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.manual-nav-item:hover { background: var(--row-hover); }
+.manual-nav-item.activa {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Contenido ── */
+.manual-contenido { overflow-y: auto; padding: 2px 4px 40px; }
+.manual-seccion { max-width: 760px; }
+.manual-grupo-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 3px 10px;
+  border-radius: 999px;
+  margin-bottom: 0.6rem;
+}
+.manual-seccion h1 { margin: 0 0 0.5rem; font-size: 1.6rem; color: var(--text); }
+.manual-intro { color: var(--text); font-size: 1rem; line-height: 1.55; margin: 0 0 1.5rem; }
+
+.manual-bloque { margin-bottom: 1.4rem; }
+.manual-bloque h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+.manual-bloque ul { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.4rem; }
+.manual-bloque li { color: var(--muted); line-height: 1.5; font-size: 0.92rem; }
+.manual-bloque.pasos {
+  background: var(--row-hover, color-mix(in srgb, var(--text) 3%, transparent));
+  border-radius: 10px;
+  padding: 0.9rem 1.1rem;
+}
+.manual-bloque.pasos ol { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.manual-bloque.pasos li { color: var(--text); line-height: 1.5; font-size: 0.92rem; }
+.manual-bloque.pasos li::marker { color: var(--accent); font-weight: 700; }
+.manual-bloque.flujo {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  padding: 0.9rem 1rem;
+}
+.manual-bloque.flujo li { color: var(--text); }
+
+/* ── Slot de captura ── */
+.manual-captura { margin: 1.5rem 0 0; }
+.captura-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+  padding: 1.6rem 1rem;
+  border: 2px dashed var(--border-med);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.captura-ico { font-size: 1.6rem; }
+.captura-label { font-weight: 700; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.captura-desc { color: var(--text); font-size: 0.9rem; max-width: 460px; }
+.captura-id {
+  font-size: 0.75rem;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.captura-img {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+.captura-img.oculta { display: none; }
+
+@media (max-width: 720px) {
+  .manual-page {
+    grid-template-columns: 1fr;
+    /* En desktop el grid vive dentro de un contenedor con altura fija (scrollea
+       cada columna por separado); en mobile no hay esa altura fija, así que hay
+       que dejar que la página entera scrollee normal. */
+    height: auto;
+    overflow: visible;
+  }
+  /* Sin min-width:0 en los items de un grid de 1 columna, el track "1fr" toma
+     el ancho intrínseco del contenido más ancho (acá, la tira de tabs sin
+     wrap) en vez del ancho disponible real — así fue como el contenido
+     terminaba angosto/cortado a la derecha aunque la página no scrolleaba
+     horizontal (el overflow quedaba "adentro" del grid, invisible). */
+  .manual-nav, .manual-contenido { min-width: 0; }
+  .manual-nav {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 0 0 0.75rem;
+    /* Antes: max-height: 160px con overflow oculto — con más de ~10 secciones
+       las últimas quedaban cortadas y el scroll interno no se notaba. Ahora es
+       una tira horizontal (patrón típico de tabs en mobile: siempre entra todo,
+       y que se corte un ítem a la mitad ya avisa que hay que deslizar). */
+    max-height: none;
+  }
+  .manual-nav nav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+  .manual-nav-item { flex-shrink: 0; white-space: nowrap; }
+  .manual-contenido { overflow-y: visible; }
+}

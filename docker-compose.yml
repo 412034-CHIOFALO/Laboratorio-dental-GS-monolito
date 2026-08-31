@@ -1,14 +1,23 @@
-# Compose de PRODUCCIÓN — vive en el VPS (ej. /opt/gs-monolito/docker-compose.yml),
-# no se reconstruye en cada deploy: el pipeline de CD solo hace
-# `docker compose pull app && docker compose up -d app` contra este archivo.
+# Sirve para dos casos, gracias a que "app" y "frontend" declaran build Y
+# image al mismo tiempo:
 #
-# Setup inicial en el servidor (una sola vez):
-#   1. Copiar este archivo + docker-entrypoint-initdb.d/ al VPS.
+#   - DESARROLLO LOCAL: `docker compose up --build` compila todo desde el
+#     código fuente de este repo (backend + frontend) y levanta el sistema
+#     completo (frontend + monolito + mysql + minio) con un solo comando —
+#     sin tocar ni levantar nada del repo viejo de microservicios.
+#   - PRODUCCIÓN (VPS): vive en /opt/gs-monolito/docker-compose.yml. El
+#     pipeline de CD no reconstruye nada acá — solo hace
+#     `docker compose pull && docker compose up -d` contra las imágenes ya
+#     armadas en ghcr.io.
+#
+# Setup inicial en el VPS (una sola vez):
+#   1. Copiar este archivo + docker-entrypoint-initdb.d/ al servidor.
 #   2. Copiar .env.example a .env y completar los valores reales.
 #   3. docker compose up -d
 
 services:
   app:
+    build: .
     image: ${GS_IMAGE:-ghcr.io/OWNER/gs-monolito:latest}
     restart: unless-stopped
     ports:
@@ -20,6 +29,17 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+
+  frontend:
+    build: ./frontend
+    image: ${GS_FRONTEND_IMAGE:-ghcr.io/OWNER/gs-monolito-frontend:latest}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      GS_BOT_API_KEY: ${GS_BOT_API_KEY:-gs-bot-dev-key-cambiar-en-prod}
+    depends_on:
+      - app
 
   mysql:
     image: mysql:8.0

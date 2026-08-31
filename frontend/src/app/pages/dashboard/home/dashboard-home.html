@@ -1,0 +1,144 @@
+<div class="home-view">
+
+  <!-- ── HEADER ── -->
+  <header class="home-header">
+    <div>
+      <h1>Resumen del día</h1>
+      <p class="home-date">{{ fechaHoy }}</p>
+    </div>
+    <div class="home-actions">
+      <button class="btn-primary" routerLink="/dashboard/pedidos">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        Nuevo pedido
+      </button>
+    </div>
+  </header>
+
+  <!-- ── LOADING ── -->
+  @if (loading) {
+    <div class="loading-row">
+      <div class="spinner-lg"></div>
+      <span>Cargando resumen...</span>
+    </div>
+  }
+
+  <!-- ── KPI GRID ── -->
+  @if (!loading) {
+  <section class="kpi-grid">
+    @for (k of kpis; track k.label) {
+      <article class="kpi-card" (click)="goTo(k.to)" [class.clickable]="k.to">
+        <header class="kpi-head">
+          <span class="kpi-dot" [style.background]="k.hue"></span>
+          <span class="kpi-label">{{ k.label }}</span>
+        </header>
+        <div class="kpi-row">
+          <span class="kpi-value">{{ k.value }}</span>
+          <svg class="kpi-spark" viewBox="0 0 64 24" width="64" height="24" preserveAspectRatio="none">
+            <polyline
+              [attr.points]="sparklinePath(k.sparkline)"
+              fill="none"
+              [attr.stroke]="k.sparkColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"/>
+          </svg>
+        </div>
+        @if (k.delta) {
+          <p class="kpi-delta" [attr.data-clase]="k.delta.clase">
+            @if (k.delta.clase === 'up')   { <span>▲</span> }
+            @if (k.delta.clase === 'down') { <span>▼</span> }
+            {{ k.delta.texto }}
+          </p>
+        }
+      </article>
+    }
+  </section>
+
+  <!-- ── CONTENT GRID — 2 columnas ── -->
+  <section class="content-grid">
+
+    <!-- Pedidos recientes -->
+    <div class="panel">
+      <header class="panel__head">
+        <h3>Pedidos recientes</h3>
+        <div class="panel__links">
+          <a routerLink="/dashboard/pedidos" class="panel__link">Ver todos →</a>
+        </div>
+      </header>
+
+      @if (pedidosRecientes.length === 0) {
+        <div class="panel__empty">Aún no hay pedidos cargados.</div>
+      } @else {
+        <div class="ped-table-wrap">
+          <table class="ped-table">
+            <thead>
+              <tr>
+                <th>Nº</th>
+                <th>Paciente / Odontólogo</th>
+                <th>Trabajo</th>
+                <th>Estado</th>
+                <th>Entrega</th>
+                <th class="th-right">Precio</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (p of pedidosRecientes; track p.id) {
+                @let entrega = diasParaEntrega(p.fechaEntrega);
+                <tr (click)="abrirDetalle(p.id)">
+                  <td class="td-id">{{ p.nroPedido }}</td>
+                  <td>
+                    <strong>{{ p.paciente }}</strong>
+                    <small>{{ p.odontologoNombre }}</small>
+                  </td>
+                  <td class="td-trab">{{ p.trabajo }}</td>
+                  <td>
+                    <span class="chip" [ngClass]="chipClass(p.estado)">{{ labelEstado(p.estado) }}</span>
+                  </td>
+                  <td [class.td-vencido]="entrega.vencido">{{ entrega.texto }}</td>
+                  <td class="td-precio">{{ formatMoney(p.precioAcordado) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+
+    <!-- Alertas y actividad -->
+    <div class="panel">
+      <header class="panel__head">
+        <h3>Alertas y actividad</h3>
+      </header>
+
+      @if (alertas.length === 0) {
+        <div class="panel__empty">Sin alertas por ahora</div>
+      } @else {
+        <div class="alert-list">
+          @for (a of alertas; track $index) {
+            <div class="mini-item" [class.clickable]="a.to" (click)="goTo(a.to)">
+              <span class="mini-dot" [style.background]="a.hue"></span>
+              <div class="mini-text">
+                <strong>
+                  {{ a.titulo }}
+                  @if (a.badge === 'URGENTE') { <span class="mini-badge urgent">URGENTE</span> }
+                  @if (a.badge === 'CRITICO') { <span class="mini-badge crit">CRÍTICO</span> }
+                </strong>
+                <small>{{ a.subtitulo }}</small>
+              </div>
+              @if (a.valor) {
+                <span class="mini-valor">{{ a.valor }}</span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </section>
+  }
+</div>
+
+@if (detalleAbiertoId !== null) {
+  <app-pedido-detalle-modal [pedidoId]="detalleAbiertoId" (cerrar)="cerrarDetalle()" />
+}

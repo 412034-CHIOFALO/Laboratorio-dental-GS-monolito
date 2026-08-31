@@ -1,0 +1,195 @@
+<div class="bot-view">
+
+  <!-- ── Encabezado ── -->
+  <header class="bot-header">
+    <div>
+      <h1>Bot de WhatsApp</h1>
+      <p class="sub">Estado de conexión e historial de comprobantes procesados.</p>
+    </div>
+    <div class="header-actions">
+      <button class="conexion-badge" [class]="claseConexion()" (click)="abrirModal()">
+        <span class="dot"></span>
+        <span>{{ labelConexion() }}</span>
+      </button>
+      @if (!sinConexionBot() && estado()?.conectado) {
+        <button class="btn-refresh" (click)="reconciliar()" [disabled]="reconciliando()"
+                title="Revisa el historial reciente de los grupos por si quedó algún comprobante sin cargar">
+          {{ reconciliando() ? 'Revisando…' : '🔄 Revisar mensajes perdidos' }}
+        </button>
+      }
+      <button class="btn-refresh" (click)="cargar()" [disabled]="cargando()">↻ Actualizar</button>
+    </div>
+  </header>
+
+  <!-- ── Filtros + tabla ── -->
+  <div class="filtros">
+    <button class="pill" [class.active]="filtroEstado()==='TODOS'" (click)="setFiltro('TODOS')">
+      Todos ({{ registros().length }})
+    </button>
+    <button class="pill ok" [class.active]="filtroEstado()==='REGISTRADO'" (click)="setFiltro('REGISTRADO')">
+      Registrados ({{ contar('REGISTRADO') }})
+    </button>
+    <button class="pill err" [class.active]="filtroEstado()==='RECHAZADO'" (click)="setFiltro('RECHAZADO')">
+      Rechazados ({{ contar('RECHAZADO') }})
+    </button>
+    <button class="pill dup" [class.active]="filtroEstado()==='DUPLICADO'" (click)="setFiltro('DUPLICADO')">
+      Duplicados ({{ contar('DUPLICADO') }})
+    </button>
+  </div>
+
+  @if (cargando()) {
+    <p class="estado-msg">Cargando…</p>
+  } @else if (filtrados().length === 0) {
+    <div class="vacio">
+      <p>No hay registros del bot todavía.</p>
+      <span>Cuando llegue un comprobante al grupo, aparece acá.</span>
+    </div>
+  } @else {
+    <div class="tabla-wrap">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th class="sortable" (click)="sort.toggle('fechaHora')">Fecha <span class="sort-ico">{{ sort.icono('fechaHora') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('estado')">Estado <span class="sort-ico">{{ sort.icono('estado') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('tipoReceptor')">Tipo <span class="sort-ico">{{ sort.icono('tipoReceptor') }}</span></th>
+            <th class="monto sortable" (click)="sort.toggle('monto')">Monto <span class="sort-ico">{{ sort.icono('monto') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('emisor')">Pagó <span class="sort-ico">{{ sort.icono('emisor') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('receptorNombre')">Recibió <span class="sort-ico">{{ sort.icono('receptorNombre') }}</span></th>
+            <th>N° op.</th>
+            <th class="sortable" (click)="sort.toggle('grupoOrigen')">Grupo <span class="sort-ico">{{ sort.icono('grupoOrigen') }}</span></th>
+            <th>Comp.</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of filtrados(); track r.id) {
+            <tr>
+              <td class="nowrap">{{ r.fechaHora | date:'dd/MM HH:mm' }}</td>
+              <td><span class="badge" [class]="claseEstado(r.estado)">{{ r.estado }}</span></td>
+              <td><span class="tipo" [class]="claseTipo(r.tipoReceptor)">{{ labelTipo(r.tipoReceptor) }}</span></td>
+              <td class="monto">{{ r.monto ? ('$' + (r.monto | number:'1.0-0')) : '—' }}</td>
+              <td>{{ r.emisor || '—' }}</td>
+              <td>
+                <strong>{{ r.receptorResuelto || r.receptorNombre || '—' }}</strong>
+                @if (r.receptorResuelto && r.receptorNombre && r.receptorResuelto !== r.receptorNombre) {
+                  <span class="raw"> (detectado: "{{ r.receptorNombre }}")</span>
+                }
+                @if (r.mensaje) {
+                  <div class="msg" [class.err]="r.estado === 'RECHAZADO'">{{ r.mensaje }}</div>
+                }
+              </td>
+              <td class="nowrap">{{ r.idOperacion || '—' }}</td>
+              <td>{{ r.grupoOrigen || '—' }}</td>
+              <td>
+                @if (r.tieneComprobante) {
+                  <button class="link" (click)="verComprobante(r)">ver</button>
+                } @else { <span class="dim">—</span> }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<!-- ══ Modal de estado del bot ══ -->
+@if (modalAbierto()) {
+  <div class="modal-overlay" (click)="cerrarModal()">
+    <div class="modal" (click)="$event.stopPropagation()">
+
+      <!-- Cabecera del modal -->
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <span class="modal-dot" [class]="claseConexion()"></span>
+          <h2>Estado del bot</h2>
+        </div>
+        <button class="modal-close" (click)="cerrarModal()" aria-label="Cerrar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Cuerpo -->
+      <div class="modal-body">
+
+        @if (sinConexionBot()) {
+          <div class="offline-msg">
+            <strong>No llegamos al bot.</strong>
+            <p>Verificá que esté corriendo: <code>node index.js</code> en dev, o <code>docker compose ps gs-bot</code> en prod.</p>
+          </div>
+
+        } @else if (estado(); as e) {
+
+          <!-- QR cuando está desvinculado -->
+          @if (mostrarQr()) {
+            <div class="qr-block">
+              <div class="qr-img">
+                <img [src]="e.qrDataUrl" alt="Código QR para vincular el bot" />
+              </div>
+              <div class="qr-instr">
+                <h3>Vinculá el bot</h3>
+                <ol>
+                  <li>Abrí <strong>WhatsApp</strong> en el teléfono del laboratorio.</li>
+                  <li>Andá a <strong>Configuración → Dispositivos vinculados</strong>.</li>
+                  <li>Tocá <strong>Vincular un dispositivo</strong> y escaneá el código.</li>
+                </ol>
+                <p class="hint">El QR se regenera solo. Esta ventana se actualiza cada 3 s.</p>
+              </div>
+            </div>
+          }
+
+          <!-- Detalles -->
+          <div class="detalles">
+            <div class="detalle">
+              <span class="k">Estado</span>
+              <span class="v estado-txt" [class]="claseConexion()">{{ e.conectado ? 'Conectado' : 'Desvinculado' }}</span>
+            </div>
+            @if (e.motivo) {
+              <div class="detalle">
+                <span class="k">Motivo</span>
+                <span class="v">{{ e.motivo }}</span>
+              </div>
+            }
+            <div class="detalle">
+              <span class="k">Backend</span>
+              <span class="v">
+                @if (e.backendActivo) {
+                  <span class="chip chip-ok">Registrando en el ERP</span>
+                } @else {
+                  <span class="chip chip-warn">Solo consola</span>
+                }
+              </span>
+            </div>
+            <div class="detalle">
+              <span class="k">Grupos</span>
+              <span class="v">
+                @for (g of e.grupos; track g) { <span class="chip">{{ g }}</span> }
+                @if (!e.grupos.length) { <span class="dim">Todos</span> }
+              </span>
+            </div>
+            <div class="detalle">
+              <span class="k">Última señal</span>
+              <span class="v dim">{{ e.ultimaActualizacion | date:'dd/MM/yyyy HH:mm:ss' }}</span>
+            </div>
+          </div>
+        }
+      </div>
+
+      <div class="modal-footer">
+        <span class="live-txt">
+          <span class="live-dot" [class]="claseConexion()"></span>
+          Actualizando cada 3 s
+        </span>
+        <div class="footer-actions">
+          <button class="btn-regen" (click)="regenerarQr()" [disabled]="regenerandoQr()">
+            {{ regenerandoQr() ? 'Regenerando…' : 'Regenerar QR' }}
+          </button>
+          <button class="btn-cerrar" (click)="cerrarModal()">Cerrar</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+}

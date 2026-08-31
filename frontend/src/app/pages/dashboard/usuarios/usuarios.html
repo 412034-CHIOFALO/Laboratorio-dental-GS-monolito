@@ -1,0 +1,177 @@
+<div class="page-content">
+
+  <!-- HEADER -->
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Usuarios</h1>
+      <p>Gestioná las cuentas del sistema</p>
+    </div>
+    <button class="btn-create" (click)="abrirModal()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Nuevo usuario
+    </button>
+  </div>
+
+  @if (error) {
+    <div class="alert-error">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      {{ error }}
+    </div>
+  }
+
+  @if (loading) {
+    <div class="loading-wrap">
+      <div class="spinner-lg"></div>
+      <span>Cargando usuarios...</span>
+    </div>
+  }
+
+  @if (!loading) {
+    <div class="table-wrap">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th class="sortable" (click)="sort.toggle('username')">Usuario <span class="sort-ico">{{ sort.icono('username') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('nombre')">Nombre <span class="sort-ico">{{ sort.icono('nombre') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('rol')">Rol <span class="sort-ico">{{ sort.icono('rol') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('telefono')">Teléfono <span class="sort-ico">{{ sort.icono('telefono') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('estado')">Estado <span class="sort-ico">{{ sort.icono('estado') }}</span></th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of usuariosVista; track u.id) {
+            <tr>
+              <td class="td-username">
+                <div class="user-chip">
+                  <div class="user-avatar">{{ u.username.charAt(0).toUpperCase() }}</div>
+                  <span>{{ u.username }}</span>
+                </div>
+              </td>
+              <td>{{ u.nombre }} {{ u.apellido }}</td>
+              <td><span class="badge-rol" [ngClass]="u.rol.toLowerCase()">{{ rolLabel(u.rol) }}</span></td>
+              <td class="td-tel">
+                @if (u.telefono) {
+                  <span class="tel-val">{{ u.telefono }}</span>
+                } @else {
+                  <span class="tel-empty">—</span>
+                }
+                <button class="btn-icon-tel" title="Editar teléfono" (click)="abrirEditarTel(u)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </button>
+              </td>
+              <td>
+                <span class="badge-estado" [class.activo]="u.enabled" [class.pendiente]="!u.enabled">
+                  {{ u.enabled ? 'Activo' : 'Pendiente' }}
+                </span>
+              </td>
+              <td class="td-acciones">
+                @if (!u.enabled) {
+                  <button class="btn-activar" (click)="activar(u.id)">Activar</button>
+                } @else {
+                  <button class="btn-desactivar" (click)="desactivar(u.id)">Desactivar</button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="6" class="td-empty">No hay usuarios registrados todavía.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+</div>
+
+<!-- ── MODAL CREAR USUARIO ── -->
+@if (showModal) {
+  <div class="modal-backdrop" (click)="cerrarModal()"></div>
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Nuevo usuario</h2>
+      <button class="modal-close" (click)="cerrarModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <form class="modal-form" (ngSubmit)="crearUsuario()">
+      <div class="fields-row">
+        <div class="field-group">
+          <label>Nombre</label>
+          <input type="text" [(ngModel)]="form.nombre" name="nombre" placeholder="Nombre" required>
+        </div>
+        <div class="field-group">
+          <label>Apellido</label>
+          <input type="text" [(ngModel)]="form.apellido" name="apellido" placeholder="Apellido" required>
+        </div>
+      </div>
+      <div class="field-group">
+        <label>Nombre de usuario</label>
+        <input type="text" [(ngModel)]="form.username" name="username" placeholder="usuario123" required>
+      </div>
+      <div class="field-group">
+        <label>Rol</label>
+        <select [(ngModel)]="form.rol" name="rol" required>
+          <option value="" disabled selected>Seleccioná un rol</option>
+          <option value="TECNICO">Técnico de laboratorio</option>
+          <option value="ADMINISTRATIVO">Administrativo</option>
+          <option value="ODONTOLOGO">Odontólogo cliente</option>
+          <option value="ADMIN">Administrador</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label>Contraseña inicial</label>
+        <input type="password" [(ngModel)]="form.password" name="password" placeholder="Mínimo 8 caracteres" minlength="8" required>
+      </div>
+      @if (saveError)   { <div class="alert-error"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> {{ saveError }}</div> }
+      @if (saveSuccess) { <div class="alert-success"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> {{ saveSuccess }}</div> }
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" (click)="cerrarModal()">Cancelar</button>
+        <button type="submit" class="btn-save" [disabled]="saving">
+          @if (saving) { <span class="spinner-sm"></span> } @else { <span>Crear usuario</span> }
+        </button>
+      </div>
+    </form>
+  </div>
+}
+
+<!-- ── MODAL EDITAR TELÉFONO ── -->
+@if (showTelModal && editandoUsuario) {
+  <div class="modal-backdrop" (click)="cerrarTelModal()"></div>
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Teléfono de {{ editandoUsuario.nombre }}</h2>
+      <button class="modal-close" (click)="cerrarTelModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <form class="modal-form" (ngSubmit)="guardarTelefono()">
+      <p class="modal-hint">El teléfono permite al bot de WhatsApp identificar al integrante cuando carga comprobantes.</p>
+      <div class="field-group">
+        <label>Número (ej: 5491112345678)</label>
+        <input type="tel" [(ngModel)]="formTel.telefono" name="telefono"
+               (ngModelChange)="formTel.telefono = sanitizarTelefono($event)"
+               inputmode="tel" maxlength="30" placeholder="5491112345678">
+      </div>
+      @if (telError)   { <div class="alert-error">{{ telError }}</div> }
+      @if (telSuccess) { <div class="alert-success">{{ telSuccess }}</div> }
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" (click)="cerrarTelModal()">Cancelar</button>
+        <button type="submit" class="btn-save" [disabled]="savingTel">
+          @if (savingTel) { <span class="spinner-sm"></span> } @else { <span>Guardar</span> }
+        </button>
+      </div>
+    </form>
+  </div>
+}

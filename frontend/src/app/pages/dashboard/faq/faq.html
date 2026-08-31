@@ -1,0 +1,49 @@
+<div class="faq-page">
+
+  <div class="page-header">
+    <div class="header-left">
+      <div class="page-icon amber">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Preguntas frecuentes</h1>
+        <p class="subtitle">Respuestas rápidas a las dudas más comunes del sistema</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="faq-buscador">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" [(ngModel)]="busqueda" placeholder="Buscá por palabra clave (ej: contraseña, bot, deuda)...">
+  </div>
+
+  @if (categoriasFiltradas().length === 0) {
+    <div class="faq-vacio">No encontramos preguntas que coincidan con "{{ busqueda }}".</div>
+  }
+
+  @for (cat of categoriasFiltradas(); track cat.id) {
+    <section class="faq-categoria">
+      <h2>{{ cat.titulo }}</h2>
+      <div class="faq-lista">
+        @for (p of cat.preguntas; track p.id) {
+          <div class="faq-item" [class.abierta]="estaAbierta(p.id)">
+            <button type="button" class="faq-pregunta" (click)="toggle(p.id)" [attr.aria-expanded]="estaAbierta(p.id)">
+              <span>{{ p.pregunta }}</span>
+              <svg class="faq-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            @if (estaAbierta(p.id)) {
+              <div class="faq-respuesta">{{ p.respuesta }}</div>
+            }
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+</div>

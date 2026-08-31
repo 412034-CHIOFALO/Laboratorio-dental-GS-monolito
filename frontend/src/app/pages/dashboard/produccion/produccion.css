@@ -1,0 +1,638 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* PAGE SHELL */
+.prod-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.5rem 2rem 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* HEADER — patrón compartido con Reportes/FAQ/Auditoría */
+.page-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; flex-shrink: 0; }
+.header-left { display: flex; align-items: center; gap: 0.75rem; }
+.page-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.page-icon.cyan { background: var(--gs-cyan-soft); color: var(--gs-cyan); }
+.page-header h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--gs-text);
+  margin: 0;
+}
+.subtitle { color: var(--gs-text-muted); font-size: 0.8rem; margin: 0.15rem 0 0; }
+
+.title-row { display: flex; align-items: center; gap: 0.6rem; }
+
+.badge-urgentes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--gs-rose-soft);
+  color: var(--gs-rose);
+  border: 1px solid rgba(244,63,94,0.3);
+  letter-spacing: 0.02em;
+}
+
+.header-controls { display: flex; align-items: center; gap: 0.75rem; }
+
+.filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--gs-text-muted);
+}
+
+.filter-select {
+  padding: 0.48rem 2rem 0.48rem 0.7rem;
+  border: 1.5px solid var(--gs-border-md);
+  border-radius: 9px;
+  font-size: 0.84rem;
+  font-family: 'Inter', sans-serif;
+  color: var(--gs-text);
+  background: var(--gs-card);
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.filter-select option { background: var(--gs-card-2); color: var(--gs-text); }
+.filter-select:focus { border-color: var(--gs-green); box-shadow: 0 0 0 3px var(--gs-green-soft); }
+
+/* VIEW SWITCHING */
+.mobile-view  { display: flex; flex-direction: column; gap: 1rem; flex: 1 1 auto; min-height: 0; }
+.desktop-view { display: none; flex-direction: column; gap: 1rem; flex: 1 1 auto; min-height: 0; }
+
+@media (min-width: 768px) {
+  .mobile-view  { display: none; }
+  .desktop-view { display: flex; }
+}
+
+/* ── MOBILE VIEW ── */
+
+.col-tabs {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding-bottom: 2px;
+  flex-shrink: 0;
+}
+.col-tabs::-webkit-scrollbar { display: none; }
+
+.col-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--gs-border-md);
+  background: var(--gs-card);
+  font-size: 0.84rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  color: var(--gs-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.18s;
+  min-height: 42px;
+}
+
+.col-tab.active[data-col="RECIBIDO"]   { background: rgba(59,130,246,0.1);  border-color: rgba(59,130,246,0.4);  color: #60a5fa; }
+.col-tab.active[data-col="EN_PROCESO"] { background: rgba(245,158,11,0.1);  border-color: rgba(245,158,11,0.4);  color: var(--gs-amber); }
+.col-tab.active[data-col="CONTROL"]    { background: rgba(168,85,247,0.1);  border-color: rgba(168,85,247,0.4);  color: var(--gs-purple); }
+.col-tab.active[data-col="LISTO"]      { background: var(--gs-green-soft);  border-color: var(--gs-green-border); color: var(--gs-green); }
+
+.tab-label { line-height: 1; }
+
+.tab-count {
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--gs-card-2);
+  color: var(--gs-text-dim);
+  transition: all 0.18s;
+}
+.col-tab.active[data-col="RECIBIDO"]   .tab-count { background: rgba(59,130,246,0.2);  color: #60a5fa; }
+.col-tab.active[data-col="EN_PROCESO"] .tab-count { background: rgba(245,158,11,0.2);  color: var(--gs-amber); }
+.col-tab.active[data-col="CONTROL"]    .tab-count { background: rgba(168,85,247,0.2);  color: var(--gs-purple); }
+.col-tab.active[data-col="LISTO"]      .tab-count { background: var(--gs-green-glow);  color: var(--gs-green); }
+
+/* Flow indicator */
+.flow-indicator {
+  display: flex;
+  align-items: center;
+  padding: 0 0.25rem;
+  flex-shrink: 0;
+}
+
+.flow-step {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.flow-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--gs-card-2);
+  flex-shrink: 0;
+  transition: background 0.2s, transform 0.2s;
+}
+.flow-step.done  .flow-dot { background: var(--gs-green); }
+.flow-step.active[data-col="RECIBIDO"]   .flow-dot { background: #3b82f6; transform: scale(1.4); box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+.flow-step.active[data-col="EN_PROCESO"] .flow-dot { background: var(--gs-amber); transform: scale(1.4); box-shadow: 0 0 0 3px rgba(245,158,11,0.2); }
+.flow-step.active[data-col="CONTROL"]    .flow-dot { background: var(--gs-purple); transform: scale(1.4); box-shadow: 0 0 0 3px rgba(168,85,247,0.2); }
+.flow-step.active[data-col="LISTO"]      .flow-dot { background: var(--gs-green); transform: scale(1.4); box-shadow: 0 0 0 3px var(--gs-green-glow); }
+
+.flow-line {
+  flex: 1;
+  height: 2px;
+  background: var(--gs-border);
+  margin: 0 3px;
+}
+.flow-step.done .flow-line { background: var(--gs-green); }
+
+/* Active column header */
+.active-col-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.col-dot-lg {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.col-dot-lg[data-col="RECIBIDO"]   { background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.5); }
+.col-dot-lg[data-col="EN_PROCESO"] { background: var(--gs-amber); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+.col-dot-lg[data-col="CONTROL"]    { background: var(--gs-purple); box-shadow: 0 0 6px rgba(168,85,247,0.5); }
+.col-dot-lg[data-col="LISTO"]      { background: var(--gs-green); box-shadow: 0 0 6px var(--gs-green-glow); }
+
+.active-col-label {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--gs-text);
+}
+
+.active-col-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--gs-text-dim);
+}
+
+/* Mobile cards list */
+.mobile-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-bottom: 6rem;
+}
+
+/* Mobile empty state */
+.mobile-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+.empty-icon-wrap {
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.empty-icon-wrap[data-col="RECIBIDO"]   { background: rgba(59,130,246,0.1);  color: #60a5fa; }
+.empty-icon-wrap[data-col="EN_PROCESO"] { background: rgba(245,158,11,0.1);  color: var(--gs-amber); }
+.empty-icon-wrap[data-col="CONTROL"]    { background: rgba(168,85,247,0.1);  color: var(--gs-purple); }
+.empty-icon-wrap[data-col="LISTO"]      { background: var(--gs-green-soft);  color: var(--gs-green); }
+
+.mobile-empty p     { font-size: 0.92rem; font-weight: 600; color: var(--gs-text); margin: 0; }
+.mobile-empty small { font-size: 0.8rem;  color: var(--gs-text-muted); line-height: 1.5; }
+
+/* MOBILE CARD */
+.m-card {
+  background: var(--gs-card);
+  border: 1.5px solid var(--gs-border);
+  border-radius: 16px;
+  padding: 1.1rem 1.1rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  border-left: 4px solid var(--gs-border-md);
+  transition: box-shadow 0.18s;
+}
+.m-card:active { box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+
+.m-card[data-col="RECIBIDO"]   { border-left-color: #3b82f6; }
+.m-card[data-col="EN_PROCESO"] { border-left-color: var(--gs-amber); }
+.m-card[data-col="CONTROL"]    { border-left-color: var(--gs-purple); }
+.m-card[data-col="LISTO"]      { border-left-color: var(--gs-green); }
+
+.m-card.urgente { border-left-color: var(--gs-rose); }
+
+/* Card top row */
+.m-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.m-top-left { display: flex; align-items: center; gap: 0.5rem; }
+
+.m-nro {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--gs-text-dim);
+  letter-spacing: 0.06em;
+}
+
+.m-urgente-badge {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.63rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--gs-rose);
+  background: var(--gs-rose-soft);
+  border: 1px solid rgba(244,63,94,0.3);
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+/* Due date badge */
+.m-due {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.m-due[data-urgency="overdue"] { background: var(--gs-rose-soft);  color: var(--gs-rose); }
+.m-due[data-urgency="urgent"]  { background: rgba(245,158,11,0.12); color: var(--gs-amber-light); }
+.m-due[data-urgency="soon"]    { background: rgba(245,158,11,0.08); color: var(--gs-amber); }
+.m-due[data-urgency="ok"]      { background: var(--gs-green-soft);  color: var(--gs-green); }
+
+/* Work name */
+.m-trabajo {
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: var(--gs-text);
+  line-height: 1.3;
+  margin: 0;
+}
+
+/* Parties */
+.m-parties {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--gs-text-muted);
+  flex-wrap: wrap;
+}
+.m-party     { display: flex; align-items: center; gap: 4px; }
+.m-odontologo { font-weight: 600; color: var(--gs-text); }
+.m-paciente   { color: var(--gs-text-muted); }
+.m-sep-dot    { color: var(--gs-text-dim); font-weight: 700; }
+
+/* Technician */
+.m-tecnico-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.m-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: -0.5px;
+}
+.m-tec-name { font-size: 0.82rem; font-weight: 600; color: var(--gs-text-muted); }
+
+/* Divider */
+.m-divider { height: 1px; background: var(--gs-border); margin: 0.1rem 0; }
+
+/* Actions */
+.m-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.1rem;
+}
+
+.btn-retroceder {
+  width: 48px;
+  height: 48px;
+  border: 1.5px solid var(--gs-border-md);
+  border-radius: 12px;
+  background: var(--gs-card-2);
+  color: var(--gs-text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.18s, color 0.18s, background 0.18s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-retroceder:active { background: var(--gs-card-hover); border-color: var(--gs-border-green); color: var(--gs-text); }
+
+.btn-avanzar {
+  flex: 1;
+  min-height: 48px;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  font-family: 'Inter', sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: filter 0.15s, transform 0.12s;
+  -webkit-tap-highlight-color: transparent;
+  color: white;
+}
+.btn-avanzar:active { filter: brightness(0.88); transform: scale(0.98); }
+
+.btn-avanzar[data-col="RECIBIDO"]   { background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 3px 12px rgba(59,130,246,0.4); }
+.btn-avanzar[data-col="EN_PROCESO"] { background: linear-gradient(135deg, #8b5cf6, #7c3aed); box-shadow: 0 3px 12px rgba(139,92,246,0.4); }
+.btn-avanzar[data-col="CONTROL"]    { background: var(--gs-gradient-green); box-shadow: var(--gs-shadow-green); }
+
+.estado-listo {
+  flex: 1;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--gs-green);
+  background: var(--gs-green-soft);
+  border-radius: 12px;
+  border: 1.5px solid var(--gs-green-border);
+}
+
+/* ── DESKTOP VIEW ── */
+
+/* Stats strip */
+.stats-strip {
+  display: flex;
+  background: var(--gs-card);
+  border: 1.5px solid var(--gs-border);
+  border-radius: 12px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.strip-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.82rem;
+  color: var(--gs-text-muted);
+  font-weight: 500;
+  border-right: 1px solid var(--gs-border);
+}
+.strip-item:last-child { border-right: none; }
+.strip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.strip-dot[data-col="RECIBIDO"]   { background: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.5); }
+.strip-dot[data-col="EN_PROCESO"] { background: var(--gs-amber); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+.strip-dot[data-col="CONTROL"]    { background: var(--gs-purple); box-shadow: 0 0 6px rgba(168,85,247,0.5); }
+.strip-dot[data-col="LISTO"]      { background: var(--gs-green); box-shadow: 0 0 6px var(--gs-green-glow); }
+.strip-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip-count {
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 1px 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.strip-count[data-col="RECIBIDO"]   { background: rgba(59,130,246,0.15);  color: #60a5fa; }
+.strip-count[data-col="EN_PROCESO"] { background: rgba(245,158,11,0.15);  color: var(--gs-amber); }
+.strip-count[data-col="CONTROL"]    { background: rgba(168,85,247,0.15);  color: var(--gs-purple); }
+.strip-count[data-col="LISTO"]      { background: var(--gs-green-soft);   color: var(--gs-green); }
+
+/* Board scroll */
+.board-scroll {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  padding-bottom: 1.5rem;
+  -webkit-overflow-scrolling: touch;
+}
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(260px, 1fr));
+  gap: 1rem;
+  min-height: 520px;
+  align-items: stretch;
+}
+
+/* Column */
+.kanban-col {
+  display: flex;
+  flex-direction: column;
+  background: var(--gs-card);
+  border: 1.5px solid var(--gs-border);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.kanban-col.is-drag-over {
+  border-color: var(--gs-green);
+  box-shadow: 0 0 0 3px var(--gs-green-soft);
+}
+
+.col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 0.9rem 0.7rem;
+  border-bottom: 2.5px solid transparent;
+  flex-shrink: 0;
+}
+.col-header[data-col="RECIBIDO"]   { border-bottom-color: #3b82f6; }
+.col-header[data-col="EN_PROCESO"] { border-bottom-color: var(--gs-amber); }
+.col-header[data-col="CONTROL"]    { border-bottom-color: var(--gs-purple); }
+.col-header[data-col="LISTO"]      { border-bottom-color: var(--gs-green); }
+
+.col-header-left { display: flex; align-items: center; gap: 0.45rem; }
+.col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.col-dot[data-col="RECIBIDO"]   { background: #3b82f6; }
+.col-dot[data-col="EN_PROCESO"] { background: var(--gs-amber); }
+.col-dot[data-col="CONTROL"]    { background: var(--gs-purple); }
+.col-dot[data-col="LISTO"]      { background: var(--gs-green); }
+.col-title { font-size: 0.77rem; font-weight: 700; color: var(--gs-text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.col-count { font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+.col-count[data-col="RECIBIDO"]   { background: rgba(59,130,246,0.15);  color: #60a5fa; }
+.col-count[data-col="EN_PROCESO"] { background: rgba(245,158,11,0.15);  color: var(--gs-amber); }
+.col-count[data-col="CONTROL"]    { background: rgba(168,85,247,0.15);  color: var(--gs-purple); }
+.col-count[data-col="LISTO"]      { background: var(--gs-green-soft);   color: var(--gs-green); }
+
+.drop-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--gs-green);
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: max-height 0.15s, opacity 0.15s, padding 0.15s;
+}
+.drop-hint.visible { max-height: 40px; opacity: 1; padding: 0.5rem; }
+
+.col-body {
+  padding: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: 1;
+  min-height: 200px;
+}
+
+.col-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  color: var(--gs-text-dim);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Desktop Kanban card */
+.k-card {
+  background: var(--gs-card-2);
+  border: 1.5px solid var(--gs-border);
+  border-radius: 11px;
+  padding: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: box-shadow 0.18s, transform 0.18s, opacity 0.18s, border-color 0.18s;
+}
+.k-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.4); transform: translateY(-1px); border-color: var(--gs-border-md); }
+.k-card:active { cursor: grabbing; }
+.k-card.urgente { border-left: 3px solid var(--gs-rose); background: rgba(244,63,94,0.04); }
+.k-card.is-dragging { opacity: 0.3; transform: scale(0.96); }
+
+.k-urgente-strip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--gs-rose);
+  background: var(--gs-rose-soft);
+  margin: -0.8rem -0.8rem 0.5rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 9px 9px 0 0;
+  border-bottom: 1px solid rgba(244,63,94,0.2);
+}
+
+.k-top { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; }
+.k-nro { font-size: 0.7rem; font-weight: 700; color: var(--gs-text-dim); letter-spacing: 0.06em; }
+.k-badge-urgente { font-size: 0.62rem; font-weight: 800; color: var(--gs-rose); background: var(--gs-rose-soft); border: 1px solid rgba(244,63,94,0.3); padding: 2px 7px; border-radius: 999px; }
+.k-trabajo { font-size: 0.87rem; font-weight: 700; color: var(--gs-text); line-height: 1.3; }
+.k-parties { display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--gs-text-muted); min-width: 0; }
+.k-odontologo { font-weight: 600; color: var(--gs-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.k-paciente   { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--gs-text-dim); }
+.k-sep        { flex-shrink: 0; color: var(--gs-text-dim); }
+.k-footer { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding-top: 0.45rem; border-top: 1px solid var(--gs-border); margin-top: 0.1rem; }
+.k-tecnico { display: flex; align-items: center; gap: 5px; }
+.k-avatar { width: 22px; height: 22px; border-radius: 6px; font-size: 0.6rem; font-weight: 800; color: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.k-tec-name { font-size: 0.74rem; font-weight: 600; color: var(--gs-text-muted); }
+.k-due { display: flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+.k-due[data-urgency="overdue"] { background: var(--gs-rose-soft);  color: var(--gs-rose); }
+.k-due[data-urgency="urgent"]  { background: rgba(245,158,11,0.12); color: var(--gs-amber-light); }
+.k-due[data-urgency="soon"]    { background: rgba(245,158,11,0.08); color: var(--gs-amber); }
+.k-due[data-urgency="ok"]      { background: var(--gs-green-soft);  color: var(--gs-green); }
+
+/* RESPONSIVE */
+@media (max-width: 480px) {
+  .prod-page   { padding: 1rem 1rem 0; gap: 1rem; }
+  .m-trabajo   { font-size: 1rem; }
+  .btn-avanzar { font-size: 0.88rem; }
+}
+
+/* Notebook chica (~1024-1100px) — usar versión mobile con tabs */
+@media (min-width: 768px) and (max-width: 1100px) {
+  .mobile-view  { display: flex !important; }
+  .desktop-view { display: none !important; }
+  .prod-page    { padding: 1.25rem 1.5rem 0; }
+}
+
+/* Pantallas medianas (1100-1400px) — kanban con columnas estrechas */
+@media (min-width: 1100px) and (max-width: 1400px) {
+  .prod-page    { padding: 1.5rem 1.5rem 0; }
+  .kanban-board { grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 0.75rem; }
+  .strip-label  { display: none; }
+  .col-body     { padding: 0.45rem; gap: 0.45rem; }
+  .k-card       { padding: 0.65rem; }
+  .k-trabajo    { font-size: 0.82rem; }
+  .k-parties    { font-size: 0.72rem; }
+}

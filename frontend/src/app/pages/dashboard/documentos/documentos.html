@@ -1,0 +1,188 @@
+<div class="doc-page">
+
+  <!-- ── Header ── -->
+  <div class="doc-header">
+    <div class="header-left">
+      <div class="page-icon teal">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Documentos</h1>
+        <p class="subtitle">Archivos adjuntos por pedido — fotos, RX, prescripciones</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tabs ── -->
+  <div class="doc-tabs">
+    <button class="doc-tab" [class.active]="vista() === 'pedidos'" (click)="cambiarVista('pedidos')">
+      Documentos por pedido
+    </button>
+    <button class="doc-tab" [class.active]="vista() === 'escaneos'" (click)="cambiarVista('escaneos')">
+      Escaneos 3D
+    </button>
+  </div>
+
+  @if (vista() === 'pedidos') {
+  <!-- ── Layout principal ── -->
+  <div class="doc-layout">
+
+    <!-- ── Panel izquierdo: lista de pedidos ── -->
+    <aside class="pedidos-panel">
+      <div class="search-wrap">
+        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="search-input" type="text" placeholder="Buscar pedido, paciente…"
+               [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" />
+      </div>
+
+      @if (cargandoPedidos()) {
+        <div class="panel-msg">Cargando…</div>
+      } @else if (errorPedidos()) {
+        <div class="panel-msg err">{{ errorPedidos() }}</div>
+      } @else if (pedidosFiltrados().length === 0) {
+        <div class="panel-msg">Sin resultados.</div>
+      } @else {
+        <ul class="pedido-list">
+          @for (p of pedidosFiltrados(); track p.id) {
+            <li class="pedido-item"
+                [class.active]="pedidoSeleccionado()?.id === p.id"
+                (click)="seleccionar(p)">
+              <div class="pi-top">
+                <span class="pi-nro">{{ p.nroPedido }}</span>
+                <span class="pi-badge" [class]="claseEstado(p.estado)">{{ p.estado }}</span>
+              </div>
+              <div class="pi-paciente">{{ p.paciente }}</div>
+              <div class="pi-meta">{{ p.odontologoNombre }} · {{ p.trabajo | slice:0:24 }}{{ p.trabajo.length > 24 ? '…' : '' }}</div>
+            </li>
+          }
+        </ul>
+      }
+    </aside>
+
+    <!-- ── Panel derecho: documentos ── -->
+    <section class="docs-panel">
+
+      @if (!pedidoSeleccionado()) {
+        <div class="empty-select">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.3">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <p>Seleccioná un pedido para ver sus archivos.</p>
+        </div>
+
+      } @else {
+        <!-- Sub-header del pedido seleccionado -->
+        <div class="docs-subheader">
+          <div>
+            <span class="sel-nro">{{ pedidoSeleccionado()!.nroPedido }}</span>
+            <span class="sel-paciente">— {{ pedidoSeleccionado()!.paciente }}</span>
+            <span class="sel-trabajo">{{ pedidoSeleccionado()!.trabajo }}</span>
+          </div>
+          <label class="btn-upload" [class.loading]="subiendo()">
+            @if (subiendo()) {
+              <span class="btn-spinner"></span> Subiendo…
+            } @else {
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Adjuntar archivo
+            }
+            <input type="file" class="hidden-input" (change)="onFileInput($event)" [disabled]="subiendo()" accept="image/*,.pdf,.docx,.xlsx" />
+          </label>
+        </div>
+
+        <!-- Zona drag & drop + galería -->
+        <div class="gallery-zone"
+             [class.dragging]="arrastrando()"
+             (dragover)="onDragOver($event)"
+             (dragleave)="onDragLeave()"
+             (drop)="onDrop($event)">
+
+          @if (cargandoDocs()) {
+            <div class="docs-loading">
+              <div class="spinner-sm"></div>
+              <span>Cargando archivos…</span>
+            </div>
+
+          } @else if (docs().length === 0) {
+            <div class="drop-empty">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.35">
+                <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+                <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+              </svg>
+              <p>Sin archivos adjuntos.</p>
+              <span>Arrastrá un archivo aquí o usá el botón "Adjuntar".</span>
+            </div>
+
+          } @else {
+            <div class="doc-grid">
+              @for (doc of docs(); track doc.id) {
+                <div class="doc-card">
+                  <!-- Thumbnail / ícono -->
+                  <div class="doc-thumb">
+                    @if (esImagen(doc) && imagenUrls().get(doc.id); as thumbUrl) {
+                      <img [src]="thumbUrl" [alt]="doc.fileName" class="thumb-img" loading="lazy" />
+                    } @else if (esPdf(doc)) {
+                      <div class="thumb-icon pdf">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                      </div>
+                    } @else {
+                      <div class="thumb-icon file">
+                        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </div>
+                    }
+
+                    <!-- Acciones superpuestas -->
+                    <div class="doc-actions">
+                      <button class="act-btn"
+                              [disabled]="abriendoId() === doc.id"
+                              (click)="verDoc(doc)" title="Ver / Descargar">
+                        @if (abriendoId() === doc.id) {
+                          <span class="btn-spinner sm"></span>
+                        } @else {
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                        }
+                      </button>
+                      <button class="act-btn del"
+                              [disabled]="eliminandoId() === doc.id"
+                              (click)="eliminar(doc)" title="Eliminar">
+                        @if (eliminandoId() === doc.id) {
+                          <span class="btn-spinner sm"></span>
+                        } @else {
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                        }
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Info del archivo -->
+                  <div class="doc-info">
+                    <span class="doc-name" [title]="doc.fileName">{{ doc.fileName | slice:0:22 }}{{ doc.fileName.length > 22 ? '…' : '' }}</span>
+                    <span class="doc-meta">{{ formatSize(doc.tamanioBytes) }} · {{ doc.fechaSubida | date:'dd/MM/yy' }}</span>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          <!-- Overlay visible al arrastrar -->
+          @if (arrastrando()) {
+            <div class="drag-overlay">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/></svg>
+              <span>Soltá para adjuntar</span>
+            </div>
+          }
+        </div>
+      }
+    </section>
+  </div>
+  }
+
+  <!-- ── Vista: Escaneos 3D ── -->
+  @if (vista() === 'escaneos') {
+    <app-escaneos></app-escaneos>
+  }
+
+</div>

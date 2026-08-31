@@ -1,0 +1,215 @@
+<div class="prov-view">
+  <!-- Misma barra de pills que Finanzas (Resumen/Cajas/etc.), para poder saltar
+       directo a otra sección sin tener que volver primero — Proveedores vive en
+       su propia ruta, así que esto no puede reusar el estado de FinanzasComponent
+       y se arma acá con routerLink + queryParams (mismo mecanismo que finanzas.ts
+       ya lee en su ngOnInit para abrir en la sección pedida).
+
+       Pills + header van juntos en un solo contenedor sticky (.prov-sticky-top)
+       en vez de cada uno sticky por separado con un offset calculado a mano:
+       los pills envuelven a 2-3 filas en mobile según el ancho, así que su
+       altura no es fija — con un solo sticky no hace falta saber esa altura. -->
+  <div class="prov-sticky-top">
+  <header class="prov-header">
+    <div>
+      <h1>Proveedores</h1>
+      <p class="sub">Proveedores del laboratorio, sus deudas y los pagos que registró el bot.</p>
+    </div>
+    <div class="acciones">
+      <button class="btn-refresh" (click)="cargar()" [disabled]="cargando()" title="Actualizar">↻</button>
+      <button class="btn-primary" (click)="abrirModal()">+ Nuevo proveedor</button>
+    </div>
+  </header>
+
+  <nav class="fin-pills">
+    <a class="fin-pill" routerLink="/dashboard/finanzas" [queryParams]="{ seccion: 'resumen' }">
+      <span class="pill-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+      </span>
+      Resumen
+    </a>
+    <a class="fin-pill" routerLink="/dashboard/finanzas" [queryParams]="{ seccion: 'cajas' }">
+      <span class="pill-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+      </span>
+      Cajas
+    </a>
+    <a class="fin-pill" routerLink="/dashboard/finanzas" [queryParams]="{ seccion: 'cuentas' }">
+      <span class="pill-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </span>
+      Cuentas corrientes
+    </a>
+    <a class="fin-pill" routerLink="/dashboard/finanzas" [queryParams]="{ seccion: 'triangulados' }">
+      <span class="pill-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+      </span>
+      Triangulados
+    </a>
+    <a class="fin-pill active">
+      <span class="pill-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
+      </span>
+      Proveedores
+    </a>
+    <a class="fin-pill" routerLink="/dashboard/finanzas" [queryParams]="{ seccion: 'sueldos' }">
+      <span class="pill-icon">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+      </span>
+      Sueldos
+    </a>
+  </nav>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <span class="card-label">Proveedores</span>
+      <span class="card-val">{{ totalProveedores() }}</span>
+    </div>
+    <div class="card">
+      <span class="card-label">Deuda pendiente total</span>
+      <span class="card-val" [class.deuda]="totalDeuda() > 0">{{ formatMoney(totalDeuda()) }}</span>
+    </div>
+  </div>
+
+  @if (cargando()) {
+    <p class="estado-msg">Cargando…</p>
+  } @else if (proveedores().length === 0) {
+    <div class="vacio"><p>No hay proveedores cargados.</p><span>Dalos de alta con "+ Nuevo proveedor".</span></div>
+  } @else {
+    <div class="tabla-wrap">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th class="chev"></th>
+            <th class="sortable" (click)="sort.toggle('nombre')">Proveedor <span class="sort-ico">{{ sort.icono('nombre') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('cuit')">CUIT <span class="sort-ico">{{ sort.icono('cuit') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('telefono')">Teléfono <span class="sort-ico">{{ sort.icono('telefono') }}</span></th>
+            <th class="r sortable" (click)="sort.toggle('deudaPendiente')">Deuda pendiente <span class="sort-ico">{{ sort.icono('deudaPendiente') }}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of proveedoresVista(); track p.id) {
+            <tr class="fila" (click)="toggle(p)">
+              <td class="chev">{{ expandido() === p.id ? '▾' : '▸' }}</td>
+              <td>
+                <strong>{{ p.nombre }}</strong>
+                @if (p.email) { <div class="sub2">{{ p.email }}</div> }
+              </td>
+              <td class="nowrap">{{ p.cuit || '—' }}</td>
+              <td class="nowrap">{{ p.telefono || '—' }}</td>
+              <td class="r">
+                @if (p.deudaPendiente > 0) {
+                  <span class="badge pend">{{ formatMoney(p.deudaPendiente) }}</span>
+                } @else {
+                  <span class="badge ok">al día</span>
+                }
+              </td>
+            </tr>
+            @if (expandido() === p.id) {
+              <tr class="detalle">
+                <td colspan="5">
+                  <div class="detalle-head">
+                    <span class="detalle-title">Deudas</span>
+                    <button class="btn-ghost btn-sm" (click)="abrirModalDeuda(p); $event.stopPropagation()">+ Nueva deuda</button>
+                  </div>
+                  @if (cargandoDeudas()) {
+                    <p class="estado-msg">Cargando deudas…</p>
+                  } @else if (deudas().length === 0) {
+                    <p class="estado-msg">Sin deudas registradas para este proveedor.</p>
+                  } @else {
+                    <table class="sub-tabla">
+                      <thead>
+                        <tr><th>Descripción</th><th class="r">Monto</th><th>Estado</th><th>Vence</th><th>Pagada</th><th>Factura</th><th></th></tr>
+                      </thead>
+                      <tbody>
+                        @for (d of deudas(); track d.id) {
+                          <tr>
+                            <td>
+                              {{ d.descripcion }}
+                              @if (d.observaciones) { <div class="obs">{{ d.observaciones }}</div> }
+                            </td>
+                            <td class="r mono">
+                              {{ formatMoney(d.saldoPendiente) }}
+                              @if (d.estado === 'PARCIAL') { <div class="obs">de {{ formatMoney(d.monto) }}</div> }
+                            </td>
+                            <td><span class="badge" [class.ok]="d.estado==='PAGADO'" [class.pend]="d.estado==='PENDIENTE'" [class.parcial]="d.estado==='PARCIAL'">{{ d.estado }}</span></td>
+                            <td class="nowrap">{{ d.fechaVencimiento ? (d.fechaVencimiento | date:'dd/MM/yy') : '—' }}</td>
+                            <td class="nowrap">{{ d.fechaPago ? (d.fechaPago | date:'dd/MM/yy') : '—' }}</td>
+                            <td class="nowrap">{{ d.nroFacturaProveedor || '—' }}</td>
+                            <td class="nowrap">
+                              @if (d.estado === 'PENDIENTE' || d.estado === 'PARCIAL') {
+                                <button class="btn-ghost btn-sm" [disabled]="pagandoId() === d.id"
+                                        (click)="marcarPagada(d); $event.stopPropagation()">
+                                  {{ pagandoId() === d.id ? 'Marcando…' : 'Marcar pagada' }}
+                                </button>
+                              }
+                            </td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  }
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (modalAbierto()) {
+    <div class="modal-overlay" (click)="cerrarModal()">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <h2>Nuevo proveedor</h2>
+        <label>Nombre *<input [(ngModel)]="form.nombre" placeholder="Razón social o nombre"></label>
+        <label>CUIT<input [(ngModel)]="form.cuit" (ngModelChange)="form.cuit = sanitizarCuit($event)"
+               inputmode="numeric" placeholder="30-12345678-9"></label>
+        <label>Email<input [(ngModel)]="form.email" type="email" placeholder="ventas@proveedor.com"></label>
+        <label>Teléfono<input [(ngModel)]="form.telefono" (ngModelChange)="form.telefono = sanitizarTelefono($event)"
+               inputmode="tel" placeholder="11-4555-0000"></label>
+        <label>Dirección<input [(ngModel)]="form.direccion" placeholder="Calle 123, Ciudad"></label>
+        <div class="modal-acciones">
+          <button class="btn-ghost" (click)="cerrarModal()">Cancelar</button>
+          <button class="btn-primary" (click)="guardar()" [disabled]="guardando()">{{ guardando() ? 'Guardando…' : 'Crear' }}</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (modalDeudaAbierto()) {
+    <div class="modal-overlay" (click)="cerrarModalDeuda()">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <h2>Nueva deuda — {{ proveedorDeuda?.nombre }}</h2>
+        <label>Descripción *<input [(ngModel)]="deudaForm.descripcion" placeholder="Ej: Cerámica Vita PM9 x2 kg"></label>
+        <label>Monto *<input [(ngModel)]="deudaForm.monto" type="number" min="0" step="0.01" placeholder="0"></label>
+        <label>Vencimiento<input [(ngModel)]="deudaForm.fechaVencimiento" type="date"></label>
+        <label>Nº de factura<input [(ngModel)]="deudaForm.nroFacturaProveedor" placeholder="A-0001-00012345"></label>
+        <label>Observaciones<input [(ngModel)]="deudaForm.observaciones" placeholder="Notas adicionales (opcional)"></label>
+        <div class="modal-acciones">
+          <button class="btn-ghost" (click)="cerrarModalDeuda()">Cancelar</button>
+          <button class="btn-primary" (click)="guardarDeuda()" [disabled]="guardandoDeuda()">{{ guardandoDeuda() ? 'Guardando…' : 'Registrar deuda' }}</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (modalPagoAbierto()) {
+    <div class="modal-overlay" (click)="cerrarModalPago()">
+      <div class="modal" (click)="$event.stopPropagation()">
+        <h2>¿De qué caja salió el pago?</h2>
+        <p class="obs">{{ deudaAPagar?.descripcion }} — {{ formatMoney(deudaAPagar?.monto) }}</p>
+        <div class="modal-acciones">
+          <button class="btn-ghost" (click)="cerrarModalPago()">Cancelar</button>
+          <button class="btn-primary" [disabled]="pagandoId() !== null" (click)="confirmarPago('FISICA')">
+            {{ pagandoId() !== null ? 'Marcando…' : 'Física' }}
+          </button>
+          <button class="btn-primary" [disabled]="pagandoId() !== null" (click)="confirmarPago('BANCARIA')">
+            {{ pagandoId() !== null ? 'Marcando…' : 'Bancaria' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

@@ -1,0 +1,128 @@
+<div class="modal-overlay" (click)="onCerrar()">
+  <div class="modal-panel detalle" (click)="$event.stopPropagation()">
+
+    @if (cargando()) {
+      <div class="modal-header">
+        <h2>Cargando pedido…</h2>
+        <button class="btn-close" (click)="cerrar.emit()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="loading-wrap">
+          <div class="spinner-lg"></div>
+        </div>
+      </div>
+    } @else if (error() || !pedido()) {
+      <div class="modal-header">
+        <h2>Error</h2>
+        <button class="btn-close" (click)="cerrar.emit()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert-error">{{ error() || 'Pedido no encontrado.' }}</div>
+      </div>
+    } @else {
+      <div class="modal-header">
+        <div>
+          <h2>{{ pedido()!.nroPedido }}</h2>
+          <span class="estado-chip" [attr.data-color]="colorEstado(pedido()!.estado)">
+            {{ labelEstado(pedido()!.estado) }}
+          </span>
+          @if (pedido()!.prioridad === 'URGENTE') {
+            <span class="prioridad-chip">⚡ Urgente</span>
+          }
+        </div>
+        <button class="btn-close" (click)="cerrar.emit()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-body detalle-body">
+        <div class="detalle-grid">
+          <div><span class="detalle-label">Paciente</span><strong>{{ pedido()!.paciente }}</strong></div>
+          <div><span class="detalle-label">Odontólogo</span><strong>{{ pedido()!.odontologoNombre }}</strong></div>
+          <div class="full"><span class="detalle-label">Trabajo</span><strong>{{ pedido()!.trabajo }}</strong></div>
+          <div><span class="detalle-label">Técnico</span><strong>{{ pedido()!.tecnicoNombre ?? '— Sin asignar' }}</strong></div>
+          <div><span class="detalle-label">Precio acordado</span><strong>{{ formatPrecio(pedido()!.precioAcordado) }}</strong></div>
+          <div><span class="detalle-label">Fecha de entrega</span><strong>{{ formatFecha(pedido()!.fechaEntrega) }}</strong></div>
+          <div><span class="detalle-label">Creado</span><strong>{{ formatFechaHora(pedido()!.fechaCreacion) }}</strong></div>
+          <div><span class="detalle-label">Última modificación</span><strong>{{ formatFechaHora(pedido()!.fechaUltimaModificacion) }}</strong></div>
+        </div>
+
+        @if (pedido()!.observaciones) {
+          <div class="observaciones-box">
+            <span class="detalle-label">Observaciones</span>
+            <p>{{ pedido()!.observaciones }}</p>
+          </div>
+        }
+
+        @if (pedido()!.estado === 'ENTREGADO') {
+          <div class="entrega-box">
+            <span class="detalle-label">Datos de la entrega</span>
+            <div class="detalle-grid">
+              <div><span class="detalle-label">Entregado el</span><strong>{{ formatFecha(pedido()!.fechaEntregaReal) }}</strong></div>
+              <div><span class="detalle-label">Recibió</span><strong>{{ pedido()!.retiradoPor ?? '—' }}</strong></div>
+            </div>
+            @if (pedido()!.observacionesEntrega) {
+              <p class="entrega-obs">{{ pedido()!.observacionesEntrega }}</p>
+            }
+          </div>
+        }
+
+        <!-- ── Escaneos 3D ── -->
+        <div class="escaneos-seccion">
+          <span class="detalle-label">Escaneos 3D adjuntos</span>
+
+          @if (cargandoEscaneos()) {
+            <p class="cc-empty">Cargando escaneos…</p>
+          } @else if (escaneos().length === 0) {
+            <p class="cc-empty">Sin escaneos adjuntos a este pedido.</p>
+          } @else {
+            <div class="escaneo-list">
+              @for (e of escaneos(); track e.id) {
+                <div class="escaneo-card">
+                  <div class="escaneo-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
+                      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+                    </svg>
+                    <span class="ext-badge" [class]="colorExt(e.fileName)">{{ extension(e.fileName).slice(1).toUpperCase() }}</span>
+                  </div>
+                  <div class="escaneo-info">
+                    <span class="escaneo-name" [title]="e.fileName">{{ e.fileName }}</span>
+                    @if (e.descripcion) { <span class="escaneo-desc">{{ e.descripcion }}</span> }
+                    <span class="escaneo-meta">{{ formatSize(e.tamanioBytes) }} · {{ e.fechaSubida | date:'dd/MM/yy HH:mm' }}</span>
+                  </div>
+                  <div class="escaneo-actions">
+                    @if (esVisualizable3d(e.fileName)) {
+                      <button class="btn-accion ver3d" [disabled]="cargandoVisorId() === e.id"
+                              (click)="verEscaneo(e)" title="Ver en 3D">
+                        @if (cargandoVisorId() === e.id) { <span class="btn-spinner sm"></span> }
+                        @else {
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        }
+                      </button>
+                    }
+                    <button class="btn-accion download" [disabled]="descargandoId() === e.id"
+                            (click)="descargarEscaneo(e)" title="Descargar">
+                      @if (descargandoId() === e.id) { <span class="btn-spinner sm"></span> }
+                      @else {
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      }
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="cerrar.emit()">Cerrar</button>
+      </div>
+    }
+  </div>
+
+  @if (visorAbierto()) {
+    <app-visor3d [url]="visorUrl()" [fileName]="visorFileName()" (cerrar)="cerrarVisor()" />
+  }
+</div>

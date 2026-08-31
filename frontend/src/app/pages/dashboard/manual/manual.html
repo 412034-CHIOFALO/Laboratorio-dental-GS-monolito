@@ -1,0 +1,73 @@
+<div class="manual-page">
+  <!-- Navegación lateral -->
+  <aside class="manual-nav">
+    <h2>Manual de uso</h2>
+    <nav>
+      @for (g of grupos; track g) {
+        <div class="manual-nav-group-label">{{ g }}</div>
+        @for (s of seccionesDe(g); track s.id) {
+          <button class="manual-nav-item" [class.activa]="activa() === s.id" (click)="seleccionar(s.id)">
+            {{ s.titulo }}
+          </button>
+        }
+      }
+    </nav>
+  </aside>
+
+  <!-- Contenido -->
+  <div class="manual-contenido">
+    @for (s of secciones; track s.id) {
+      @if (activa() === s.id) {
+        <article class="manual-seccion">
+          <span class="manual-grupo-tag">{{ s.grupo }}</span>
+          <h1>{{ s.titulo }}</h1>
+          <p class="manual-intro">{{ s.intro }}</p>
+
+          @if (s.queVes?.length) {
+            <div class="manual-bloque">
+              <h3>Qué ves</h3>
+              <ul>@for (t of s.queVes; track t) { <li>{{ t }}</li> }</ul>
+            </div>
+          }
+
+          @if (s.queHaces?.length) {
+            <div class="manual-bloque">
+              <h3>Qué hacés</h3>
+              <ul>@for (t of s.queHaces; track t) { <li>{{ t }}</li> }</ul>
+            </div>
+          }
+
+          @if (s.pasos?.length) {
+            <div class="manual-bloque pasos">
+              <h3>Paso a paso</h3>
+              <ol>@for (t of s.pasos; track t) { <li>{{ t }}</li> }</ol>
+            </div>
+          }
+
+          @if (s.flujo?.length) {
+            <div class="manual-bloque flujo">
+              <h3>El flujo</h3>
+              <ul>@for (t of s.flujo; track t) { <li>{{ t }}</li> }</ul>
+            </div>
+          }
+
+          @if (s.captura; as cap) {
+            <figure class="manual-captura" [attr.data-cap]="cap.id">
+              <img [src]="'/manual/' + cap.id + '.png'" [alt]="cap.descripcion"
+                   class="captura-img" [class.oculta]="!conImagen().has(cap.id)"
+                   (load)="marcarImagen(cap.id)" (error)="null" />
+              @if (!conImagen().has(cap.id)) {
+                <div class="captura-placeholder">
+                  <span class="captura-ico"></span>
+                  <span class="captura-label">Captura pendiente</span>
+                  <span class="captura-desc">{{ cap.descripcion }}</span>
+                  <code class="captura-id">{{ cap.id }}</code>
+                </div>
+              }
+            </figure>
+          }
+        </article>
+      }
+    }
+  </div>
+</div>

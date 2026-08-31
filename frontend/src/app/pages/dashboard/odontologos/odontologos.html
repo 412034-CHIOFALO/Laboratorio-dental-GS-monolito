@@ -1,0 +1,350 @@
+<div class="odo-page">
+
+  <!-- ── HEADER ── -->
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Odontólogos <span class="accent">Clientes</span></h1>
+      <p>{{ odontologos.length }} odontólogos · {{ totalConCuit }} con CUIT · {{ totalConClinica }} con clínica registrada</p>
+    </div>
+    <button class="btn-create" (click)="abrirCrear()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nuevo odontólogo
+    </button>
+  </div>
+
+  <!-- ── LOADING / ERROR ── -->
+  @if (loading) {
+    <div class="loading-wrap">
+      <div class="spinner-lg"></div>
+      <span>Cargando odontólogos...</span>
+    </div>
+  }
+  @if (error) {
+    <div class="alert-error">{{ error }}</div>
+  }
+
+  <!-- ── BUSCADOR ── -->
+  @if (!loading) {
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input
+        class="search-input"
+        type="text"
+        placeholder="Buscar por nombre, DNI, CUIT o matrícula..."
+        [(ngModel)]="busqueda"
+        (ngModelChange)="filtrar()"
+      />
+      @if (busqueda) {
+        <button class="search-clear" (click)="busqueda = ''; filtrar()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      }
+    </div>
+    @if (busqueda && tipoMatch !== 'NOMBRE') {
+      <span class="match-badge">Buscando por {{ tipoMatch }} exacto</span>
+    }
+
+    <!-- Filtro de actividad -->
+    <div class="actividad-filtros">
+      <button class="act-chip" [class.active]="filtroActividad === 'TODOS'"
+              (click)="setFiltroActividad('TODOS')">
+        Todos <span class="act-count">{{ odontologos.length }}</span>
+      </button>
+      <button class="act-chip" [class.active]="filtroActividad === 'ACTIVOS'"
+              (click)="setFiltroActividad('ACTIVOS')">
+        Activos <span class="act-count">{{ countActivos }}</span>
+      </button>
+      <button class="act-chip" [class.active]="filtroActividad === 'INACTIVOS'"
+              (click)="setFiltroActividad('INACTIVOS')">
+        Inactivos <span class="act-count">{{ countInactivos }}</span>
+      </button>
+    </div>
+  </div>
+  }
+
+  <!-- ── GRID DE ODONTÓLOGOS ── -->
+  @if (!loading && filtrados.length > 0) {
+    <div class="odo-grid">
+      @for (o of filtrados; track o.id) {
+        <div class="odo-card" [class.es-inactivo]="!o.activo" (click)="abrirDetalle(o)">
+          <div class="odo-card-header">
+            <div class="odo-avatar">{{ iniciales(o.nombre) }}</div>
+            <div class="odo-id">
+              <h3>{{ o.nombre }}</h3>
+              @if (o.matricula) { <span class="odo-matricula">{{ o.matricula }}</span> }
+            </div>
+            <span class="estado-actividad" [class.inactivo]="!o.activo"
+                  [title]="o.activo ? ultimoPedidoLabel(o) : 'Desactivado'">
+              {{ o.activo ? 'Activo' : 'Inactivo' }}
+            </span>
+            @if (o.activo && o.inactivoPorTiempo) {
+              <span class="badge-sin-pedidos" [title]="ultimoPedidoLabel(o)">Sin pedidos hace tiempo</span>
+            }
+          </div>
+          <div class="odo-info">
+            @if (o.clinica) {
+              <div class="odo-row">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+                <span>{{ o.clinica }}</span>
+              </div>
+            }
+            @if (o.telefono) {
+              <div class="odo-row">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
+                <span>{{ o.telefono }}</span>
+              </div>
+            }
+            @if (o.email) {
+              <div class="odo-row">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                <span>{{ o.email }}</span>
+              </div>
+            }
+            @if (!o.clinica && !o.telefono && !o.email) {
+              <div class="odo-row muted">Sin datos de contacto cargados</div>
+            }
+          </div>
+          <div class="odo-tags">
+            @if (o.dni)  { <span class="odo-tag">DNI {{ o.dni }}</span> }
+            @if (o.cuit) { <span class="odo-tag cuit">CUIT {{ o.cuit }}</span> }
+          </div>
+          <div class="odo-card-footer">
+            <a class="btn-ver-trabajos"
+               [routerLink]="['/dashboard/odontologos', o.id, 'historial']"
+               (click)="$event.stopPropagation()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <line x1="3" y1="9" x2="21" y2="9"/>
+                <line x1="9" y1="21" x2="9" y2="9"/>
+              </svg>
+              Ver trabajos
+            </a>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (!loading && filtrados.length === 0 && odontologos.length > 0) {
+    <div class="empty-state">Sin resultados para "{{ busqueda }}".</div>
+  }
+  @if (!loading && odontologos.length === 0 && !error) {
+    <div class="empty-state">
+      <p>Aún no hay odontólogos cargados.</p>
+      <button class="btn-create" (click)="abrirCrear()">Cargar el primero</button>
+    </div>
+  }
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────
+     MODAL NUEVO / EDITAR
+     ───────────────────────────────────────────────────────────── -->
+@if (showModal) {
+  <div class="modal-overlay" (click)="cerrarModal()">
+    <div class="modal-panel" (click)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <h2>{{ modalTitle }}</h2>
+        <button class="btn-close" (click)="cerrarModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+
+        <div class="form-section-title">Datos personales</div>
+        <div class="form-row">
+          <label>Nombre completo *</label>
+          <input type="text" class="form-input" [(ngModel)]="form.nombre" placeholder="Ej: Dr. Martín García"/>
+        </div>
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label>DNI</label>
+            <input type="text" class="form-input" [(ngModel)]="form.dni" (ngModelChange)="form.dni = sanitizarDni($event)" inputmode="numeric" placeholder="28456789" maxlength="8"/>
+          </div>
+          <div class="form-row">
+            <label>CUIT</label>
+            <input type="text" class="form-input" [(ngModel)]="form.cuit" (ngModelChange)="form.cuit = sanitizarCuit($event)" inputmode="numeric" placeholder="20-28456789-3"/>
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Matrícula profesional</label>
+          <input type="text" class="form-input" [(ngModel)]="form.matricula" placeholder="MN 12345"/>
+        </div>
+
+        <div class="form-section-title">Contacto</div>
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label>Teléfono</label>
+            <input type="text" class="form-input" [(ngModel)]="form.telefono" (ngModelChange)="form.telefono = sanitizarTelefono($event)" inputmode="tel" placeholder="11-4567-8901"/>
+          </div>
+          <div class="form-row">
+            <label>Email</label>
+            <input type="email" class="form-input" [(ngModel)]="form.email" placeholder="odontologo@email.com"/>
+          </div>
+        </div>
+
+        <div class="form-section-title">Lugar de trabajo</div>
+        <div class="form-row">
+          <label>Clínica / Consultorio</label>
+          <input type="text" class="form-input" [(ngModel)]="form.clinica" placeholder="Ej: Clínica Odontológica Norte"/>
+        </div>
+        <div class="form-row">
+          <label>Dirección</label>
+          <input type="text" class="form-input" [(ngModel)]="form.direccion" placeholder="Av. Cabildo 2350, CABA"/>
+        </div>
+
+        <!-- Zona de baja (solo al editar) -->
+        @if (editMode && odontologoEditandoId !== null) {
+          <div class="zona-baja">
+            <div class="zona-baja-info">
+              <strong>Desactivar odontólogo</strong>
+              <span>Lo saca de los listados activos. Sus pedidos e historial se conservan.</span>
+            </div>
+            <button type="button" class="btn-desactivar"
+                    (click)="pedirConfirmDesactivar(odontologoEditandoId)">
+              Desactivar
+            </button>
+          </div>
+        }
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="cerrarModal()" [disabled]="saving">Cancelar</button>
+        <button class="btn-primary" (click)="guardar()" [disabled]="!formValido || saving">
+          @if (saving) { Guardando... } @else { Guardar odontólogo }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─────────────────────────────────────────────────────────────
+     MODAL DETALLE
+     ───────────────────────────────────────────────────────────── -->
+@if (detalleAbierto) {
+  <div class="modal-overlay" (click)="cerrarDetalle()">
+    <div class="modal-panel detalle" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <div class="detalle-head">
+          <div class="odo-avatar lg">{{ iniciales(detalleAbierto.nombre) }}</div>
+          <div>
+            <h2>{{ detalleAbierto.nombre }}</h2>
+            @if (detalleAbierto.matricula) { <span class="odo-matricula">{{ detalleAbierto.matricula }}</span> }
+          </div>
+        </div>
+        <button class="btn-close" (click)="cerrarDetalle()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-body detalle-body">
+        <div class="detalle-grid">
+          <div><span class="detalle-label">DNI</span><strong>{{ detalleAbierto.dni ?? '— No cargado' }}</strong></div>
+          <div><span class="detalle-label">CUIT</span><strong>{{ detalleAbierto.cuit ?? '— No cargado' }}</strong></div>
+          <div><span class="detalle-label">Matrícula</span><strong>{{ detalleAbierto.matricula ?? '— No cargada' }}</strong></div>
+          <div><span class="detalle-label">Teléfono</span><strong>{{ detalleAbierto.telefono ?? '— No cargado' }}</strong></div>
+          <div class="full"><span class="detalle-label">Email</span><strong>{{ detalleAbierto.email ?? '— No cargado' }}</strong></div>
+          <div class="full"><span class="detalle-label">Clínica</span><strong>{{ detalleAbierto.clinica ?? '— No cargada' }}</strong></div>
+          <div class="full"><span class="detalle-label">Dirección</span><strong>{{ detalleAbierto.direccion ?? '— No cargada' }}</strong></div>
+        </div>
+
+        <!-- ── Cuenta corriente ── -->
+        @if (puedeVerFinanzas) {
+        <div class="cc-seccion">
+          <div class="cc-head">
+            <div>
+              <span class="detalle-label">Cuenta corriente</span>
+              <strong class="cc-saldo" [class.cero]="ccSaldo <= 0">Saldo: {{ formatPrecio(ccSaldo) }}</strong>
+            </div>
+            <button class="btn-primary sm" (click)="abrirModalPago()" [disabled]="ccSaldo <= 0">
+              Registrar pago
+            </button>
+          </div>
+
+          @if (ccCargando) {
+            <p class="cc-empty">Cargando cuenta corriente…</p>
+          } @else if (ccComprobantes.length === 0) {
+            <p class="cc-empty">Sin comprobantes registrados.</p>
+          } @else {
+            <table class="cc-tabla">
+              <thead>
+                <tr><th>Comprobante</th><th>Trabajo</th><th class="num">Monto</th><th class="num">Saldo</th><th>Estado</th></tr>
+              </thead>
+              <tbody>
+                @for (c of ccComprobantes; track c.id) {
+                  <tr [class.saldado]="c.estadoPago === 'COBRADO'">
+                    <td>{{ c.nroComprobante }}</td>
+                    <td>{{ c.trabajo }}</td>
+                    <td class="num">{{ formatPrecio(c.monto) }}</td>
+                    <td class="num">{{ formatPrecio(c.saldoPendiente) }}</td>
+                    <td><span class="cc-estado" [attr.data-estado]="c.estadoPago">{{ c.estadoPago }}</span></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+
+          @if (ccHistorial.length > 0) {
+            <div class="cc-historial">
+              <span class="detalle-label">Últimos pagos</span>
+              @for (p of ccHistorial; track p.id) {
+                <div class="cc-pago">
+                  <span>{{ p.fecha }} · {{ p.medio }}</span>
+                  <strong>{{ formatPrecio(p.montoImputado) }}</strong>
+                </div>
+              }
+            </div>
+          }
+        </div>
+        }
+      </div>
+
+      <div class="modal-footer detalle-footer">
+        <a class="btn-ver-historial"
+           [routerLink]="['/dashboard/odontologos', detalleAbierto.id, 'historial']">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="3" y1="9" x2="21" y2="9"/>
+            <line x1="9" y1="21" x2="9" y2="9"/>
+          </svg>
+          Ver trabajos e historial
+        </a>
+        <div class="detalle-footer-acciones">
+          <button class="btn-primary" (click)="abrirEditar(detalleAbierto)">Editar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─────────────────────────────────────────────────────────────
+     REGISTRAR PAGO A CUENTA CORRIENTE
+     ───────────────────────────────────────────────────────────── -->
+@if (showModalPago && detalleAbierto) {
+  <app-pago-cuenta-corriente-modal
+    [odontologoId]="detalleAbierto.id"
+    [odontologoNombre]="detalleAbierto.nombre"
+    [saldoActual]="ccSaldo"
+    (cerrar)="cerrarModalPago()"
+    (pagado)="onPagoRegistrado()" />
+}
+
+<!-- ─────────────────────────────────────────────────────────────
+     CONFIRMACIÓN DESACTIVAR
+     ───────────────────────────────────────────────────────────── -->
+@if (confirmDesactivarId !== null) {
+  <div class="modal-overlay" (click)="abortarDesactivar()">
+    <div class="modal-panel confirm" (click)="$event.stopPropagation()">
+      <div class="modal-header"><h2>¿Desactivar odontólogo?</h2></div>
+      <div class="modal-body">
+        <p>El odontólogo dejará de aparecer en los listados, pero sus pedidos históricos se conservan.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="abortarDesactivar()">No, volver</button>
+        <button class="btn-primary danger" (click)="confirmarDesactivar(confirmDesactivarId)">Sí, desactivar</button>
+      </div>
+    </div>
+  </div>
+}

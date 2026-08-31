@@ -1,0 +1,613 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM — Laboratorio G&S
+   Acento: Emerald · Base oscuro: Slate/Grafito · Piel claro: Tintada
+   Tokens nuevos (--accent, --bg, --text, etc.)
+   Aliases hacia el sistema previo (--gs-*) para no romper componentes existentes
+═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── ACENTO PRINCIPAL ─────────────────────────────────────────────── */
+  --accent:           #22c55e;
+  --accent-d:         #16a34a;
+  --accent-2:         #06b6d4;
+  --on-accent:        #ffffff;             /* texto sobre primary en dark */
+  --accent-ink:       color-mix(in srgb, #22c55e, white 18%);
+
+  --grad-primary:     linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  --grad-brand:       linear-gradient(135deg, #22c55e 0%, #06b6d4 100%);
+
+  /* ── MODO OSCURO (default) — Base Grafito ─────────────────────────── */
+  --bg:               #0a0a0c;
+  --sidebar-bg:       #070708;
+  --card:             #161618;
+  --card-2:           #101012;
+  --search-bg:        #161618;
+
+  --text:             #e8e8eb;
+  --muted:            #9a9aa3;
+  --dim:              #55555d;
+
+  --border:           rgba(255,255,255,0.06);
+  --border-med:       rgba(255,255,255,0.10);
+  --border-strong:    rgba(255,255,255,0.16);
+
+  --row-hover:        rgba(255,255,255,0.025);
+  --th-bg:            rgba(255,255,255,0.015);
+  --neutral-tint:     rgba(255,255,255,0.07);
+
+  /* ── COLORES DE ESTADO (fijos en ambos modos) ─────────────────────── */
+  --color-info:       #3b82f6;   /* recibido / info */
+  --color-warning:    #f59e0b;   /* en proceso / urgente */
+  --color-special:    #a855f7;   /* control / especial */
+  --color-success:    #22c55e;   /* listo / OK */
+  --color-neutral:    #64748b;   /* entregado / archivado */
+  --color-danger:     #f43f5e;   /* vencido / error */
+
+  /* ── TIPOGRAFÍA ───────────────────────────────────────────────────── */
+  --font-sans:        'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:        'JetBrains Mono', ui-monospace, monospace;
+
+  --text-xs:          10px;
+  --text-sm:          11.5px;
+  --text-base:        12.5px;
+  --text-md:          13px;
+  --text-lg:          17px;
+  --text-kpi:         26px;
+
+  /* ── BORDES Y RADIOS ──────────────────────────────────────────────── */
+  --r-input:          8px;
+  --r-btn:            8px;
+  --r-card:           10px;
+  --r-modal:          12px;
+  --r-pill:           999px;
+
+  /* ── SOMBRAS ──────────────────────────────────────────────────────── */
+  --shadow-sm:        0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md:        0 4px 16px rgba(0,0,0,0.35);
+  --shadow-lg:        0 16px 48px rgba(0,0,0,0.5);
+  --shadow-accent:    0 6px 18px color-mix(in srgb, #22c55e 30%, transparent);
+
+  /* ── LAYOUT SHELL ─────────────────────────────────────────────────── */
+  --sidebar-w:            240px;
+  --sidebar-collapsed-w:  64px;
+  --topbar-h:             56px;
+
+  /* ════════════════════════════════════════════════════════════════
+     ALIASES — Compatibilidad con sistema previo (--gs-*)
+     Mapean los nombres viejos a los nuevos tokens para que las
+     pantallas existentes no se rompan.
+     ════════════════════════════════════════════════════════════════ */
+
+  /* Brand */
+  --gs-green:           var(--accent);
+  --gs-green-dark:      var(--accent-d);
+  --gs-green-darker:    #15803d;
+  --gs-green-light:     #4ade80;
+  --gs-green-soft:      color-mix(in srgb, var(--accent) 10%, transparent);
+  --gs-green-glow:      color-mix(in srgb, var(--accent) 20%, transparent);
+  --gs-green-border:    color-mix(in srgb, var(--accent) 25%, transparent);
+
+  --gs-cyan:            var(--accent-2);
+  --gs-cyan-light:      #22d3ee;
+  --gs-cyan-soft:       color-mix(in srgb, var(--accent-2) 10%, transparent);
+
+  /* Estados (semánticos) */
+  --gs-amber:           var(--color-warning);
+  --gs-amber-light:     #fbbf24;
+  --gs-amber-soft:      color-mix(in srgb, var(--color-warning) 10%, transparent);
+
+  --gs-rose:            var(--color-danger);
+  --gs-rose-soft:       color-mix(in srgb, var(--color-danger) 10%, transparent);
+
+  --gs-purple:          var(--color-special);
+  --gs-purple-soft:     color-mix(in srgb, var(--color-special) 10%, transparent);
+
+  --gs-blue:            var(--color-info);
+  --gs-blue-soft:       color-mix(in srgb, var(--color-info) 10%, transparent);
+
+  --gs-neutral:         var(--color-neutral);
+  --gs-neutral-soft:    color-mix(in srgb, var(--color-neutral) 10%, transparent);
+
+  /* Superficies */
+  --gs-bg:              var(--bg);
+  --gs-surface:         var(--sidebar-bg);
+  --gs-card:            var(--card);
+  --gs-card-2:          var(--card-2);
+  --gs-card-hover:      var(--row-hover);
+
+  /* Bordes */
+  --gs-border:          var(--border);
+  --gs-border-md:       var(--border-med);
+  --gs-border-green:    color-mix(in srgb, var(--accent) 20%, transparent);
+
+  /* Texto */
+  --gs-text:            var(--text);
+  --gs-text-muted:      var(--muted);
+  --gs-text-dim:        var(--dim);
+  --gs-white:           #ffffff;
+
+  /* Gradientes */
+  --gs-gradient-green:  var(--grad-primary);
+  --gs-gradient-cyan:   linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  --gs-gradient-brand:  var(--grad-brand);
+  --gs-gradient-dark:   linear-gradient(180deg, var(--card) 0%, var(--sidebar-bg) 100%);
+
+  /* Sombras */
+  --gs-shadow-green:    var(--shadow-accent);
+  --gs-shadow-card:     var(--shadow-md);
+  --gs-shadow-lg:       var(--shadow-lg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODO CLARO — Piel Tintada (color-mix con el acento)
+═══════════════════════════════════════════════════════════════════════════ */
+
+[data-theme="light"] {
+  /* Backgrounds — neutros, sin tinte verde para máxima nitidez */
+  --bg:              #eaedf2;            /* gris frío, marco general */
+  --sidebar-bg:      #f4f5f8;            /* casi blanco */
+  --card:            #ffffff;            /* blanco puro — cards y paneles destacan */
+  --card-2:          #eef0f4;
+  --search-bg:       #ffffff;
+  --neutral-tint:    rgba(15, 23, 42, 0.06);
+
+  /* Texto — bien oscuro, alta legibilidad */
+  --text:            #0c1118;            /* casi negro */
+  --muted:           #3d4757;            /* gris medio oscuro para subtítulos */
+  --dim:             #5d6776;            /* gris medio para labels */
+
+  /* Borders — visibles para definir cards */
+  --border:          rgba(15, 23, 42, 0.13);
+  --border-med:      rgba(15, 23, 42, 0.22);
+  --border-strong:   rgba(15, 23, 42, 0.30);
+
+  --row-hover:       rgba(15, 23, 42, 0.05);
+  --th-bg:           rgba(15, 23, 42, 0.04);
+
+  /* Acento e ink ajustado para contraste sobre claro */
+  --on-accent:       #04140a;
+  --accent-ink:      color-mix(in srgb, #22c55e, black 16%);
+
+  /* Sombras más sutiles en claro */
+  --shadow-sm:       0 1px 2px rgba(16,21,32,0.06);
+  --shadow-md:       0 2px 12px rgba(16,21,32,0.08);
+  --shadow-lg:       0 8px 28px rgba(16,21,32,0.12);
+  --shadow-accent:   0 4px 16px color-mix(in srgb, #22c55e 22%, transparent);
+
+  /* Soft tints más opacos para que destaquen sobre claro */
+  --gs-green-soft:   color-mix(in srgb, var(--accent) 12%, transparent);
+  --gs-cyan-soft:    color-mix(in srgb, var(--accent-2) 12%, transparent);
+  --gs-amber-soft:   color-mix(in srgb, var(--color-warning) 12%, transparent);
+  --gs-rose-soft:    color-mix(in srgb, var(--color-danger) 12%, transparent);
+  --gs-purple-soft:  color-mix(in srgb, var(--color-special) 12%, transparent);
+  --gs-blue-soft:    color-mix(in srgb, var(--color-info) 12%, transparent);
+  --gs-neutral-soft: color-mix(in srgb, var(--color-neutral) 12%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESET + BASE
+═══════════════════════════════════════════════════════════════════════════ */
+
+* { box-sizing: border-box; }
+*::before, *::after { box-sizing: inherit; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  text-wrap: pretty;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Valores numéricos siempre con dígitos tabulares (monto, KPI, IDs) */
+.mono, [class*="font-mono"], code, kbd {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Headers de tabla ordenables (ver shared/table-sort.ts). El ⇅ tenue invita a
+   clickear; la flecha llena marca la columna activa y su dirección. */
+th.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+th.sortable:hover { color: var(--gs-text, inherit); }
+.sort-ico {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.85em;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+th.sortable:hover .sort-ico { opacity: 0.9; }
+
+/* Dígitos tabulares en TODA celda de tabla y en los valores de dinero destacados:
+   así 100 y 1000 alinean columna por columna (cada dígito ocupa el mismo ancho).
+   Solo afecta a los números — el texto se ve igual. Combinado con el text-align:
+   right que ya tienen las columnas de plata, los montos quedan prolijos. */
+td, th,
+.caja-saldo, .stat-val, .big-val, .card-val, .efectivo-monto,
+.cc-saldo, .total-val, .card-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════════════════════════════════════ */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.16);
+  background-clip: padding-box;
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb       { background: rgba(16,21,32,0.10); background-clip: padding-box; }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: rgba(16,21,32,0.20); background-clip: padding-box; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SELECCIÓN DE TEXTO
+═══════════════════════════════════════════════════════════════════════════ */
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILIDADES GLOBALES
+═══════════════════════════════════════════════════════════════════════════ */
+
+.text-green  { color: var(--accent); }
+.text-cyan   { color: var(--accent-2); }
+.text-amber  { color: var(--color-warning); }
+.text-rose   { color: var(--color-danger); }
+.text-muted  { color: var(--muted); }
+
+/* Badges legacy — siguen funcionando */
+.badge-green  { background: var(--gs-green-soft);  color: var(--accent);          border: 1px solid var(--gs-green-border); }
+.badge-amber  { background: var(--gs-amber-soft);  color: var(--color-warning); }
+.badge-rose   { background: var(--gs-rose-soft);   color: var(--color-danger); }
+.badge-cyan   { background: var(--gs-cyan-soft);   color: var(--accent-2); }
+.badge-purple { background: var(--gs-purple-soft); color: var(--color-special); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CHIPS DE ESTADO (sistema nuevo, base para reemplazar gradualmente)
+═══════════════════════════════════════════════════════════════════════════ */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  color: color-mix(in srgb, var(--hue), white 28%);
+  background: color-mix(in srgb, var(--hue) 14%, transparent);
+}
+.chip::before {
+  content: "";
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--hue);
+}
+[data-theme="light"] .chip {
+  color: color-mix(in srgb, var(--hue), black 32%);
+  background: color-mix(in srgb, var(--hue) 18%, transparent);   /* más opaco para que pop */
+  border: 1px solid color-mix(in srgb, var(--hue) 22%, transparent);
+}
+
+.chip.c-recibido  { --hue: var(--color-info);    }
+.chip.c-proceso   { --hue: var(--color-warning); }
+.chip.c-control   { --hue: var(--color-special); }
+.chip.c-listo     { --hue: var(--color-success); }
+.chip.c-entregado { --hue: var(--color-neutral); }
+.chip.c-cancelado { --hue: var(--color-danger);  }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SPINNERS Y ALERTAS LEGACY (siguen igual)
+═══════════════════════════════════════════════════════════════════════════ */
+
+.spinner-sm {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.7s linear infinite;
+}
+.spinner-lg {
+  width: 36px; height: 36px;
+  border: 3px solid var(--gs-green-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.alert-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--gs-rose-soft);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 25%, transparent);
+  color: #fda4af;
+  border-radius: var(--r-input);
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+}
+[data-theme="light"] .alert-error { color: #b91c1c; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR LIGHT MODE — overrides globales con máxima especificidad
+   Asegura que los items se vean BIEN en light mode aunque haya cualquier
+   problema de view encapsulation o caching.
+═══════════════════════════════════════════════════════════════════════════ */
+
+html[data-theme="light"] .nav-item:not(.nav-active),
+html[data-theme="light"] .nav-item:not(.nav-active) .nav-icon,
+html[data-theme="light"] .nav-item:not(.nav-active) .nav-icon svg {
+  color: #0a0e16 !important;
+  stroke: #0a0e16 !important;
+}
+html[data-theme="light"] .nav-item:not(.nav-active) {
+  font-weight: 600 !important;
+}
+html[data-theme="light"] .nav-group-label {
+  color: #1a1f2a !important;
+  font-weight: 800 !important;
+}
+
+/* Active item: verde bien saturado en light mode */
+html[data-theme="light"] .nav-item.nav-active {
+  color: #047857 !important;
+  background: color-mix(in srgb, #22c55e 16%, transparent) !important;
+}
+html[data-theme="light"] .nav-item.nav-active .nav-icon svg {
+  stroke: #047857 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOASTR — adaptado al design system G&S
+   Reemplaza los estilos por defecto de ngx-toastr con nuestros tokens
+   IMPORTANTE: forzamos visibilidad anulando animaciones y transforms inline
+   que ngx-toastr aplica vía el sistema de animaciones de Angular.
+═══════════════════════════════════════════════════════════════════════════ */
+
+#toast-container {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  z-index: 9999 !important;
+  pointer-events: none !important;
+}
+#toast-container > div {
+  /* Forzar visibilidad sí o sí */
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+  display: block !important;
+  pointer-events: auto !important;
+  position: relative !important;
+
+  /* Layout */
+  width: 320px !important;
+  min-height: 56px !important;
+  padding: 14px 18px 14px 52px !important;
+  margin-bottom: 10px !important;
+  background-position: 16px center !important;
+  background-size: 22px !important;
+  background-repeat: no-repeat !important;
+
+  /* Look */
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4) !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  border: 1px solid rgba(255,255,255,0.08) !important;
+}
+#toast-container > div:hover {
+  box-shadow: var(--shadow-lg) !important;
+  transform: translateY(-2px);
+}
+#toast-container > div .toast-title {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  margin-bottom: 2px !important;
+}
+#toast-container > div .toast-message {
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  opacity: 0.92;
+}
+#toast-container > div .toast-progress {
+  height: 3px !important;
+  opacity: 0.7;
+}
+
+/* Success — verde de marca */
+#toast-container > .toast-success {
+  background-color: #0e2616 !important;
+  color: #d4f5e0 !important;
+  border-color: color-mix(in srgb, #22c55e 35%, transparent) !important;
+}
+#toast-container > .toast-success .toast-progress { background: #22c55e !important; }
+
+/* Error — rosa-rojo */
+#toast-container > .toast-error {
+  background-color: #2a0d14 !important;
+  color: #fdd0d5 !important;
+  border-color: color-mix(in srgb, #f43f5e 35%, transparent) !important;
+}
+#toast-container > .toast-error .toast-progress { background: #f43f5e !important; }
+
+/* Info — azul */
+#toast-container > .toast-info {
+  background-color: #0d1e2b !important;
+  color: #cce5ff !important;
+  border-color: color-mix(in srgb, #3b82f6 35%, transparent) !important;
+}
+#toast-container > .toast-info .toast-progress { background: #3b82f6 !important; }
+
+/* Warning — ámbar */
+#toast-container > .toast-warning {
+  background-color: #2a1c08 !important;
+  color: #fde4b0 !important;
+  border-color: color-mix(in srgb, #f59e0b 35%, transparent) !important;
+}
+#toast-container > .toast-warning .toast-progress { background: #f59e0b !important; }
+
+/* Modo claro — fondos blancos limpios, texto oscuro */
+html[data-theme="light"] #toast-container > div {
+  border-width: 1.5px !important;
+  background-color: #ffffff !important;
+}
+html[data-theme="light"] #toast-container > .toast-success {
+  color: #07572b !important;
+  border-color: #16a34a !important;
+}
+html[data-theme="light"] #toast-container > .toast-error {
+  color: #9f1239 !important;
+  border-color: #e11d48 !important;
+}
+html[data-theme="light"] #toast-container > .toast-info {
+  color: #1e3a8a !important;
+  border-color: #2563eb !important;
+}
+html[data-theme="light"] #toast-container > .toast-warning {
+  color: #92400e !important;
+  border-color: #d97706 !important;
+}
+
+@media (max-width: 540px) {
+  /* En mobile el container se estira de lado a lado (con margen), y cada toast
+     ocupa el 100%. Antes quedaba anclado a la derecha y el toast se desbordaba. */
+  #toast-container {
+    top: 12px !important;
+    left: 12px !important;
+    right: 12px !important;
+  }
+  #toast-container > div {
+    width: 100% !important;
+    margin: 0 0 10px 0 !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TOUR / TUTORIAL (driver.js) — popover brandeado, claro/oscuro
+═══════════════════════════════════════════════════════════════════ */
+.driver-popover.gs-tour-popover {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border-med);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  max-width: 360px;
+  padding: 20px 20px 16px;
+}
+.gs-tour-popover .driver-popover-title {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.25;
+}
+.gs-tour-popover .driver-popover-description {
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.gs-tour-popover .driver-popover-description b { color: var(--text); font-weight: 700; }
+.gs-tour-popover .driver-popover-progress-text {
+  font-size: 11.5px;
+  color: var(--dim);
+  font-weight: 600;
+}
+.gs-tour-popover .driver-popover-footer { margin-top: 14px; gap: 8px; }
+.gs-tour-popover .driver-popover-footer button {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 9px;
+  padding: 8px 14px;
+  text-shadow: none;
+  border: 1px solid var(--border-med);
+  background: transparent;
+  color: var(--text);
+  transition: background .15s, border-color .15s, opacity .15s;
+}
+.gs-tour-popover .driver-popover-prev-btn:hover { background: var(--row-hover); }
+.gs-tour-popover .driver-popover-next-btn {
+  background: var(--grad-primary);
+  color: var(--on-accent);
+  border: none;
+  box-shadow: var(--shadow-accent);
+}
+.gs-tour-popover .driver-popover-next-btn:hover { opacity: .9; }
+.gs-tour-popover .driver-popover-arrow { border-color: var(--card); }
+.gs-tour-popover .driver-popover-close-btn { color: var(--dim); font-size: 18px; }
+.gs-tour-popover .driver-popover-close-btn:hover { color: var(--text); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCROLL GENERAL EN MOBILE — override global
+   Cada página del dashboard usa un patrón de "shell fijo" pensado para
+   desktop: el wrapper (.odo-page, .cat-page, etc.) es flex:1 1 auto con
+   min-height:0 y overflow:hidden, y solo la grilla/tabla interna hace su
+   propio scroll. En una pantalla alta esto está bien (el header nunca
+   necesita scrollear). En mobile, el header + buscador + filtros de cada
+   página ya ocupan tanto espacio que no queda casi nada para la lista, que
+   además queda encerrada en su propio scroll interno en vez de scrollear
+   junto con el resto — quedaba usable ~1/3 de la pantalla.
+   Acá liberamos esos wrappers para que crezcan a su alto natural: el
+   scroll pasa a ser uno solo, el de .main-content (que ya scrollea toda
+   la página), como en cualquier sitio mobile normal.
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .main-content > * { min-height: auto !important; }
+
+  .audit-page, .cat-page, .ent-page, .fin-page, .odo-page, .ped-page,
+  .stk-page, .page-content, .bot-view, .prod-page, .prov-view,
+  .doc-page, .esc-page {
+    /* overflow-x se mantiene en hidden (no "visible" a secas): si no, una
+       tabla ancha que no entra en la pantalla estira TODA la página de
+       lado a lado en vez de scrollear solo ella — eso es lo que causaba
+       el scroll horizontal roto. Los que sí necesitan scroll horizontal
+       propio (tablas anchas, el tablero Kanban) lo tienen en su propio
+       contenedor interno, que esto no toca. */
+    overflow-y: visible !important;
+    overflow-x: hidden !important;
+    min-height: auto !important;
+    flex: none !important;
+  }
+
+  /* Los headers de tabla "position: sticky" apuntaban a quedar pegados
+     arriba DENTRO de su contenedor con scroll propio. Ahora que ese
+     contenedor ya no tiene una altura acotada (ver arriba), el sticky se
+     engancha con el scroll de toda la página en su lugar — el header
+     queda flotando en cualquier punto y se superpone con la primera fila
+     de datos. En mobile no vale la pena el header pegajoso (la pantalla
+     ya es corta): lo desactivamos y que scrollee como una tabla normal. */
+  .audit-table th, .tabla thead th, .tabla th, .hist-table th,
+  .table-wrap-scroll thead th, .ped-table th, .stk-table th {
+    position: static !important;
+  }
+}

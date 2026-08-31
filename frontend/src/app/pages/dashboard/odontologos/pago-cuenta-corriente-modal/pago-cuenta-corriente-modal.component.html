@@ -1,0 +1,79 @@
+<div class="modal-overlay" (click)="cerrar.emit()">
+  <div class="modal-panel" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Registrar pago — {{ odontologoNombre }}</h2>
+      <button class="btn-close" (click)="cerrar.emit()">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <p class="cc-saldo-info">Saldo actual: <strong>{{ formatPrecio(saldoActual) }}</strong></p>
+
+      <div class="form-row modo-toggle">
+        <label class="modo-opcion">
+          <input type="radio" name="modo" value="DIRECTO" [(ngModel)]="modo"/>
+          Pago directo al laboratorio
+        </label>
+        <label class="modo-opcion">
+          <input type="radio" name="modo" value="PROVEEDOR" [(ngModel)]="modo"/>
+          Pagó a un proveedor por el laboratorio
+        </label>
+      </div>
+
+      @if (modo === 'DIRECTO') {
+        <div class="form-row">
+          <label>Monto del pago *</label>
+          <input type="number" min="0" step="100" class="form-input" [(ngModel)]="form.monto"
+                 placeholder="Cuánto pagó"/>
+          <small class="form-hint">Se imputa a las deudas más viejas primero (puede ser parcial).</small>
+        </div>
+
+        <div class="form-row">
+          <label>Medio</label>
+          <select class="form-input" [(ngModel)]="form.medio">
+            <option value="TRANSFERENCIA">Transferencia (Caja Bancaria)</option>
+            <option value="EFECTIVO">Efectivo (Caja Física)</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label>Fecha</label>
+          <input type="date" class="form-input" [(ngModel)]="form.fecha"/>
+        </div>
+
+        <div class="form-row">
+          <label>Nota</label>
+          <input type="text" class="form-input" [(ngModel)]="form.nota" placeholder="Opcional"/>
+        </div>
+      } @else {
+        <div class="form-row">
+          <label>Proveedor *</label>
+          <select class="form-input" [(ngModel)]="formProveedor.proveedorId">
+            <option [ngValue]="null">Seleccionar proveedor…</option>
+            @for (p of proveedores(); track p.id) {
+              <option [ngValue]="p.id">{{ p.nombre }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label>Monto pagado al proveedor *</label>
+          <input type="number" min="0" step="100" class="form-input" [(ngModel)]="formProveedor.monto"
+                 placeholder="Cuánto pagó"/>
+          <small class="form-hint">Salda la cuenta corriente del odontólogo y la deuda del proveedor por este importe.</small>
+        </div>
+
+        <div class="form-row">
+          <label>Nota</label>
+          <input type="text" class="form-input" [(ngModel)]="formProveedor.nota" placeholder="Opcional"/>
+        </div>
+      }
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="cerrar.emit()">Cancelar</button>
+      <button class="btn-primary" (click)="confirmar()" [disabled]="!valido || saving()">
+        {{ saving() ? 'Registrando…' : 'Registrar pago' }}
+      </button>
+    </div>
+  </div>
+</div>

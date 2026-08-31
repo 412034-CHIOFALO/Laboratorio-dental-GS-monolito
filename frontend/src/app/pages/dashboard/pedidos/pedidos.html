@@ -1,0 +1,397 @@
+<div class="ped-page">
+
+  <!-- ── HEADER ── -->
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Pedidos <span class="accent">del Laboratorio</span></h1>
+      <p>{{ pedidos.length }} pedidos en total · {{ countByEstado('LISTO') }} listos para entregar</p>
+    </div>
+    <button class="btn-create" (click)="abrirCrear()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Nuevo pedido
+    </button>
+  </div>
+
+  <!-- ── LOADING / ERROR ── -->
+  @if (loading) {
+    <div class="loading-wrap">
+      <div class="spinner-lg"></div>
+      <span>Cargando pedidos...</span>
+    </div>
+  }
+  @if (error) {
+    <div class="alert-error">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      {{ error }}
+    </div>
+  }
+
+  <!-- ── FILTER BAR ── -->
+  @if (!loading) {
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input
+        class="search-input"
+        type="text"
+        placeholder="Buscar nº pedido, paciente, odontólogo, trabajo..."
+        [(ngModel)]="busqueda"
+        (ngModelChange)="filtrar()"
+      />
+      @if (busqueda) {
+        <button class="search-clear" (click)="busqueda = ''; filtrar()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      }
+    </div>
+    <div class="estado-pills">
+      @for (e of estados; track e.valor) {
+        <button
+          class="estado-pill"
+          [class.active]="estadoActivo === e.valor"
+          [attr.data-estado]="e.valor"
+          (click)="setEstadoActivo(e.valor)">
+          {{ e.label }} <span class="pill-count">({{ countByEstado(e.valor) }})</span>
+        </button>
+      }
+    </div>
+  </div>
+  }
+
+  <!-- ── TABLA DE PEDIDOS ── -->
+  @if (!loading && filtrados.length > 0) {
+    <div class="table-wrap">
+      <table class="ped-table">
+        <thead>
+          <tr>
+            <th class="sortable" (click)="sort.toggle('nroPedido')">Pedido <span class="sort-ico">{{ sort.icono('nroPedido') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('estado')">Estado <span class="sort-ico">{{ sort.icono('estado') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('paciente')">Paciente <span class="sort-ico">{{ sort.icono('paciente') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('odontologoNombre')">Odontólogo <span class="sort-ico">{{ sort.icono('odontologoNombre') }}</span></th>
+            <th class="sortable" (click)="sort.toggle('trabajo')">Trabajo <span class="sort-ico">{{ sort.icono('trabajo') }}</span></th>
+            <th class="th-fecha sortable" (click)="sort.toggle('fechaEntrega')">Entrega <span class="sort-ico">{{ sort.icono('fechaEntrega') }}</span></th>
+            <th class="th-precio sortable" (click)="sort.toggle('precioAcordado')">Precio <span class="sort-ico">{{ sort.icono('precioAcordado') }}</span></th>
+            <th class="th-acciones">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of filtradosVista; track p.id) {
+            <tr [class.urgente]="p.prioridad === 'URGENTE'" [class.atrasado]="estaAtrasado(p)">
+              <td class="celda-nro">
+                <span class="nro-pedido">{{ p.nroPedido }}</span>
+                @if (p.prioridad === 'URGENTE') {
+                  <span class="badge-urgente">URGENTE</span>
+                }
+                @if (estaAtrasado(p)) {
+                  <span class="badge-atrasado" [title]="'Lleva ' + (p.diasHabilesTranscurridos ?? 0) + ' días hábiles sin entregar'">
+                    ATRASADO
+                  </span>
+                }
+              </td>
+              <td>
+                <span class="estado-chip" [attr.data-color]="colorEstado(p.estado)">
+                  {{ labelEstado(p.estado) }}
+                </span>
+              </td>
+              <td>{{ p.paciente }}</td>
+              <td>{{ p.odontologoNombre }}</td>
+              <td class="celda-trabajo">{{ p.trabajo }}</td>
+              <td>
+                <div class="fecha-cell">
+                  <span class="fecha-texto">{{ formatFecha(p.fechaEntrega) }}</span>
+                  @if (p.estado !== 'ENTREGADO' && p.estado !== 'CANCELADO') {
+                    <span class="fecha-restante" [attr.data-clase]="diasRestantes(p.fechaEntrega).clase">
+                      {{ diasRestantes(p.fechaEntrega).texto }}
+                    </span>
+                  }
+                </div>
+              </td>
+              <td class="celda-precio">
+                @if (p.precioAcordado == null) {
+                  <span class="badge-sin-precio" title="Se pedirá el monto al entregar">sin precio</span>
+                } @else {
+                  {{ formatPrecio(p.precioAcordado) }}
+                }
+              </td>
+              <td class="celda-acciones">
+                <button class="btn-icono" (click)="abrirDetalle(p)" title="Ver detalle">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+                @if (p.estado !== 'ENTREGADO' && p.estado !== 'CANCELADO') {
+                  <button class="btn-icono" (click)="abrirEditar(p)" title="Editar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button class="btn-icono danger" (click)="pedirConfirmCancelar(p.id)" title="Cancelar pedido">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                  </button>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (!loading && filtrados.length === 0 && pedidos.length > 0) {
+    <div class="empty-state">
+      <p>No hay pedidos que coincidan con los filtros.</p>
+    </div>
+  }
+  @if (!loading && pedidos.length === 0 && !error) {
+    <div class="empty-state">
+      <p>Aún no hay pedidos cargados.</p>
+      <button class="btn-create" (click)="abrirCrear()">Cargar el primer pedido</button>
+    </div>
+  }
+</div>
+
+<!-- ─────────────────────────────────────────────────────────────
+     MODAL NUEVO / EDITAR
+     ───────────────────────────────────────────────────────────── -->
+@if (showModal) {
+  <div class="modal-overlay" (click)="cerrarModal()">
+    <div class="modal-panel" (click)="$event.stopPropagation()">
+
+      <div class="modal-header">
+        <h2>{{ modalTitle }}</h2>
+        <button class="btn-close" (click)="cerrarModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Odontólogo con autocomplete inteligente -->
+        <div class="form-row">
+          <label>Odontólogo * <span class="label-hint">— buscar por nombre, DNI, CUIT o matrícula</span></label>
+          <div class="autocomplete-wrap">
+            <input
+              type="text"
+              class="form-input"
+              placeholder="Ej: Dr. García · 28456789 · 20-28456789-3 · MN 12345"
+              [(ngModel)]="form.odontologoNombre"
+              (ngModelChange)="onOdontologoInput()"
+              (blur)="ocultarSugerenciasConDelay()"
+              autocomplete="off"
+            />
+            @if (form.odontologoId) {
+              <span class="autocomplete-badge existente">✓ Existente</span>
+            } @else if (tipoMatchOdontologo !== 'NOMBRE' && form.odontologoNombre.trim().length > 0 && !mostrandoSugerencias && !buscandoOdontologo) {
+              <span class="autocomplete-badge alerta">⚠ {{ tipoMatchOdontologo }} no encontrado</span>
+            } @else if (form.odontologoNombre.trim().length >= 2 && !mostrandoSugerencias && !buscandoOdontologo && tipoMatchOdontologo === 'NOMBRE') {
+              <span class="autocomplete-badge nuevo">+ Se creará nuevo</span>
+            }
+            @if (mostrandoSugerencias) {
+              <div class="autocomplete-list">
+                @for (o of odontologosSugeridos; track o.id) {
+                  <button type="button" class="autocomplete-item" (mousedown)="seleccionarOdontologo(o)">
+                    <strong>{{ o.nombre }}</strong>
+                    <div class="autocomplete-meta">
+                      @if (o.matricula) { <span>{{ o.matricula }}</span> }
+                      @if (o.dni)       { <span>DNI {{ o.dni }}</span> }
+                      @if (o.cuit)      { <span>CUIT {{ o.cuit }}</span> }
+                    </div>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Panel expandible: datos opcionales del odontólogo nuevo -->
+        @if (esOdontologoNuevo) {
+          <div #nuevoOdonPanel class="nuevo-odon-panel" [class.abierto]="panelNuevoOdontologoAbierto">
+            <button type="button" class="nuevo-odon-toggle" (click)="togglePanelNuevoOdontologo(nuevoOdonPanel)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" [class.rotated]="panelNuevoOdontologoAbierto">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+              <strong>Completar datos del nuevo odontólogo</strong>
+              <span class="badge-opcional">opcional · podés completarlos después</span>
+            </button>
+
+            @if (panelNuevoOdontologoAbierto) {
+              <div class="nuevo-odon-body">
+                <div class="form-grid-2">
+                  <div class="form-row">
+                    <label>DNI</label>
+                    <input type="text" class="form-input" [(ngModel)]="form.nuevoOdontologo.dni"
+                           (ngModelChange)="form.nuevoOdontologo.dni = sanitizarDni($event)"
+                           inputmode="numeric" placeholder="28456789" maxlength="8"/>
+                  </div>
+                  <div class="form-row">
+                    <label>CUIT</label>
+                    <input type="text" class="form-input" [(ngModel)]="form.nuevoOdontologo.cuit"
+                           (ngModelChange)="form.nuevoOdontologo.cuit = sanitizarCuit($event)"
+                           inputmode="numeric" placeholder="20-28456789-3"/>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label>Matrícula</label>
+                  <input type="text" class="form-input" [(ngModel)]="form.nuevoOdontologo.matricula" placeholder="MN 12345"/>
+                </div>
+                <div class="form-grid-2">
+                  <div class="form-row">
+                    <label>Teléfono</label>
+                    <input type="text" class="form-input" [(ngModel)]="form.nuevoOdontologo.telefono"
+                           (ngModelChange)="form.nuevoOdontologo.telefono = sanitizarTelefono($event)"
+                           inputmode="tel" placeholder="11-4567-8901"/>
+                  </div>
+                  <div class="form-row">
+                    <label>Email</label>
+                    <input type="email" class="form-input" [(ngModel)]="form.nuevoOdontologo.email" placeholder="odontologo@email.com"/>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <label>Clínica / Consultorio</label>
+                  <input type="text" class="form-input" [(ngModel)]="form.nuevoOdontologo.clinica" placeholder="Ej: Clínica Odontológica Norte"/>
+                </div>
+                <div class="form-row">
+                  <label>Dirección</label>
+                  <input type="text" class="form-input" [(ngModel)]="form.nuevoOdontologo.direccion" placeholder="Av. Cabildo 2350, CABA"/>
+                </div>
+              </div>
+            }
+          </div>
+        }
+
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label>Paciente *</label>
+            <input type="text" class="form-input" [(ngModel)]="form.paciente" placeholder="Nombre del paciente"/>
+          </div>
+          <div class="form-row">
+            <label>Fecha de entrega *</label>
+            <input type="date" class="form-input" [(ngModel)]="form.fechaEntrega"/>
+          </div>
+        </div>
+
+        <!-- Trabajo con autocomplete sobre el catálogo -->
+        <div class="form-row">
+          <label>Tipo de trabajo * <span class="label-hint">— escribí y elegí del catálogo o agregá uno personalizado</span></label>
+          <div class="autocomplete-wrap">
+            <input
+              type="text"
+              class="form-input"
+              placeholder="Ej: Corona Metal-Cerámica..."
+              [(ngModel)]="form.trabajo"
+              (ngModelChange)="onTrabajoInput()"
+              (focus)="onTrabajoInput()"
+              (blur)="ocultarSugerenciasTrabajoConDelay()"
+              autocomplete="off"
+            />
+            @if (form.catalogoTrabajoId) {
+              <span class="autocomplete-badge existente">✓ Catálogo</span>
+            } @else if (form.trabajo.trim().length > 0 && !mostrandoSugerenciasTrabajo) {
+              <span class="autocomplete-badge nuevo">Personalizado</span>
+            }
+            @if (mostrandoSugerenciasTrabajo) {
+              <div class="autocomplete-list">
+                @for (t of trabajosSugeridos; track t.id) {
+                  <button type="button" class="autocomplete-item" (mousedown)="seleccionarTrabajo(t)">
+                    <strong>{{ t.nombre }}</strong>
+                    <div class="autocomplete-meta">
+                      <span>{{ formatPrecio(t.precio) }}</span>
+                      <span>{{ t.tiempoEstimadoDias }} días</span>
+                      <span>{{ t.categoria }}</span>
+                    </div>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="form-grid-2">
+          <div class="form-row">
+            <label>Prioridad</label>
+            <div class="prioridad-toggle">
+              <button type="button" class="prio-opt" [class.active]="form.prioridad === 'NORMAL'"
+                      (click)="form.prioridad = 'NORMAL'">Normal</button>
+              <button type="button" class="prio-opt urgente" [class.active]="form.prioridad === 'URGENTE'"
+                      (click)="form.prioridad = 'URGENTE'">Urgente</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <label>Precio acordado</label>
+            <input
+              type="number"
+              class="form-input"
+              [class.invalid]="errorPrecio"
+              [(ngModel)]="form.precioAcordado"
+              (ngModelChange)="onPrecioChange()"
+              min="0"
+              step="100"
+              placeholder="A convenir"
+            />
+            @if (errorPrecio) {
+              <span class="error-inline">{{ errorPrecio }}</span>
+            }
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label>Observaciones</label>
+          <textarea class="form-input" rows="2" [(ngModel)]="form.observaciones"
+                    placeholder="Notas adicionales (opcional)"></textarea>
+        </div>
+
+        @if (!editMode) {
+          <div class="form-row">
+            <label>Escaneos 3D (opcional)</label>
+            <label class="escaneo-upload-btn">
+              + Adjuntar escaneo(s) STL/OBJ/PLY
+              <input type="file" class="hidden-input" [accept]="acceptEscaneos" multiple
+                     (change)="onArchivosEscaneoInput($event)" />
+            </label>
+            @if (archivosEscaneo.length > 0) {
+              <ul class="escaneo-chip-list">
+                @for (f of archivosEscaneo; track f.name + f.size; let i = $index) {
+                  <li class="escaneo-chip">
+                    <span>{{ f.name }}</span>
+                    <button type="button" (click)="quitarArchivoEscaneo(i)" title="Quitar">✕</button>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="cerrarModal()" [disabled]="saving">Cancelar</button>
+        <button class="btn-primary" (click)="guardar()" [disabled]="!formValido || saving">
+          @if (saving) { Guardando... } @else { Guardar pedido }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─────────────────────────────────────────────────────────────
+     MODAL DETALLE
+     ───────────────────────────────────────────────────────────── -->
+@if (detalleAbiertoId !== null) {
+  <app-pedido-detalle-modal [pedidoId]="detalleAbiertoId" (cerrar)="cerrarDetalle()" />
+}
+
+<!-- ─────────────────────────────────────────────────────────────
+     CONFIRMACIÓN DE CANCELACIÓN
+     ───────────────────────────────────────────────────────────── -->
+@if (cancelConfirmId !== null) {
+  <div class="modal-overlay" (click)="abortarCancel()">
+    <div class="modal-panel confirm" (click)="$event.stopPropagation()">
+      <div class="modal-header"><h2>¿Cancelar pedido?</h2></div>
+      <div class="modal-body">
+        <p>El pedido pasará al estado <strong>CANCELADO</strong> y no se podrá modificar más.</p>
+        <p class="muted">Esta acción no se puede deshacer fácilmente.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="abortarCancel()">No, volver</button>
+        <button class="btn-primary danger" (click)="confirmarCancelar(cancelConfirmId)">Sí, cancelar</button>
+      </div>
+    </div>
+  </div>
+}

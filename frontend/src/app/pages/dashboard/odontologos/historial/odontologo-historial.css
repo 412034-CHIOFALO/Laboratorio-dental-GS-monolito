@@ -1,0 +1,423 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.historial-page {
+  padding: 1.5rem;
+  max-width: 1600px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--muted, #6b7280);
+  text-decoration: none;
+  width: fit-content;
+  transition: color 0.15s;
+  /* Fija el link de "volver" al scrollear: en Finanzas el contenido es largo
+     y sin esto quedaba imposible volver a Odontólogos sin scrollear hasta
+     arriba del todo. Va arriba de .tabs (que también es sticky) — ver el
+     "top" de .tabs más abajo, que le deja lugar debajo de este. */
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--bg);
+  margin: 0 -1.5rem;
+  padding: 0.4rem 1.5rem;
+}
+.back-link:hover { color: var(--text); }
+
+.loading-wrap, .empty-state {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--muted, #6b7280);
+}
+
+/* ─── HERO ──────────────────────────────────────────────────── */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  flex-wrap: wrap;
+}
+.hero-avatar {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: var(--accent, #3b82f6);
+  color: white;
+  font-size: 1.4rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.hero-info { flex: 1; min-width: 200px; }
+.hero-info h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.hero-meta {
+  margin-top: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--muted, #6b7280);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.hero-meta strong { color: var(--text); font-weight: 600; }
+
+.hero-saldo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 0.85rem 1.2rem;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.hero-saldo .saldo-label {
+  font-size: 0.7rem;
+  color: var(--muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.hero-saldo .saldo-val {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.hero-saldo.deuda {
+  background: rgba(234, 88, 12, 0.08);
+  border-color: rgba(234, 88, 12, 0.35);
+}
+.hero-saldo.deuda .saldo-val { color: #ea580c; }
+.btn-registrar-pago {
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  background: var(--gs-gradient-green, #16a34a);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.btn-registrar-pago:hover { opacity: 0.88; }
+
+/* ─── KPIs ──────────────────────────────────────────────────── */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.75rem;
+}
+@media (max-width: 900px) { .kpi-row { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 500px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+
+.kpi {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.kpi-label {
+  font-size: 0.68rem;
+  color: var(--muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.kpi strong {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.kpi strong[data-color=amber] { color: #d97706; }
+.kpi strong[data-color=green] { color: #16a34a; }
+
+/* ─── TABS ──────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  /* Fija la barra al scrollear: el contenido de algunas pestañas (Finanzas,
+     con saldo + trabajos activos + historial) es largo, y sin esto al bajar
+     se perdía el menú y no había forma de cambiar de pestaña sin volver arriba.
+     El fondo + el sangrado lateral tapan el contenido que pasa por debajo
+     (el sangrado compensa el padding de .historial-page). top offset = alto
+     aproximado de .back-link (arriba, también sticky), para no superponerse. */
+  position: sticky;
+  top: 2.4rem;
+  z-index: 5;
+  background: var(--bg);
+  margin: 0 -1.5rem;
+  padding: 0 1.5rem 1px;
+}
+.tab {
+  padding: 0.65rem 1rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font-size: 0.85rem;
+  color: var(--muted, #6b7280);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+.tab:hover { color: var(--text); }
+.tab.active {
+  color: var(--text);
+  border-bottom-color: var(--accent, #3b82f6);
+  font-weight: 600;
+}
+.tab-count {
+  font-size: 0.7rem;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  padding: 1px 6px;
+  border-radius: 9px;
+  color: var(--muted, #6b7280);
+}
+.tab.active .tab-count {
+  background: var(--accent, #3b82f6);
+  color: white;
+}
+
+/* ─── CONTENIDO DE TAB ──────────────────────────────────────── */
+.tab-content {
+  padding-top: 1rem;
+}
+
+.resumen-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+}
+@media (max-width: 900px) { .resumen-grid { grid-template-columns: 1fr; } }
+
+.card-sec {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.1rem;
+}
+.card-sec h3 {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.list-resumen {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.list-resumen li {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 0.6rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  font-size: 0.82rem;
+  align-items: center;
+}
+.list-resumen li:last-child { border-bottom: 0; }
+.list-resumen li.row-clickable, .pedidos-tabla tbody tr.row-clickable { cursor: pointer; }
+.mini-nro {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-weight: 700;
+  color: var(--text);
+}
+.mini-trabajo {
+  color: var(--muted, #6b7280);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mini-precio {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.data-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+  margin: 0;
+  font-size: 0.82rem;
+}
+.data-list dt {
+  color: var(--muted, #6b7280);
+  font-weight: 500;
+}
+.data-list dd {
+  margin: 0;
+  color: var(--text);
+}
+
+/* ─── Estado chip (reutilizable) ─────────────────────────── */
+.mini-estado {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.mini-estado[data-color=blue]   { background: rgba(59, 130, 246, 0.12); color: #2563eb; }
+.mini-estado[data-color=amber]  { background: rgba(245, 158, 11, 0.12); color: #d97706; }
+.mini-estado[data-color=purple] { background: rgba(168, 85, 247, 0.12); color: #9333ea; }
+.mini-estado[data-color=green]  { background: rgba(34, 197, 94, 0.12);  color: #16a34a; }
+.mini-estado[data-color=cyan]   { background: rgba(14, 165, 233, 0.12); color: #0284c7; }
+.mini-estado[data-color=rose]   { background: rgba(244, 63, 94, 0.12);  color: #e11d48; }
+.mini-estado[data-color=muted]  { background: rgba(107, 114, 128, 0.12); color: #6b7280; }
+
+/* ─── Tabla de pedidos (tab Pedidos) ──────────────────────── */
+.tabla-wrap { overflow-x: auto; }
+.pedidos-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.pedidos-tabla thead th {
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.7rem;
+  color: var(--muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.65rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+}
+.pedidos-tabla th.num,
+.pedidos-tabla td.num { text-align: right; }
+.pedidos-tabla tbody tr {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  transition: background 0.15s;
+}
+.pedidos-tabla tbody tr:hover { background: color-mix(in srgb, var(--text) 3%, transparent); }
+.pedidos-tabla td {
+  padding: 0.7rem 0.55rem;
+  color: var(--text);
+}
+.pedidos-tabla td.muted { color: var(--muted, #6b7280); }
+
+/* ─── Tab Finanzas ──────────────────────────────────────── */
+.finanzas-resumen {
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem 0;
+}
+.big-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 3rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.big-label {
+  font-size: 0.8rem;
+  color: var(--muted, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+.big-val {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.big-sub {
+  font-size: 0.8rem;
+  color: var(--muted, #6b7280);
+  margin-top: 0.3rem;
+}
+.big-stat.deuda { border-color: rgba(234, 88, 12, 0.4); background: rgba(234, 88, 12, 0.05); }
+.big-stat.deuda .big-val { color: #ea580c; }
+
+.fin-sec { margin-top: 1.25rem; }
+
+.pedidos-tabla tfoot .total-row { background: var(--gs-card-2, #1e2535); }
+.pedidos-tabla tfoot td { padding: 0.75rem 1rem; border-top: 1px solid var(--border); }
+.total-label {
+  font-size: 0.8rem; font-weight: 600;
+  color: var(--muted, #6b7280); text-transform: uppercase; letter-spacing: 0.04em;
+}
+.total-val {
+  font-weight: 700; color: var(--text);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* ─── Comprobantes + últimos pagos (tab Finanzas) ────────────────────── */
+.cc-empty { color: var(--muted, #6b7280); font-size: 0.9rem; padding: 0.5rem 0; }
+.cc-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.cc-tabla th { text-align: left; color: var(--muted, #6b7280); font-weight: 600; padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
+.cc-tabla th.num, .cc-tabla td.num { text-align: right; }
+.cc-tabla td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border); color: var(--text); }
+.cc-tabla tr.saldado td { color: var(--muted, #6b7280); }
+.cc-estado { font-size: 0.72rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+.cc-estado[data-estado="PENDIENTE"] { background: rgba(239,68,68,.14); color: #ef4444; }
+.cc-estado[data-estado="PARCIAL"]   { background: rgba(245,158,11,.16); color: #f59e0b; }
+.cc-estado[data-estado="COBRADO"]   { background: rgba(34,197,94,.14); color: #22c55e; }
+.cc-estado[data-estado="VENCIDO"]   { background: rgba(239,68,68,.14); color: #ef4444; }
+.cc-historial { display: flex; flex-direction: column; }
+.cc-pago { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 0.4rem 0; color: var(--text); border-bottom: 1px dashed var(--border); }
+.cc-pago span { color: var(--muted, #6b7280); }
+
+.placeholder, .placeholder-info {
+  text-align: center;
+  color: var(--muted, #6b7280);
+  padding: 1rem;
+}
+.placeholder p:first-child { font-size: 1.1rem; margin-bottom: 0.3rem; }
+.empty-mini {
+  color: var(--muted, #6b7280);
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .historial-page { padding: 1rem; }
+  /* El sangrado de las barras fijas tiene que seguir al padding de la página. */
+  .back-link { margin: 0 -1rem; padding: 0.4rem 1rem; }
+  .tabs { margin: 0 -1rem; padding: 0 1rem 1px; }
+  .hero { padding: 1rem; }
+  .hero-avatar { width: 52px; height: 52px; font-size: 1.1rem; }
+  .hero-info h1 { font-size: 1.15rem; }
+  .hero-saldo { width: 100%; }
+  .big-stat { padding: 1.5rem 1.5rem; }
+  .big-val { font-size: 1.5rem; }
+}

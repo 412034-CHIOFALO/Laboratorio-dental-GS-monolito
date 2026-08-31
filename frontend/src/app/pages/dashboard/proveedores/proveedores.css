@@ -1,0 +1,137 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.prov-view {
+  padding: 1.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Pills + header van juntos en un único contenedor sticky (ver .prov-sticky-top
+   más abajo) en vez de cada uno sticky por separado con un offset calculado a
+   mano: los pills envuelven a 2-3 filas en mobile según el ancho, así que su
+   altura no es fija, y un offset fijo se desalinea apenas cambia. */
+.prov-sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--bg);
+  margin: 0 -2rem;
+  padding: 0 2rem;
+  flex-shrink: 0;
+}
+
+/* Misma barra de navegación que usa Finanzas (.fin-pills/.fin-pill en
+   finanzas.css) — los estilos de componente de Angular no se comparten entre
+   componentes, así que se duplican acá. Proveedores ya no es un ítem de nivel
+   raíz del sidebar — solo se llega acá desde el pill "Proveedores" de
+   Finanzas — así que esta barra hace también de "volver". */
+.fin-pills {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+  margin-bottom: 1.2rem;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.fin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.95rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--muted, #6b7280);
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.fin-pill:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent, #22c55e) 40%, var(--border)); }
+.fin-pill.active {
+  background: var(--accent, #22c55e);
+  color: #fff;
+  border-color: var(--accent, #22c55e);
+  font-weight: 600;
+  cursor: default;
+}
+.fin-pill .pill-icon { display: inline-flex; align-items: center; }
+.fin-pill .pill-icon svg { display: block; }
+
+.prov-header {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
+  flex-shrink: 0;
+  padding: 0.9rem 0 0;
+}
+.prov-header h1 { font-size: 1.5rem; font-weight: 700; color: var(--text); }
+.prov-header .sub { color: var(--dim); font-size: 0.85rem; margin-top: 2px; }
+.acciones { display: flex; gap: 8px; }
+
+.btn-refresh { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.btn-refresh:hover { background: var(--neutral-tint); }
+.btn-primary { background: var(--grad-primary, var(--accent)); color: var(--on-accent, #fff); border: none; border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }
+.btn-primary:disabled { opacity: .6; cursor: default; }
+.btn-ghost { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+
+.cards { display: flex; gap: 12px; margin-bottom: 1.2rem; flex-wrap: wrap; flex-shrink: 0; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 18px; min-width: 160px; display: flex; flex-direction: column; gap: 4px; }
+.card-label { font-size: 0.75rem; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+.card-val { font-size: 1.4rem; font-weight: 700; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+.card-val.deuda { color: #dc2626; }
+
+.tabla-wrap { border: 1px solid var(--border); border-radius: 12px; flex: 1 1 auto; min-height: 0; overflow: auto; }
+.tabla { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.88rem; }
+.tabla thead th { position: sticky; top: 0; z-index: 1; text-align: left; padding: 10px 12px; background: var(--neutral-tint); color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+.tabla tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+.fila { cursor: pointer; }
+.fila:hover { background: var(--neutral-tint); }
+.chev { width: 28px; color: var(--dim); text-align: center; }
+.r { text-align: right; }
+.nowrap { white-space: nowrap; }
+.mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+.sub2 { color: var(--dim); font-size: 0.78rem; margin-top: 2px; }
+
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.74rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.badge.pend { background: rgba(220,38,38,.15); color: #dc2626; }
+.badge.parcial { background: rgba(245,158,11,.16); color: #f59e0b; }
+.badge.ok { background: rgba(22,163,74,.15); color: #16a34a; }
+
+.detalle td { background: var(--bg, var(--neutral-tint)); padding: 0 12px 12px 40px; }
+.detalle-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 6px; }
+.detalle-title { font-weight: 700; font-size: 0.85rem; color: var(--text); }
+.btn-sm { padding: 4px 10px; font-size: 0.76rem; }
+.sub-tabla { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 4px; }
+.sub-tabla thead th { text-align: left; padding: 7px 10px; color: var(--dim); font-weight: 600; border-bottom: 1px solid var(--border); }
+.sub-tabla tbody td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+.obs { color: var(--dim); font-size: 0.76rem; margin-top: 2px; font-style: italic; }
+
+.vacio { text-align: center; padding: 3rem 1rem; border: 1px dashed var(--border); border-radius: 12px; color: var(--dim); }
+.vacio p { font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+.estado-msg { color: var(--dim); padding: 0.8rem 0; }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
+.modal { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem; width: 100%; max-width: 420px; display: flex; flex-direction: column; gap: 10px; }
+.modal h2 { font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.modal label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.modal input { padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg, transparent); color: var(--text); font-size: 0.9rem; }
+.modal input:focus { outline: none; border-color: var(--accent); }
+.modal-acciones { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+
+@media (max-width: 640px) {
+  .prov-view { padding: 1rem; }
+  /* El sangrado de la barra fija tiene que seguir al padding de la página. */
+  .prov-sticky-top { margin: 0 -1rem; padding: 0 1rem; }
+  .prov-header { flex-direction: column; }
+}

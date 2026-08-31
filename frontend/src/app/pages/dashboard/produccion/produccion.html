@@ -1,0 +1,308 @@
+<div class="prod-page">
+
+  <!-- ════════════════════════════════════════════════════
+       HEADER — compartido desktop + mobile
+  ═════════════════════════════════════════════════════ -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="page-icon cyan">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+        </svg>
+      </div>
+      <div>
+        <div class="title-row">
+          <h1>Producción</h1>
+          @if (urgentesActivos > 0) {
+            <span class="badge-urgentes">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+              </svg>
+              {{ urgentesActivos }} urgente{{ urgentesActivos > 1 ? 's' : '' }}
+            </span>
+          }
+        </div>
+        <p class="subtitle">{{ totalActivos }} pedidos en curso</p>
+      </div>
+    </div>
+    <div class="header-controls">
+      <div class="filter-wrap">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+        </svg>
+        <select [(ngModel)]="tecnicoFiltro" class="filter-select">
+          <option value="TODOS">Todos</option>
+          @for (t of tecnicos; track t) {
+            <option [value]="t">{{ t }}</option>
+          }
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════
+       MOBILE VIEW  (< 768 px)
+  ═════════════════════════════════════════════════════ -->
+  <div class="mobile-view">
+
+    <!-- Tabs de columna -->
+    <div class="col-tabs">
+      @for (col of columnas; track col.estado) {
+        <button
+          class="col-tab"
+          [class.active]="activeTab === col.estado"
+          [attr.data-col]="col.estado"
+          (click)="setActiveTab(col.estado)"
+        >
+          <span class="tab-label">{{ col.labelCorto }}</span>
+          <span class="tab-count" [attr.data-col]="col.estado">
+            {{ pedidosPorEstado(col.estado).length }}
+          </span>
+        </button>
+      }
+    </div>
+
+    <!-- Indicador de progreso de flujo -->
+    <div class="flow-indicator">
+      @for (col of columnas; track col.estado; let i = $index) {
+        <div
+          class="flow-step"
+          [class.done]="ordenEstados.indexOf(activeTab) > i"
+          [class.active]="activeTab === col.estado"
+          [attr.data-col]="col.estado"
+        >
+          <span class="flow-dot"></span>
+          @if (i < columnas.length - 1) {
+            <span class="flow-line"></span>
+          }
+        </div>
+      }
+    </div>
+
+    <!-- Título de columna activa -->
+    <div class="active-col-header" [attr.data-col]="activeTab">
+      <span class="col-dot-lg" [attr.data-col]="activeTab"></span>
+      <span class="active-col-label">{{ columnaActiva.labelLargo }}</span>
+      <span class="active-col-count">{{ pedidosPorEstado(activeTab).length }}</span>
+    </div>
+
+    <!-- Lista de tarjetas mobile -->
+    <div class="mobile-cards">
+
+      <!-- Empty state -->
+      @if (pedidosPorEstado(activeTab).length === 0) {
+        <div class="mobile-empty">
+          <div class="empty-icon-wrap" [attr.data-col]="activeTab">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+            </svg>
+          </div>
+          <p>Sin pedidos en <strong>{{ columnaActiva.labelLargo }}</strong></p>
+          <small>Los pedidos aparecerán aquí cuando avancen al siguiente estado.</small>
+        </div>
+      }
+
+      <!-- Mobile cards -->
+      @for (pedido of pedidosPorEstado(activeTab); track pedido.id) {
+        <div
+          class="m-card"
+          [class.urgente]="pedido.prioridad === 'URGENTE'"
+          [attr.data-col]="pedido.estado"
+        >
+          <!-- Card top: número + urgente + vencimiento -->
+          <div class="m-card-top">
+            <div class="m-top-left">
+              <span class="m-nro">#{{ pedido.nroPedido }}</span>
+              @if (pedido.prioridad === 'URGENTE') {
+                <span class="m-urgente-badge">
+                  <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                  </svg>
+                  URGENTE
+                </span>
+              }
+            </div>
+            <div class="m-due" [attr.data-urgency]="diasClass(pedido.fechaEntrega)">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+              </svg>
+              {{ diasLabel(pedido.fechaEntrega) }}
+            </div>
+          </div>
+
+          <h2 class="m-trabajo">{{ pedido.trabajo }}</h2>
+
+          <div class="m-parties">
+            <div class="m-party">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+              <span class="m-odontologo">{{ pedido.odontologo }}</span>
+            </div>
+            <span class="m-sep-dot">·</span>
+            <span class="m-paciente">Pac. {{ pedido.paciente }}</span>
+          </div>
+
+          <div class="m-tecnico-row">
+            <span class="m-avatar" [style.background]="tecnicoColor(pedido.tecnico)">
+              {{ tecnicoInitials(pedido.tecnico) }}
+            </span>
+            <span class="m-tec-name">{{ pedido.tecnico }}</span>
+          </div>
+
+          <div class="m-divider"></div>
+
+          <!-- ACCIONES -->
+          <div class="m-actions">
+            @if (columnAnterior(pedido.estado)) {
+              <button
+                class="btn-retroceder"
+                (click)="retroceder(pedido)"
+                [title]="'Devolver a ' + (columnas[ordenEstados.indexOf(pedido.estado)-1]?.labelLargo ?? '')"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+              </button>
+            }
+            @if (columnSiguiente(pedido.estado)) {
+              <button
+                class="btn-avanzar"
+                [attr.data-col]="pedido.estado"
+                (click)="avanzar(pedido)"
+              >
+                {{ columnaActiva.accionLabel }}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
+            }
+            @if (!columnSiguiente(pedido.estado)) {
+              <div class="estado-listo">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Listo para entregar
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════
+       DESKTOP VIEW  (>= 768 px)
+  ═════════════════════════════════════════════════════ -->
+  <div class="desktop-view">
+
+    <!-- Stats strip -->
+    <div class="stats-strip">
+      @for (col of columnas; track col.estado) {
+        <div class="strip-item" [attr.data-col]="col.estado">
+          <span class="strip-dot" [attr.data-col]="col.estado"></span>
+          <span class="strip-label">{{ col.labelLargo }}</span>
+          <span class="strip-count" [attr.data-col]="col.estado">{{ pedidosPorEstado(col.estado).length }}</span>
+        </div>
+      }
+    </div>
+
+    <!-- Board -->
+    <div class="board-scroll">
+      <div class="kanban-board">
+        @for (col of columnas; track col.estado) {
+          <div
+            class="kanban-col"
+            [class.is-drag-over]="dragOverColumn === col.estado"
+            [attr.data-col]="col.estado"
+            (dragover)="onDragOver($event, col.estado)"
+            (dragleave)="onDragLeave($event)"
+            (drop)="onDrop($event, col.estado)"
+          >
+            <div class="col-header" [attr.data-col]="col.estado">
+              <div class="col-header-left">
+                <span class="col-dot" [attr.data-col]="col.estado"></span>
+                <span class="col-title">{{ col.labelLargo }}</span>
+              </div>
+              <span class="col-count" [attr.data-col]="col.estado">{{ pedidosPorEstado(col.estado).length }}</span>
+            </div>
+
+            @if (dragOverColumn === col.estado && draggingPedido?.estado !== col.estado) {
+              <div class="drop-hint visible">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="12 5 12 19"/><polyline points="19 12 12 19 5 12"/>
+                </svg>
+                Soltar aquí
+              </div>
+            } @else {
+              <div class="drop-hint"></div>
+            }
+
+            <div class="col-body"
+              (dragover)="$event.preventDefault(); onDragOver($event, col.estado)"
+              (drop)="onDrop($event, col.estado)"
+            >
+              @for (pedido of pedidosPorEstado(col.estado); track pedido.id) {
+                <div
+                  class="k-card"
+                  [class.urgente]="pedido.prioridad === 'URGENTE'"
+                  [class.is-dragging]="draggingPedido?.id === pedido.id"
+                  draggable="true"
+                  (dragstart)="onDragStart($event, pedido)"
+                  (dragend)="onDragEnd()"
+                  (dragover)="$event.preventDefault(); onDragOver($event, col.estado)"
+                >
+                  @if (pedido.prioridad === 'URGENTE') {
+                    <div class="k-urgente-strip">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                      </svg>
+                      URGENTE — Prioridad alta
+                    </div>
+                  }
+                  <div class="k-top">
+                    <span class="k-nro">#{{ pedido.nroPedido }}</span>
+                  </div>
+                  <div class="k-trabajo">{{ pedido.trabajo }}</div>
+                  <div class="k-parties">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    <span class="k-odontologo">{{ pedido.odontologo }}</span>
+                    <span class="k-sep">·</span>
+                    <span class="k-paciente">{{ pedido.paciente }}</span>
+                  </div>
+                  <div class="k-footer">
+                    <div class="k-tecnico">
+                      <span class="k-avatar" [style.background]="tecnicoColor(pedido.tecnico)">{{ tecnicoInitials(pedido.tecnico) }}</span>
+                      <span class="k-tec-name">{{ pedido.tecnico === 'Sin asignar' ? 'Sin asignar' : pedido.tecnico.split(' ')[0] }}</span>
+                    </div>
+                    <div class="k-due" [attr.data-urgency]="diasClass(pedido.fechaEntrega)">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                      {{ diasLabel(pedido.fechaEntrega) }}
+                    </div>
+                  </div>
+                </div>
+              }
+
+              @if (pedidosPorEstado(col.estado).length === 0 && dragOverColumn !== col.estado) {
+                <div class="col-empty">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/>
+                  </svg>
+                  Sin pedidos
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+
+</div>

@@ -1,0 +1,29 @@
+<div class="error-page">
+  <div class="error-card">
+    <div class="error-icon" [attr.data-icono]="info.icono">
+      @switch (info.icono) {
+        @case ('lock') {
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        }
+        @case ('ban') {
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+        }
+        @case ('search') {
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        }
+        @case ('server') {
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        }
+      }
+    </div>
+
+    <div class="error-codigo">{{ info.codigo }}</div>
+    <h1>{{ info.titulo }}</h1>
+    <p>{{ info.mensaje }}</p>
+
+    <div class="error-acciones">
+      <button class="btn-volver" (click)="volver()">Volver</button>
+      <button class="btn-inicio" (click)="irAlInicio()">Ir al inicio</button>
+    </div>
+  </div>
+</div>

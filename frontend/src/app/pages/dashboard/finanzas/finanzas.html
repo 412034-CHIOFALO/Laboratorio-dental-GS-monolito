@@ -1,0 +1,1072 @@
+<div class="fin-page">
+
+  <!-- ── HEADER ── -->
+  <div class="page-header">
+    <div class="page-title">
+      <h1>Finanzas <span class="accent">del Laboratorio</span></h1>
+      <p>Cajas, cuentas corrientes, pagos triangulados y sueldos</p>
+    </div>
+  </div>
+
+  <!-- ── PILLS DE NAVEGACIÓN ── -->
+  <nav class="fin-pills">
+    @for (s of secciones; track s.id) {
+      <button class="fin-pill" [class.active]="seccionActiva === s.id"
+              [routerLink]="s.id === 'proveedores' ? '/dashboard/proveedores' : null"
+              (click)="s.id !== 'proveedores' && irA(s.id)">
+        <span class="pill-icon">
+          @switch (s.id) {
+            @case ('resumen') {
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+            }
+            @case ('cajas') {
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+            }
+            @case ('cuentas') {
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            }
+            @case ('triangulados') {
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+            }
+            @case ('proveedores') {
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
+            }
+            @case ('sueldos') {
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+            }
+          }
+        </span>
+        {{ s.label }}
+      </button>
+    }
+  </nav>
+
+  <!-- ── LOADING / ERROR DEL RESUMEN ── -->
+  @if (loadingResumen) {
+    <div class="loading-wrap">
+      <div class="spinner-lg"></div>
+      <span>Cargando finanzas...</span>
+    </div>
+  }
+  @if (errorResumen) {
+    <div class="alert-error">{{ errorResumen }}</div>
+  }
+
+  @if (resumen && !loadingResumen) {
+    <div class="fin-body">
+    @switch (seccionActiva) {
+
+      <!-- ═══════════════════════ RESUMEN (dashboard) ═══════════════════════ -->
+      @case ('resumen') {
+        <div class="dash-widgets">
+
+          <!-- Widget: Cajas -->
+          <div class="widget" data-accent="green">
+            <div class="widget-head">
+              <span class="widget-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                Cajas
+              </span>
+              <span class="widget-big">{{ formatMoney(saldoTotalCajas) }}</span>
+            </div>
+            <div class="widget-body">
+              <div class="widget-row">
+                <span>Física</span><strong>{{ formatMoney(resumen.saldoFisica) }}</strong>
+              </div>
+              <div class="widget-row">
+                <span>Bancaria</span><strong>{{ formatMoney(resumen.saldoBancaria) }}</strong>
+              </div>
+            </div>
+            <button class="widget-link" (click)="irA('cajas')">Ver movimientos →</button>
+          </div>
+
+          <!-- Widget: Cuentas corrientes -->
+          <div class="widget" data-accent="amber">
+            <div class="widget-head">
+              <span class="widget-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Cuentas corrientes
+              </span>
+              <span class="widget-big">{{ cantidadMorosos }} <small>morosos</small></span>
+            </div>
+            <div class="widget-body">
+              @if (top3Morosos.length === 0) {
+                <p class="widget-empty">Sin deudas pendientes </p>
+              } @else {
+                @for (c of top3Morosos; track c.odontologoId; let i = $index) {
+                  <div class="widget-row">
+                    <span>#{{ i + 1 }} {{ c.odontologoNombre }}</span>
+                    <strong [attr.data-sev]="c.severidad">
+                      {{ formatPrecioMoneda(c.totalDeuda) }}
+                      @if (c.severidad === 'CRITICA' || c.severidad === 'ALTA') { ⚠ }
+                    </strong>
+                  </div>
+                }
+              }
+            </div>
+            <button class="widget-link" (click)="irA('cuentas')">Ver todas →</button>
+          </div>
+
+          <!-- Widget: Proveedores -->
+          <div class="widget" data-accent="cyan">
+            <div class="widget-head">
+              <span class="widget-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
+                Proveedores
+              </span>
+              <span class="widget-big">{{ formatMoney(resumen.totalDeudaProveedores) }}</span>
+            </div>
+            <div class="widget-body">
+              <p class="widget-hint">Deuda total con proveedores de materiales.</p>
+            </div>
+            <button class="widget-link" (click)="irA('proveedores')">Ver proveedores →</button>
+          </div>
+
+          <!-- Widget: Sueldos -->
+          <div class="widget" data-accent="purple">
+            <div class="widget-head">
+              <span class="widget-title">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                Sueldos
+              </span>
+              <span class="widget-big">{{ formatMoney(resumen.totalSueldosPendientes) }}</span>
+            </div>
+            <div class="widget-body">
+              <p class="widget-hint">Sueldos pendientes de pago del período actual.</p>
+            </div>
+            <button class="widget-link" (click)="irA('sueldos')">Ver sueldos →</button>
+          </div>
+
+        </div>
+
+        <!-- Triangulados incompletos en Caja Compensación (alerta prominente) -->
+        @if (resumen.descuadresCompensacion.length > 0) {
+          <div class="descuadre-box">
+            <div class="alertas-head">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <strong>Caja Compensación no cierra en cero — {{ resumen.descuadresCompensacion.length }} triangulado{{ resumen.descuadresCompensacion.length !== 1 ? 's' : '' }} incompleto{{ resumen.descuadresCompensacion.length !== 1 ? 's' : '' }}</strong>
+            </div>
+            <ul class="descuadre-list">
+              @for (d of resumen.descuadresCompensacion; track d.referencia + d.fecha) {
+                <li (click)="verDescuadre(d.referencia)">
+                  <span class="descuadre-concepto">{{ d.concepto }}</span>
+                  <span class="descuadre-monto">{{ formatMoney(d.monto) }}</span>
+                  <span class="descuadre-ver">Ver movimiento →</span>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        <!-- Alertas -->
+        @if (resumen.alertas.length > 0 || cantidadCriticos > 0) {
+          <div class="alertas-box">
+            <div class="alertas-head">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <strong>Alertas activas</strong>
+            </div>
+            <ul>
+              @if (cantidadCriticos > 0) {
+                <li>{{ cantidadCriticos }} odontólogo{{ cantidadCriticos !== 1 ? 's' : '' }} en estado de deuda crítica</li>
+              }
+              @for (alerta of resumen.alertas; track alerta) {
+                <li>{{ alerta }}</li>
+              }
+            </ul>
+          </div>
+        }
+      }
+
+      <!-- ═══════════════════════ CAJAS ═══════════════════════ -->
+      @case ('cajas') {
+        <div class="cajas-grid">
+          @for (c of cajas; track c.tipo) {
+            @let saldo = c.tipo === 'FISICA' ? resumen.saldoFisica
+                        : c.tipo === 'BANCARIA' ? resumen.saldoBancaria
+                        : resumen.saldoCompensacion;
+            <div class="caja-card"
+                 [class.activa]="cajaActiva === c.tipo"
+                 [attr.data-color]="c.color"
+                 (click)="cambiarCaja(c.tipo)">
+              <div class="caja-card-head">
+                <span class="caja-label">{{ c.label }}</span>
+                <span class="caja-desc">{{ c.descripcion }}</span>
+              </div>
+              <div class="caja-saldo" [attr.data-saldo]="colorSaldo(saldo, c.tipo === 'COMPENSACION')">
+                {{ formatMoney(saldo) }}
+              </div>
+              @if (c.tipo === 'COMPENSACION' && saldo !== 0) {
+                <span class="caja-warning">⚠ desbalanceada — debe ser $0</span>
+              }
+            </div>
+          }
+        </div>
+
+        <!-- ── Efectivo declarado pendiente (el bot lo detecta, entra/sale por caja) ──
+             Solo tiene sentido en Física: un pago en efectivo nunca puede afectar
+             la caja Bancaria ni la de Compensación. -->
+        @if (cajaActiva === 'FISICA' && (pendientesEfectivo.length > 0 || loadingPendientes)) {
+          <div class="efectivo-section">
+            <div class="efectivo-header">
+              <h3>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                Efectivo pendiente de confirmación
+              </h3>
+              <span class="badge-pendiente">{{ pendientesEfectivo.length }}</span>
+            </div>
+            <p class="efectivo-hint">El bot detectó pagos en efectivo en el grupo. Confirmá o rechazá cada uno.</p>
+
+            @if (loadingPendientes) {
+              <div class="loading">Cargando efectivos pendientes...</div>
+            } @else {
+              <div class="efectivo-lista">
+                @for (r of pendientesEfectivo; track r.id) {
+                  <div class="efectivo-item">
+                    <div class="efectivo-info">
+                      <div class="efectivo-receptor">
+                        <strong>{{ r.receptorNombre }}</strong>
+                        <span class="efectivo-monto">{{ formatMoney(r.monto ?? 0) }}</span>
+                      </div>
+                      @if (r.emisor) { <div class="muted">Pagó: {{ r.emisor }}</div> }
+                      <div class="efectivo-meta">
+                        <span class="muted">{{ r.cargadoPorNombre ?? '—' }}</span>
+                        <span class="muted"> · {{ r.grupoOrigen ?? '' }}</span>
+                        <span class="muted"> · {{ formatHora(r.fechaHora) }}</span>
+                      </div>
+                    </div>
+
+                    <div class="efectivo-acciones">
+                      @if (rechazandoId === r.id) {
+                        <div class="rechazo-form">
+                          <input class="rechazo-input" type="text" [(ngModel)]="motivoRechazo"
+                                 placeholder="Motivo del rechazo (opcional)">
+                          <button class="btn-pagar btn-sm" (click)="rechazarEfectivo()">Confirmar rechazo</button>
+                          <button class="btn-config btn-sm" (click)="rechazandoId = null">Cancelar</button>
+                        </div>
+                      } @else {
+                        <button class="btn-pagar btn-sm" (click)="confirmarEfectivo(r.id)">✓ Confirmar</button>
+                        <button class="btn-config btn-sm" (click)="abrirRechazo(r.id)">✗ Rechazar</button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <section class="movimientos-section">
+          <div class="movimientos-header">
+            <div>
+              <h2>Movimientos · {{ cajaActivaLabel }}</h2>
+              <p class="movimientos-sub">Click en cualquier columna para reordenar</p>
+            </div>
+            <div class="movimientos-header-right">
+              <div class="resumen-mini">
+                <span class="mini-stat ingreso">↑ Ingresos: <strong>{{ formatMoney(ingresosCajaActiva) }}</strong></span>
+                <span class="mini-stat egreso">↓ Egresos: <strong>{{ formatMoney(egresosCajaActiva) }}</strong></span>
+              </div>
+              <button class="btn-pdf-cierre" (click)="descargarCierreDiario()" [disabled]="descargandoPdf">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                {{ descargandoPdf ? 'Generando...' : 'PDF cierre' }}
+              </button>
+              <button class="btn-pdf-cierre" (click)="descargarResumenMensual()" [disabled]="descargandoPdf">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                {{ descargandoPdf ? 'Generando...' : 'PDF mensual' }}
+              </button>
+              <button class="btn-nuevo-mov" (click)="abrirNuevoMovimiento()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Nuevo movimiento
+              </button>
+            </div>
+          </div>
+
+          <!-- Selector de período -->
+          <div class="periodo-selector">
+            <span class="periodo-label">Período:</span>
+            <div class="periodo-seg">
+              @for (p of periodos; track p.valor) {
+                <button [class.active]="periodoMovimientos === p.valor"
+                        (click)="cambiarPeriodoMovimientos(p.valor)">{{ p.label }}</button>
+              }
+            </div>
+            <span class="periodo-hint">
+              Ingresos y egresos calculados sobre {{ periodoMovimientos === 'TODO' ? 'todo el historial' : 'el período' }}
+            </span>
+          </div>
+
+          <div class="movimientos-filtros">
+            <div class="filtros-chips">
+              <button class="chip" [class.active]="filtroMovimientos === 'TODOS'"
+                      (click)="cambiarFiltroMovimientos('TODOS')">Todos ({{ movimientosDelPeriodo.length }})</button>
+              <button class="chip" [class.active]="filtroMovimientos === 'INGRESO'"
+                      (click)="cambiarFiltroMovimientos('INGRESO')">↑ Ingresos</button>
+              <button class="chip" [class.active]="filtroMovimientos === 'EGRESO'"
+                      (click)="cambiarFiltroMovimientos('EGRESO')">↓ Egresos</button>
+            </div>
+            <div class="busqueda-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="text" placeholder="Buscar concepto, referencia..."
+                     [(ngModel)]="busquedaMovimiento" (ngModelChange)="aplicarFiltroMovimientos()">
+            </div>
+          </div>
+
+          @if (loadingMovimientos) {
+            <div class="loading-mini"><div class="spinner-lg"></div></div>
+          } @else if (movimientosFiltrados.length === 0) {
+            <div class="empty-state">
+              <p>
+                @if (movimientos.length === 0) { Sin movimientos registrados en esta caja. }
+                @else { Ningún movimiento coincide con los filtros aplicados. }
+              </p>
+            </div>
+          } @else {
+            <div class="table-wrap-scroll">
+              <table class="mov-table sortable">
+                <thead>
+                  <tr>
+                    <th class="th-fecha sortable-th" (click)="ordenarPorMov('fechaMovimiento')">
+                      Fecha <span class="sort-icon">{{ iconoSortMov('fechaMovimiento') }}</span>
+                    </th>
+                    <th class="sortable-th" (click)="ordenarPorMov('concepto')">
+                      Concepto <span class="sort-icon">{{ iconoSortMov('concepto') }}</span>
+                    </th>
+                    <th class="sortable-th" (click)="ordenarPorMov('referencia')">
+                      Referencia <span class="sort-icon">{{ iconoSortMov('referencia') }}</span>
+                    </th>
+                    <th class="sortable-th" (click)="ordenarPorMov('creadoPor')">
+                      Cargado por <span class="sort-icon">{{ iconoSortMov('creadoPor') }}</span>
+                    </th>
+                    <th class="th-monto sortable-th" (click)="ordenarPorMov('monto')">
+                      Monto <span class="sort-icon">{{ iconoSortMov('monto') }}</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (m of movimientosFiltrados; track m.id) {
+                    <tr>
+                      <td class="celda-fecha">{{ formatFecha(m.fechaMovimiento) }}</td>
+                      <td class="celda-concepto">
+                        <span class="tipo-chip" [attr.data-tipo]="m.tipo">
+                          {{ m.tipo === 'INGRESO' ? '↑' : '↓' }}
+                        </span>
+                        {{ m.concepto }}
+                      </td>
+                      <td><span class="ref">{{ m.referencia ?? '—' }}</span></td>
+                      <td class="muted">{{ m.creadoPor ?? '—' }}</td>
+                      <td class="celda-monto" [attr.data-tipo]="m.tipo">
+                        {{ m.tipo === 'INGRESO' ? '+' : '−' }} {{ formatMoney(m.monto) }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            <div class="tabla-footer">
+              <span>Mostrando {{ movimientosFiltrados.length }} de {{ movimientosDelPeriodo.length }} movimientos del período</span>
+            </div>
+          }
+        </section>
+      }
+
+      <!-- ═══════════════════════ CUENTAS CORRIENTES ═══════════════════════ -->
+      @case ('cuentas') {
+        <section class="cuentas-section plain">
+          <div class="cuentas-header">
+            <div>
+              <h2>Cuentas corrientes</h2>
+              <p class="cuentas-sub">Odontólogos ordenados por deuda · click en una fila para ver su historial</p>
+            </div>
+            <div class="cuentas-stats">
+              <div class="stat-pill">
+                <span class="stat-label">Deuda total</span>
+                <span class="stat-val">{{ formatPrecioMoneda(totalDeudaGlobal) }}</span>
+              </div>
+              <div class="stat-pill">
+                <span class="stat-label">Morosos</span>
+                <span class="stat-val">{{ cantidadMorosos }}</span>
+              </div>
+              @if (cantidadCriticos > 0) {
+                <div class="stat-pill critico">
+                  <span class="stat-label">Críticos</span>
+                  <span class="stat-val">{{ cantidadCriticos }}</span>
+                </div>
+              }
+            </div>
+          </div>
+
+          <div class="cuentas-filtros">
+            <div class="filtros-chips">
+              @for (f of filtros; track f.valor) {
+                <button class="chip" [class.active]="filtroMorosos === f.valor"
+                        (click)="cambiarFiltroMoroso(f.valor)">
+                  {{ f.label }}
+                </button>
+              }
+            </div>
+            <div class="busqueda-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="text" placeholder="Buscar odontólogo..."
+                     [(ngModel)]="busquedaMoroso" (ngModelChange)="aplicarFiltroMorosos()">
+            </div>
+          </div>
+
+          @if (loadingCuentas) {
+            <div class="loading">Cargando cuentas corrientes...</div>
+          } @else if (cuentasFiltradas.length === 0) {
+            <div class="empty">No hay resultados con los filtros aplicados</div>
+          } @else {
+            <div class="tabla-wrap">
+              <table class="cuentas-tabla sortable">
+                <thead>
+                  <tr>
+                    <th class="th-num">#</th>
+                    <th class="sortable-th" (click)="ordenarPorCuenta('odontologoNombre')">
+                      Odontólogo <span class="sort-icon">{{ iconoSortCuenta('odontologoNombre') }}</span>
+                    </th>
+                    <th class="th-num sortable-th" (click)="ordenarPorCuenta('comprobantesPendientes')">
+                      Comprobantes <span class="sort-icon">{{ iconoSortCuenta('comprobantesPendientes') }}</span>
+                    </th>
+                    <th class="th-num sortable-th" (click)="ordenarPorCuenta('fechaMasAntigua')">
+                      Más antiguo <span class="sort-icon">{{ iconoSortCuenta('fechaMasAntigua') }}</span>
+                    </th>
+                    <th class="th-num sortable-th" (click)="ordenarPorCuenta('diasSinPagar')">
+                      Días sin pagar <span class="sort-icon">{{ iconoSortCuenta('diasSinPagar') }}</span>
+                    </th>
+                    <th class="th-num sortable-th" (click)="ordenarPorCuenta('severidad')">
+                      Severidad <span class="sort-icon">{{ iconoSortCuenta('severidad') }}</span>
+                    </th>
+                    <th class="th-num sortable-th" (click)="ordenarPorCuenta('totalDeuda')">
+                      Deuda total <span class="sort-icon">{{ iconoSortCuenta('totalDeuda') }}</span>
+                    </th>
+                    <th class="th-num">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of cuentasFiltradas; track c.odontologoId; let i = $index) {
+                    <tr [attr.data-severidad]="c.severidad"
+                        [routerLink]="['/dashboard/odontologos', c.odontologoId, 'historial']"
+                        class="row-clickable">
+                      <td class="rank">#{{ i + 1 }}</td>
+                      <td class="celda-odonto">
+                        <div class="avatar-mini">{{ c.odontologoNombre.charAt(0).toUpperCase() }}</div>
+                        <span>{{ c.odontologoNombre }}</span>
+                      </td>
+                      <td class="th-num">{{ c.comprobantesPendientes }}</td>
+                      <td class="th-num muted">{{ formatFechaCorta(c.fechaMasAntigua) }}</td>
+                      <td class="th-num">
+                        <span class="dias-pill" [attr.data-rango]="c.diasSinPagar > 60 ? 'alto' : c.diasSinPagar > 30 ? 'medio' : 'bajo'">
+                          {{ c.diasSinPagar }}d
+                        </span>
+                      </td>
+                      <td class="th-num">
+                        <span class="badge-severidad" [attr.data-sev]="c.severidad">
+                          {{ iconoSeveridad(c.severidad) }} {{ labelSeveridad(c.severidad) }}
+                        </span>
+                      </td>
+                      <td class="th-num celda-deuda">{{ formatPrecioMoneda(c.totalDeuda) }}</td>
+                      <td class="th-num">
+                        <button class="btn-ver-comp" [disabled]="c.totalDeuda <= 0"
+                                (click)="abrirModalPago(c, $event)">Registrar pago</button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
+      }
+
+      <!-- ═══════════════════════ TRIANGULADOS / COMPROBANTES RECIBIDOS ═══════════════════════ -->
+      @case ('triangulados') {
+        <section class="cuentas-section plain">
+          <div class="cuentas-header">
+            <div>
+              <h2>Comprobantes recibidos</h2>
+              <p class="cuentas-sub">Sueldos y pagos a proveedores (directos o triangulados) cargados por el bot o a mano · buscá por nombre o monto</p>
+            </div>
+            <div class="cuentas-stats">
+              <div class="stat-pill">
+                <span class="stat-label">Total</span>
+                <span class="stat-val">{{ totalComprobantes }}</span>
+              </div>
+              <div class="stat-pill">
+                <span class="stat-label">Por el bot</span>
+                <span class="stat-val">{{ totalPorBot }}</span>
+              </div>
+              <div class="stat-pill">
+                <span class="stat-label">Monto total</span>
+                <span class="stat-val">{{ formatMoney(montoTotalComprobantes) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="cuentas-filtros">
+            <div class="filtros-chips">
+              <button class="chip" [class.active]="filtroOrigen === 'TODOS'" (click)="cambiarFiltroOrigen('TODOS')">Todos</button>
+              <button class="chip" [class.active]="filtroOrigen === 'BOT_WHATSAPP'" (click)="cambiarFiltroOrigen('BOT_WHATSAPP')">Bot</button>
+              <button class="chip" [class.active]="filtroOrigen === 'MANUAL'" (click)="cambiarFiltroOrigen('MANUAL')">Manual</button>
+            </div>
+            <div class="busqueda-wrap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input type="text" placeholder="Buscar odontólogo, técnico, monto..."
+                     [(ngModel)]="busquedaComprobante" (ngModelChange)="aplicarFiltroComprobantes()">
+            </div>
+          </div>
+
+          @if (loadingComprobantes) {
+            <div class="loading">Cargando comprobantes...</div>
+          } @else if (comprobantesFiltrados.length === 0) {
+            <div class="empty">
+              @if (comprobantes.length === 0) { Todavía no hay comprobantes registrados. }
+              @else { Ningún comprobante coincide con la búsqueda. }
+            </div>
+          } @else {
+            <div class="tabla-wrap">
+              <table class="cuentas-tabla">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Origen</th>
+                    <th>Tipo</th>
+                    <th>Pagó</th>
+                    <th>Recibió</th>
+                    <th>Cargado por</th>
+                    <th class="th-num">Monto</th>
+                    <th class="th-num">Comprobante</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (c of comprobantesFiltrados; track c.fuente + '-' + c.id) {
+                    <tr>
+                      <td class="muted">{{ formatFechaCortaSueldo(c.fecha) }}</td>
+                      <td>
+                        <span class="origen-badge" [attr.data-origen]="c.origen">
+                          {{ c.origen === 'BOT_WHATSAPP' ? 'Bot' : 'Manual' }}
+                        </span>
+                      </td>
+                      <td>
+                        <span class="tipo-badge" [attr.data-tipo]="c.tipoReceptor">
+                          {{ labelTipoReceptor(c.tipoReceptor) }}
+                        </span>
+                      </td>
+                      <td>{{ c.emisor ?? '—' }}</td>
+                      <td><strong>{{ c.receptorNombre }}</strong></td>
+                      <td class="muted">{{ c.cargadoPorNombre ?? '—' }}</td>
+                      <td class="th-num celda-deuda">{{ formatMoney(c.monto) }}</td>
+                      <td class="th-num">
+                        @if (c.tieneComprobante) {
+                          <button class="btn-ver-comp" (click)="verComprobante(c)">Ver</button>
+                        } @else {
+                          <span class="muted">—</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </section>
+      }
+
+      <!-- El pill "Proveedores" navega directo a /dashboard/proveedores (la página
+           real con toda la funcionalidad) en vez de mostrar un tab acá — evita
+           duplicar el componente en dos layouts de scroll distintos. -->
+
+      <!-- ═══════════════════════ SUELDOS ═══════════════════════ -->
+      @case ('sueldos') {
+        <section class="sueldos-section">
+          <div class="sueldos-header">
+            <div>
+              <h2>Sueldos del personal</h2>
+              <p class="sueldos-sub">Integrantes del laboratorio · su sueldo se gestiona ligado a su usuario</p>
+            </div>
+            <div class="sueldos-stats">
+              <div class="stat-pill">
+                <span class="stat-label">Total a pagar</span>
+                <span class="stat-val">{{ formatMoney(totalDevengado) }}</span>
+              </div>
+              <div class="stat-pill">
+                <span class="stat-label">Con saldo</span>
+                <span class="stat-val">{{ empleadosConDeuda }}</span>
+              </div>
+              <button class="btn-recalcular" [disabled]="recalculandoDevengado" (click)="recalcularDevengado()"
+                      title="El devengado se calcula solo todas las noches a las 00:05 — usá esto para verlo actualizado ahora mismo">
+                {{ recalculandoDevengado ? 'Recalculando...' : '↻ Recalcular devengado' }}
+              </button>
+              <button class="btn-cascada" (click)="abrirCascadaModal()">Distribuir cobro</button>
+            </div>
+          </div>
+
+          @if (!loadingUsuariosSinAlta && usuariosSinAlta.length > 0) {
+            <div class="pendientes-alta">
+              <div class="alertas-head">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <h3>Pendientes de alta en sueldos</h3>
+              </div>
+              <p class="sueldos-nota">
+                Se activaron en <strong>Usuarios</strong> antes de que esto quedara automático
+                (o el alta automática falló) — dales de alta acá para que cobren y el bot los reconozca.
+              </p>
+              <div class="alta-tabla-wrap">
+                <table class="alta-tabla">
+                  <thead>
+                    <tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    @for (u of usuariosSinAlta; track u.id) {
+                      <tr>
+                        <td class="alta-nombre">{{ u.nombre }} {{ u.apellido }}</td>
+                        <td class="alta-username">&#64;{{ u.username }}</td>
+                        <td><span [class]="'badge-rol ' + u.rol.replace('ROLE_','').toLowerCase()">{{ u.rol.replace('ROLE_', '') }}</span></td>
+                        <td class="alta-accion">
+                          <button class="btn-dar-alta" (click)="abrirNuevoEmpleado(u)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Dar de alta
+                          </button>
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          }
+
+          @if (loadingEmpleados) {
+            <div class="loading">Cargando personal...</div>
+          } @else {
+            <div class="empleados-grid">
+              @for (e of empleados; track e.usuarioId) {
+                <div class="empleado-card" [class.inactivo]="!e.activo">
+                  <div class="empleado-top">
+                    <div class="empleado-avatar">{{ e.nombre.charAt(0) }}</div>
+                    <div class="empleado-id">
+                      <strong>{{ e.nombre }}</strong>
+                      <span class="empleado-rol">{{ e.rol }}</span>
+                    </div>
+                    @if (!e.activo) { <span class="badge-inactivo">Inactivo</span> }
+                  </div>
+
+                  <div class="empleado-data">
+                    <div class="ed-row">
+                      <span>Frecuencia</span>
+                      <strong>{{ labelFrecuencia(e.frecuencia) }}</strong>
+                    </div>
+                    <div class="ed-row">
+                      <span>Monto base</span>
+                      <strong>{{ formatMoney(e.montoBase) }}</strong>
+                    </div>
+                    <div class="ed-row destacado">
+                      <span>Se le debe</span>
+                      <strong [class.debe]="e.saldoDevengado > 0">{{ formatMoney(e.saldoDevengado) }}</strong>
+                    </div>
+                    @if (e.saldoSobrante > 0) {
+                      <div class="ed-row">
+                        <span>A favor del lab</span>
+                        <strong class="sobrante">−{{ formatMoney(e.saldoSobrante) }}</strong>
+                      </div>
+                    }
+                    @if (e.telefono) {
+                      <div class="ed-row tel">
+                        <span>Teléfono</span>
+                        <strong>{{ e.telefono }}</strong>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="empleado-acciones">
+                    <button class="btn-config" (click)="abrirConfigSueldo(e)">Editar sueldo</button>
+                    <button class="btn-pagar" [disabled]="e.saldoDevengado <= 0"
+                            (click)="abrirPagoSueldo(e)">Registrar pago</button>
+                  </div>
+                  <button class="btn-historial" (click)="abrirHistorial(e)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+                    Ver histórico de pagos
+                  </button>
+                </div>
+              }
+            </div>
+          }
+
+        </section>
+      }
+
+    }
+    </div>
+  }
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL — CARGA MANUAL DE MOVIMIENTO
+     ═══════════════════════════════════════════════════════════ -->
+@if (showMovModal) {
+  <div class="mov-overlay" (click)="cerrarMovModal()">
+    <div class="mov-modal" (click)="$event.stopPropagation()">
+      <div class="mov-modal-head">
+        <h2>Nuevo movimiento</h2>
+        <button class="mov-close" (click)="cerrarMovModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <div class="mov-modal-body">
+        <!-- Tipo ingreso / egreso -->
+        <div class="mov-tipo-toggle">
+          <button [class.active-ingreso]="movForm.tipo === 'INGRESO'"
+                  (click)="movForm.tipo = 'INGRESO'">↑ Ingreso</button>
+          <button [class.active-egreso]="movForm.tipo === 'EGRESO'"
+                  (click)="movForm.tipo = 'EGRESO'">↓ Egreso</button>
+        </div>
+
+        <div class="mov-grid">
+          <div class="mov-field">
+            <label>Caja</label>
+            <select [(ngModel)]="movForm.tipoCaja">
+              @for (c of cajas; track c.tipo) {
+                <option [value]="c.tipo">{{ c.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="mov-field">
+            <label>Categoría</label>
+            <select [(ngModel)]="movForm.categoria" (ngModelChange)="onCategoriaMovChange()">
+              @for (cat of categoriasMovimiento; track cat.valor) {
+                <option [value]="cat.valor">{{ cat.label }}</option>
+              }
+            </select>
+          </div>
+        </div>
+
+        <div class="mov-field">
+          <label>Concepto <span class="req">*</span></label>
+          <input type="text" [(ngModel)]="movForm.concepto"
+                 placeholder="Ej: Cobro Dr. García pedido P-042">
+        </div>
+
+        <div class="mov-grid">
+          <div class="mov-field">
+            <label>Monto <span class="req">*</span></label>
+            <div class="mov-monto-wrap">
+              <span class="mov-prefix">$</span>
+              <input type="number" [(ngModel)]="movForm.monto" placeholder="0" min="0">
+            </div>
+          </div>
+          <div class="mov-field">
+            <label>Fecha</label>
+            <input type="date" [(ngModel)]="movForm.fechaMovimiento">
+          </div>
+        </div>
+
+        <div class="mov-field">
+          <label>Referencia <span class="opt">(opcional)</span></label>
+          <input type="text" [(ngModel)]="movForm.referencia"
+                 placeholder="N° transferencia, comprobante, etc.">
+        </div>
+      </div>
+
+      <div class="mov-modal-foot">
+        <button class="btn-secondary" (click)="cerrarMovModal()" [disabled]="savingMov">Cancelar</button>
+        <button class="btn-guardar-mov" (click)="guardarMovimiento()" [disabled]="!movFormValido || savingMov">
+          @if (savingMov) { Guardando... } @else { Registrar movimiento }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ═══════════════════ MODAL — DAR DE ALTA EN SUELDOS ═══════════════════ -->
+@if (showNuevoEmpleadoModal && usuarioSeleccionado) {
+  <div class="mov-overlay" (click)="cerrarNuevoEmpleadoModal()">
+    <div class="mov-modal" (click)="$event.stopPropagation()">
+      <div class="mov-modal-head">
+        <h2>Dar de alta a {{ usuarioSeleccionado.nombre }} {{ usuarioSeleccionado.apellido }}</h2>
+        <button class="mov-close" (click)="cerrarNuevoEmpleadoModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="mov-modal-body">
+          <div class="mov-field">
+            <label>Nombre para el bot <span class="req">*</span></label>
+            <input type="text" [(ngModel)]="nuevoEmpleadoForm.nombre" placeholder="Nombre y apellido">
+            <span class="mov-field-hint">El bot compara este nombre contra el "Para" del comprobante de WhatsApp.</span>
+          </div>
+          <div class="mov-field">
+            <label>Teléfono (opcional)</label>
+            <input type="text" [(ngModel)]="nuevoEmpleadoForm.telefono" placeholder="+54911...">
+          </div>
+          <div class="mov-field">
+            <label>Frecuencia de pago</label>
+            <select [(ngModel)]="nuevoEmpleadoForm.frecuencia">
+              @for (f of frecuencias; track f.valor) {
+                <option [value]="f.valor">{{ f.label }}</option>
+              }
+            </select>
+          </div>
+          <div class="mov-field">
+            <label>Monto base por ciclo <span class="req">*</span></label>
+            <div class="mov-monto-wrap">
+              <span class="mov-prefix">$</span>
+              <input type="number" [(ngModel)]="nuevoEmpleadoForm.montoBase" placeholder="0" min="0">
+            </div>
+          </div>
+      </div>
+      <div class="mov-modal-foot">
+        <button class="btn-secondary" (click)="cerrarNuevoEmpleadoModal()" [disabled]="savingNuevoEmpleado">Cancelar</button>
+        <button class="btn-guardar-mov" (click)="crearEmpleado()" [disabled]="savingNuevoEmpleado || !nuevoEmpleadoValido">
+          @if (savingNuevoEmpleado) { Guardando... } @else { Dar de alta }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ═══════════════════ MODAL — CONFIG DE SUELDO ═══════════════════ -->
+@if (showConfigModal && empleadoEditando) {
+  <div class="mov-overlay" (click)="cerrarConfigModal()">
+    <div class="mov-modal" (click)="$event.stopPropagation()">
+      <div class="mov-modal-head">
+        <h2>Sueldo de {{ empleadoEditando.nombre }}</h2>
+        <button class="mov-close" (click)="cerrarConfigModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="mov-modal-body">
+        <div class="mov-field">
+          <label>Frecuencia de pago</label>
+          <select [(ngModel)]="configForm.frecuencia">
+            @for (f of frecuencias; track f.valor) {
+              <option [value]="f.valor">{{ f.label }}</option>
+            }
+          </select>
+        </div>
+        <div class="mov-field">
+          <label>Monto base por ciclo <span class="req">*</span></label>
+          <div class="mov-monto-wrap">
+            <span class="mov-prefix">$</span>
+            <input type="number" [(ngModel)]="configForm.montoBase" placeholder="0" min="0">
+          </div>
+          <span class="mov-field-hint">Lo que cobra en un ciclo completo ({{ labelFrecuencia(configForm.frecuencia).toLowerCase() }}).</span>
+        </div>
+      </div>
+      <div class="mov-modal-foot">
+        <button class="btn-secondary" (click)="cerrarConfigModal()" [disabled]="savingConfig">Cancelar</button>
+        <button class="btn-guardar-mov" (click)="guardarConfig()" [disabled]="savingConfig">
+          @if (savingConfig) { Guardando... } @else { Guardar sueldo }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ═══════════════════ MODAL — REGISTRAR PAGO ═══════════════════ -->
+@if (showPagoModal && empleadoPagando) {
+  <div class="mov-overlay" (click)="cerrarPagoModal()">
+    <div class="mov-modal" (click)="$event.stopPropagation()">
+      <div class="mov-modal-head">
+        <h2>Pagar a {{ empleadoPagando.nombre }}</h2>
+        <button class="mov-close" (click)="cerrarPagoModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="mov-modal-body">
+        <div class="pago-resumen">
+          <span>Se le debe actualmente</span>
+          <strong>{{ formatMoney(empleadoPagando.saldoDevengado) }}</strong>
+        </div>
+
+        <div class="mov-grid">
+          <div class="mov-field">
+            <label>Monto a pagar <span class="req">*</span></label>
+            <div class="mov-monto-wrap">
+              <span class="mov-prefix">$</span>
+              <input type="number" [(ngModel)]="pagoForm.monto" placeholder="0" min="0">
+            </div>
+          </div>
+          <div class="mov-field">
+            <label>Fecha</label>
+            <input type="date" [(ngModel)]="pagoForm.fecha">
+          </div>
+        </div>
+
+        @if (pagoExcede) {
+          <div class="pago-exceso">
+            <strong>Estás pagando {{ formatMoney(montoExcedente) }} de más.</strong>
+            <span>¿Qué hacemos con el excedente?</span>
+            <div class="exceso-opciones">
+              <label>
+                <input type="radio" name="sobrante" value="DESCONTAR_PROXIMO" [(ngModel)]="pagoForm.manejoSobrante">
+                Descontarlo del próximo ciclo
+              </label>
+              <label>
+                <input type="radio" name="sobrante" value="DEVUELVE_EMPLEADO" [(ngModel)]="pagoForm.manejoSobrante">
+                El empleado devuelve la diferencia
+              </label>
+              <label>
+                <input type="radio" name="sobrante" value="CUBRE_LAB" [(ngModel)]="pagoForm.manejoSobrante">
+                El laboratorio lo cubre (queda saldado)
+              </label>
+            </div>
+          </div>
+        }
+
+        <div class="mov-field">
+          <label>Nota <span class="opt">(opcional)</span></label>
+          <input type="text" [(ngModel)]="pagoForm.nota" placeholder="Ej: pago semana, triangulado con Dr. García...">
+        </div>
+      </div>
+      <div class="mov-modal-foot">
+        <button class="btn-secondary" (click)="cerrarPagoModal()" [disabled]="savingPago">Cancelar</button>
+        <button class="btn-guardar-mov" (click)="guardarPago()" [disabled]="savingPago">
+          @if (savingPago) { Registrando... } @else { Registrar pago }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ═══════════════════ MODAL — CASCADA (distribuir un cobro) ═══════════════════ -->
+@if (showCascadaModal) {
+  <div class="mov-overlay" (click)="cerrarCascadaModal()">
+    <div class="mov-modal" (click)="$event.stopPropagation()">
+      <div class="mov-modal-head">
+        <h2>Distribuir un cobro</h2>
+        <button class="mov-close" (click)="cerrarCascadaModal()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="mov-modal-body">
+        <p class="cascada-ayuda">Cubre primero el saldo pendiente de los empleados y asigna lo que sobra a la caja elegida.</p>
+
+        <div class="mov-grid">
+          <div class="mov-field">
+            <label>Monto del cobro <span class="req">*</span></label>
+            <div class="mov-monto-wrap">
+              <span class="mov-prefix">$</span>
+              <input type="number" [(ngModel)]="cascadaMonto" placeholder="0" min="0" [disabled]="cascadaSugerida">
+            </div>
+          </div>
+          <div class="mov-field">
+            <label>Caja para el remanente</label>
+            <select [(ngModel)]="cascadaCaja" [disabled]="cascadaSugerida">
+              <option value="FISICA">Caja Física</option>
+              <option value="BANCARIA">Caja Bancaria</option>
+            </select>
+          </div>
+        </div>
+
+        @if (!cascadaSugerida) {
+          <button class="btn-guardar-mov" [disabled]="sugiriendoCascada" (click)="sugerirCascada()">
+            @if (sugiriendoCascada) { Calculando... } @else { Sugerir distribución }
+          </button>
+        } @else {
+          @if (cascadaLineas.length === 0) {
+            <p class="cascada-ayuda">No hay sueldos pendientes — todo el monto va a la caja elegida.</p>
+          } @else {
+            <div class="cascada-lineas">
+              @for (l of cascadaLineas; track l.empleadoId) {
+                <div class="cascada-linea">
+                  <span class="cascada-nombre">{{ l.empleadoNombre }}</span>
+                  <div class="mov-monto-wrap">
+                    <span class="mov-prefix">$</span>
+                    <input type="number" [(ngModel)]="l.monto" min="0">
+                  </div>
+                </div>
+              }
+            </div>
+          }
+
+          <div class="cascada-totales">
+            <div class="ed-row">
+              <span>Asignado a empleados</span>
+              <strong>{{ formatMoney(cascadaTotalAsignado) }}</strong>
+            </div>
+            <div class="ed-row destacado">
+              <span>Remanente a {{ cascadaCaja === 'FISICA' ? 'Caja Física' : 'Caja Bancaria' }}</span>
+              <strong>{{ formatMoney(cascadaRemanente) }}</strong>
+            </div>
+            @if (cascadaExcede) {
+              <p class="pago-exceso"><strong>La suma asignada supera el monto del cobro.</strong></p>
+            }
+          </div>
+        }
+      </div>
+      @if (cascadaSugerida) {
+        <div class="mov-modal-foot">
+          <button class="btn-secondary" (click)="cerrarCascadaModal()" [disabled]="confirmandoCascada">Cancelar</button>
+          <button class="btn-guardar-mov" [disabled]="confirmandoCascada || cascadaExcede" (click)="confirmarCascada()">
+            @if (confirmandoCascada) { Registrando... } @else { Confirmar distribución }
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+<!-- ═══════════════════ MODAL — HISTÓRICO DE PAGOS ═══════════════════ -->
+@if (showHistorialModal && empleadoHistorial) {
+  <div class="mov-overlay" (click)="cerrarHistorial()">
+    <div class="mov-modal historial-modal" (click)="$event.stopPropagation()">
+      <div class="mov-modal-head">
+        <h2>Pagos a {{ empleadoHistorial.nombre }}</h2>
+        <button class="mov-close" (click)="cerrarHistorial()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="mov-modal-body">
+        @if (loadingHistorial) {
+          <div class="loading">Cargando histórico...</div>
+        } @else if (historial.length === 0) {
+          <div class="hist-empty">
+            <p>Todavía no hay pagos registrados para este integrante.</p>
+          </div>
+        } @else {
+          <div class="hist-resumen">
+            <span>{{ historial.length }} pago{{ historial.length !== 1 ? 's' : '' }}</span>
+            <strong>Total pagado: {{ formatMoney(totalPagadoHistorial) }}</strong>
+          </div>
+          <div class="hist-lista">
+            @for (p of historial; track p.id) {
+              <div class="hist-item">
+                <div class="hist-item-left">
+                  <span class="hist-monto">{{ formatMoney(p.monto) }}</span>
+                  <span class="hist-fecha">{{ formatFechaCortaSueldo(p.fecha) }}</span>
+                </div>
+                <div class="hist-item-right">
+                  <span class="hist-origen" [attr.data-origen]="p.origen">
+                    @if (p.origen === 'BOT_WHATSAPP') { Bot } @else { Manual }
+                  </span>
+                  @if (p.emisor) { <span class="hist-emisor">de {{ p.emisor }}</span> }
+                  @if (p.montoExcedente > 0) {
+                    <span class="hist-exceso">+{{ formatMoney(p.montoExcedente) }} excedente</span>
+                  }
+                  @if (p.nota) { <span class="hist-nota">{{ p.nota }}</span> }
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+      <div class="mov-modal-foot">
+        <button class="btn-secondary" (click)="cerrarHistorial()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (odontologoPago) {
+  <app-pago-cuenta-corriente-modal
+    [odontologoId]="odontologoPago.odontologoId"
+    [odontologoNombre]="odontologoPago.odontologoNombre"
+    [saldoActual]="odontologoPago.totalDeuda"
+    (cerrar)="cerrarModalPago()"
+    (pagado)="onPagoRegistrado()" />
+}
