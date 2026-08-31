@@ -9,6 +9,12 @@
 
 server {
     listen       80;
+    # Con templates, el script automático de la imagen que agrega soporte IPv6
+    # no llega a correr (necesita que exista /etc/nginx/conf.d/default.conf,
+    # y con templates ese archivo recién se genera después) — sin esta línea
+    # nginx queda escuchando solo en IPv4 y el healthcheck (que pega a
+    # "localhost", que adentro del container resuelve primero a ::1) falla.
+    listen       [::]:80;
     server_name  localhost;
 
     # Tamaño máximo de body para uploads (fotos de catálogo, comprobantes,
