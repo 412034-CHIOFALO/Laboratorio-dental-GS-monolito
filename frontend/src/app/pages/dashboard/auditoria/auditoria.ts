@@ -1,12 +1,23 @@
 import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { AuthService } from '../../../services/auth';
 import { NotificationService } from '../../../services/notification.service';
 import { environment } from '../../../../environments/environment';
 import { clonar, MOCK_AUDIT, MockAuditEvent, TipoAudit } from '../../../services/mock-data';
 import { iniciarPolling } from '../../../shared/poll.util';
 import { TableSort } from '../../../shared/table-sort';
+
+interface PaginaAudit {
+  content: MockAuditEvent[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+/** Debounce de la búsqueda de texto — cada tipeo ahora dispara un request al backend. */
+const BUSQUEDA_DEBOUNCE_MS = 350;
 
 @Component({
   selector: 'app-auditoria',
@@ -18,18 +29,24 @@ import { TableSort } from '../../../shared/table-sort';
 export class AuditoriaComponent implements OnInit {
   private gatewayUrl = environment.gatewayUrl;
 
+  /** Solo la página actual — la bitácora completa nunca se carga entera (ver AuditoriaController). */
   events: MockAuditEvent[] = [];
-  filtros: MockAuditEvent[] = [];
 
   readonly sort = new TableSort<MockAuditEvent>('timestamp', 'desc');
-  /** Lista filtrada Y ordenada para la tabla. */
+  /** Página actual, ordenada — el orden por columna solo aplica dentro de la página visible. */
   get filtrosVista(): MockAuditEvent[] {
-    return this.sort.aplicar(this.filtros);
+    return this.sort.aplicar(this.events);
   }
+
   busqueda   = '';
   tipoFiltro: TipoAudit | '' = '';
   loading    = false;
   error      = '';
+
+  readonly size = 50;
+  page = 0;
+  totalElements = 0;
+  totalPages = 0;
 
   readonly tiposAudit: { valor: TipoAudit | ''; label: string }[] = [
     { valor: '',          label: 'Todos los eventos'    },
@@ -49,6 +66,7 @@ export class AuditoriaComponent implements OnInit {
   ];
 
   private destroyRef = inject(DestroyRef);
+  private busquedaTimeout?: ReturnType<typeof setTimeout>;
 
   private notif = inject(NotificationService);
   backupCorriendo = false;
@@ -83,24 +101,56 @@ export class AuditoriaComponent implements OnInit {
     iniciarPolling(() => this.cargar(true), this.destroyRef);
   }
 
+  /** Cambios de filtro vuelven a página 0 — el resultado ya no es un subconjunto de lo cargado. */
+  onTipoChange(): void {
+    this.page = 0;
+    this.cargar();
+  }
+
+  onBusquedaChange(): void {
+    clearTimeout(this.busquedaTimeout);
+    this.busquedaTimeout = setTimeout(() => {
+      this.page = 0;
+      this.cargar();
+    }, BUSQUEDA_DEBOUNCE_MS);
+  }
+
+  irAPagina(p: number): void {
+    if (p < 0 || p >= this.totalPages || p === this.page) return;
+    this.page = p;
+    this.cargar();
+  }
+
+  paginaAnterior(): void { this.irAPagina(this.page - 1); }
+  paginaSiguiente(): void { this.irAPagina(this.page + 1); }
+
   cargar(silencioso = false): void {
     if (!silencioso) { this.loading = true; this.error = ''; }
 
     if (environment.useMocks) {
       setTimeout(() => {
-        this.events  = clonar(MOCK_AUDIT).sort((a: MockAuditEvent, b: MockAuditEvent) =>
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        this.filtrar();
+        const todos = clonar(MOCK_AUDIT)
+          .filter((e: MockAuditEvent) => this.coincideConFiltros(e))
+          .sort((a: MockAuditEvent, b: MockAuditEvent) =>
+            new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        this.totalElements = todos.length;
+        this.totalPages = Math.max(1, Math.ceil(todos.length / this.size));
+        this.events = todos.slice(this.page * this.size, (this.page + 1) * this.size);
         if (!silencioso) this.loading = false;
       }, 200);
       return;
     }
 
-    this.http.get<MockAuditEvent[]>(`${this.gatewayUrl}/api/auth/auditoria`)
+    let params = new HttpParams().set('page', this.page).set('size', this.size);
+    if (this.tipoFiltro) params = params.set('tipo', this.tipoFiltro);
+    if (this.busqueda.trim()) params = params.set('q', this.busqueda.trim());
+
+    this.http.get<PaginaAudit>(`${this.gatewayUrl}/api/auth/auditoria`, { params })
       .subscribe({
-        next: (data) => {
-          this.events  = data;
-          this.filtrar();
+        next: (resp) => {
+          this.events        = resp.content;
+          this.totalElements = resp.totalElements;
+          this.totalPages    = resp.totalPages;
           if (!silencioso) this.loading = false;
         },
         error: () => {
@@ -112,14 +162,12 @@ export class AuditoriaComponent implements OnInit {
       });
   }
 
-  filtrar(): void {
-    this.filtros = this.events.filter(e => {
-      const matchTipo = !this.tipoFiltro || e.tipo === this.tipoFiltro;
-      const q         = this.busqueda.toLowerCase();
-      const matchText = !q || [e.usuario, e.accion, e.entidad, e.detalle]
-        .some(s => s?.toLowerCase().includes(q));
-      return matchTipo && matchText;
-    });
+  private coincideConFiltros(e: MockAuditEvent): boolean {
+    const matchTipo = !this.tipoFiltro || e.tipo === this.tipoFiltro;
+    const q         = this.busqueda.toLowerCase();
+    const matchText = !q || [e.usuario, e.accion, e.entidad, e.detalle]
+      .some(s => s?.toLowerCase().includes(q));
+    return matchTipo && matchText;
   }
 
   formatTs(iso: string): string {

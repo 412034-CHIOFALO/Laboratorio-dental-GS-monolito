@@ -2,9 +2,9 @@ package com.gs.monolito.auth.service;
 
 import com.gs.monolito.auth.model.AuditoriaEvento;
 import com.gs.monolito.auth.repository.AuditoriaEventoRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 /**
  * Bitácora de auditoría del sistema. Antes recibía eventos de los otros
@@ -27,7 +27,10 @@ public class AuditoriaService {
         repo.save(new AuditoriaEvento(usuario, tipo, accion, entidad, detalle));
     }
 
-    public List<AuditoriaEvento> listarTodos() {
-        return repo.findAllByOrderByTimestampDesc();
+    /** tipo/q nulos o en blanco no filtran nada — ver AuditoriaEventoRepository#buscar. */
+    public Page<AuditoriaEvento> buscar(String tipo, String q, Pageable pageable) {
+        String tipoNorm = (tipo == null || tipo.isBlank()) ? null : tipo;
+        String qNorm = (q == null || q.isBlank()) ? null : q.toLowerCase();
+        return repo.buscar(tipoNorm, qNorm, pageable);
     }
 }

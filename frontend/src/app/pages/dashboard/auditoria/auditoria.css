@@ -64,6 +64,16 @@ h1 { font-size: 1.4rem; font-weight: 700; color: var(--text); margin: 0; }
 .tipo-badge[data-color=purple] { background: var(--gs-purple-soft); color: var(--gs-purple); }
 .tipo-badge[data-color=neutral] { background: var(--gs-neutral-soft); color: var(--gs-neutral); }
 
+.pagination-bar { display: flex; align-items: center; justify-content: center; gap: 1rem; flex-shrink: 0; }
+.pagination-info { font-size: 0.78rem; color: var(--gs-text-muted); }
+.btn-page {
+  background: var(--gs-card-2); border: 1px solid var(--gs-border); color: var(--gs-text);
+  padding: 0.4rem 0.85rem; border-radius: 8px; font-size: 0.78rem; font-weight: 600;
+  cursor: pointer; transition: border-color 0.15s, background 0.15s;
+}
+.btn-page:hover:not(:disabled) { border-color: var(--gs-green-border); background: var(--gs-green-soft); color: var(--gs-green); }
+.btn-page:disabled { opacity: 0.4; cursor: default; }
+
 .audit-footer { display: flex; align-items: center; gap: 0.5rem; font-size: 0.72rem; color: var(--gs-text-dim); padding: 0.5rem 0.75rem; background: var(--gs-rose-soft); border: 1px solid rgba(244,63,94,0.15); border-radius: 8px; flex-shrink: 0; }
 .audit-footer svg { color: var(--gs-rose); flex-shrink: 0; }
 
