@@ -2,11 +2,14 @@ package com.gs.monolito.pedidos.service;
 
 import com.gs.monolito.pedidos.model.Odontologo;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.web.client.ClientHttpRequestFactories;
+import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -29,6 +32,12 @@ public class NotificacionBotService {
         this.restClient = RestClient.builder()
                 .baseUrl(botUri)
                 .defaultHeader("X-Bot-Api-Key", apiKey)
+                // Sin esto, un bot colgado/caído deja el hilo de la transición de
+                // estado del pedido esperando indefinidamente (el default de Spring
+                // es sin timeout). Fire-and-forget real: falla rápido y sigue.
+                .requestFactory(ClientHttpRequestFactories.get(ClientHttpRequestFactorySettings.DEFAULTS
+                        .withConnectTimeout(Duration.ofSeconds(3))
+                        .withReadTimeout(Duration.ofSeconds(5))))
                 .build();
     }
 

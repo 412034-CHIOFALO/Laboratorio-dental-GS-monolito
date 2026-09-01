@@ -6,6 +6,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.ClientHttpRequestFactories;
+import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.Map;
 
 /**
@@ -36,7 +39,15 @@ public class BackupController {
                             @Value("${BACKUP_URI:http://localhost:3002}") String backupUri,
                             @Value("${GS_INTERNAL_API_KEY:}") String backupKey) {
         this.auditoriaService = auditoriaService;
-        this.restClient = RestClient.builder().baseUrl(backupUri).build();
+        this.restClient = RestClient.builder()
+                .baseUrl(backupUri)
+                // TriggerServer responde 202 apenas lanza el proceso en background
+                // (ver backup/TriggerServer.java) — si no responde en unos segundos
+                // es que el contenedor de backup no está, no tiene sentido esperar más.
+                .requestFactory(ClientHttpRequestFactories.get(ClientHttpRequestFactorySettings.DEFAULTS
+                        .withConnectTimeout(Duration.ofSeconds(3))
+                        .withReadTimeout(Duration.ofSeconds(5))))
+                .build();
         this.backupKey = backupKey;
     }
 
