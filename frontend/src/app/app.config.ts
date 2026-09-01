@@ -1,7 +1,6 @@
 import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection, isDevMode } from '@angular/core';
 import { provideRouter } from '@angular/router';
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { authInterceptor } from './interceptors/auth.interceptor';
+import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import { errorInterceptor } from './interceptors/error.interceptor';
 import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideToastr } from 'ngx-toastr';
@@ -14,7 +13,16 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
+    // El JWT viaja en una cookie httpOnly (el browser la manda solo, no hace
+    // falta adjuntar Authorization a mano). withXsrfConfiguration lee la
+    // cookie XSRF-TOKEN que pone Spring Security y la reenvía como header
+    // X-XSRF-TOKEN en cada request mutante — los nombres coinciden con los
+    // defaults de Spring a propósito, cero config del lado del server aparte
+    // de tener CSRF habilitado.
+    provideHttpClient(
+      withInterceptors([errorInterceptor]),
+      withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' })
+    ),
     provideAnimations(),
     provideToastr({
       positionClass: 'toast-top-right',

@@ -66,7 +66,7 @@ export class LoginComponent implements OnInit {
 
     this.authService.login(this.username, this.password).subscribe({
       next: (response) => {
-        this.authService.saveToken(response.access_token);
+        this.authService.saveSession(this.username, response);
         this.authService.saveTerminosAceptados(response.terminosAceptados);
         this.authService.saveDebeCambiarPassword(response.debeCambiarPassword);
         this.notif.exito(`Bienvenido ${this.username}`, 'Sesión iniciada');

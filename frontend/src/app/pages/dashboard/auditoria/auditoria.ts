@@ -1,6 +1,6 @@
 import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../../services/auth';
 import { NotificationService } from '../../../services/notification.service';
 import { environment } from '../../../../environments/environment';
@@ -63,7 +63,7 @@ export class AuditoriaComponent implements OnInit {
       return;
     }
     this.backupCorriendo = true;
-    this.http.post(`${this.gatewayUrl}/api/auth/backup/run`, {}, { headers: this.headers() }).subscribe({
+    this.http.post(`${this.gatewayUrl}/api/auth/backup/run`, {}).subscribe({
       next: () => {
         this.backupCorriendo = false;
         this.notif.exito('Backup iniciado. Puede tardar unos minutos; el resultado queda en el log del backup.', 'Backup en curso');
@@ -83,10 +83,6 @@ export class AuditoriaComponent implements OnInit {
     iniciarPolling(() => this.cargar(true), this.destroyRef);
   }
 
-  private headers(): HttpHeaders {
-    return new HttpHeaders({ Authorization: `Bearer ${this.authService.getToken()}` });
-  }
-
   cargar(silencioso = false): void {
     if (!silencioso) { this.loading = true; this.error = ''; }
 
@@ -100,7 +96,7 @@ export class AuditoriaComponent implements OnInit {
       return;
     }
 
-    this.http.get<MockAuditEvent[]>(`${this.gatewayUrl}/api/auth/auditoria`, { headers: this.headers() })
+    this.http.get<MockAuditEvent[]>(`${this.gatewayUrl}/api/auth/auditoria`)
       .subscribe({
         next: (data) => {
           this.events  = data;

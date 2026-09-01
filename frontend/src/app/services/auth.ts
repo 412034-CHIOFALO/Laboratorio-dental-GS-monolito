@@ -1,9 +1,9 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable, of, throwError } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
-import { FAKE_JWT, MOCK_USUARIOS, clonar } from './mock-data';
+import { MOCK_USUARIOS, clonar } from './mock-data';
 
 export interface RegisterPayload {
   nombre: string;
@@ -11,6 +11,14 @@ export interface RegisterPayload {
   username: string;
   password: string;
   rol: 'TECNICO' | 'ADMINISTRATIVO' | 'ODONTOLOGO' | 'ADMIN';
+}
+
+export interface LoginResponse {
+  rol: string;
+  /** epoch millis — cuándo vence la sesión. */
+  expiraEn: number;
+  terminosAceptados: boolean;
+  debeCambiarPassword: boolean;
 }
 
 export interface PerfilResponse {
@@ -23,6 +31,7 @@ export interface PerfilResponse {
   enabled: boolean;
   pendienteAprobacion: boolean;
   terminosAceptados: boolean;
+  debeCambiarPassword: boolean;
 }
 
 export interface PerfilUpdate {
@@ -40,38 +49,55 @@ export interface UsuarioListado {
   enabled: boolean;
 }
 
-interface JwtPayload {
-  sub: string;
-  roles: string;
-  exp: number;
-}
-
+/**
+ * El JWT vive en una cookie httpOnly — este servicio nunca lo toca ni lo ve.
+ * Lo único que se guarda acá son "pistas" NO sensibles (rol, vencimiento,
+ * username) para que la UI pueda decidir qué mostrar sin pegarle al backend
+ * en cada click — la autorización real siempre la hace el servidor con la
+ * cookie, esto es puramente cosmético/UX.
+ */
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
   private gatewayUrl = environment.gatewayUrl;
-  private readonly TOKEN_KEY = 'gs_token';
+  private readonly ROL_KEY = 'gs_rol';
+  private readonly EXP_KEY = 'gs_exp';
+  private readonly USERNAME_KEY = 'gs_username';
   private readonly TERMINOS_KEY = 'gs_terminos_aceptados';
   private readonly DEBE_CAMBIAR_KEY = 'gs_debe_cambiar_password';
 
   constructor(private http: HttpClient) {}
 
-  login(username: string, password: string): Observable<{ access_token: string; terminosAceptados: boolean; debeCambiarPassword: boolean }> {
+  login(username: string, password: string): Observable<LoginResponse> {
     // MODO DEMO: cualquier user/pass válido entra, ya se considera onboardeado
     if (environment.useMocks) {
       if (username && password) {
-        return of({ access_token: FAKE_JWT, terminosAceptados: true, debeCambiarPassword: false }).pipe(delay(400));
+        return of({
+          rol: 'ADMIN',
+          expiraEn: Date.now() + 12 * 60 * 60 * 1000,
+          terminosAceptados: true,
+          debeCambiarPassword: false,
+        }).pipe(delay(400));
       }
       return throwError(() => ({ status: 401, error: { mensaje: 'Credenciales incorrectas' } }));
     }
 
     // El endpoint de login viene de environment.loginUrl: en dev va por el
     // gateway (:8080) y en prod va relativo (vía nginx). Siempre /api/auth/login.
-    return this.http.post<{ access_token: string; terminosAceptados: boolean; debeCambiarPassword: boolean }>(
-      environment.loginUrl,
-      { username, password }
-    );
+    // La cookie de sesión la pone el backend solo (header Set-Cookie) — acá
+    // no hay nada que guardar del token.
+    return this.http.post<LoginResponse>(environment.loginUrl, { username, password });
+  }
+
+  /** Guarda las pistas no sensibles de la sesión recién iniciada (ver comentario de la clase). */
+  saveSession(username: string, resp: LoginResponse): void {
+    localStorage.setItem(this.USERNAME_KEY, username);
+    localStorage.setItem(this.ROL_KEY, `ROLE_${resp.rol}`);
+    localStorage.setItem(this.EXP_KEY, String(resp.expiraEn));
+    // Residuo de versiones previas (guardaban el JWT crudo acá) — lo sacamos
+    // en cuanto alguien vuelve a loguearse, para no dejarlo pudriéndose.
+    localStorage.removeItem('gs_token');
   }
 
   aceptarTerminos(): Observable<PerfilResponse> {
@@ -79,9 +105,7 @@ export class AuthService {
       this.saveTerminosAceptados(true);
       return of({ ...this.mockPerfil(), terminosAceptados: true }).pipe(delay(200));
     }
-    return this.http.post<PerfilResponse>(
-      `${this.gatewayUrl}/api/auth/me/aceptar-terminos`, {}, { headers: this.authHeaders() }
-    );
+    return this.http.post<PerfilResponse>(`${this.gatewayUrl}/api/auth/me/aceptar-terminos`, {});
   }
 
   saveTerminosAceptados(v: boolean): void {
@@ -106,7 +130,7 @@ export class AuthService {
       return of({ mensaje: 'Contraseña reseteada (demo).', passwordTemporal: 'demo1234X' }).pipe(delay(300));
     }
     return this.http.post<{ mensaje: string; passwordTemporal: string }>(
-      `${this.gatewayUrl}/api/auth/usuarios/${id}/resetear-password`, {}, { headers: this.authHeaders() }
+      `${this.gatewayUrl}/api/auth/usuarios/${id}/resetear-password`, {}
     );
   }
 
@@ -114,7 +138,7 @@ export class AuthService {
     if (environment.useMocks) {
       return of(clonar(MOCK_USUARIOS) as unknown as UsuarioListado[]).pipe(delay(200));
     }
-    return this.http.get<UsuarioListado[]>(`${this.gatewayUrl}/api/auth/usuarios`, { headers: this.authHeaders() });
+    return this.http.get<UsuarioListado[]>(`${this.gatewayUrl}/api/auth/usuarios`);
   }
 
   register(payload: RegisterPayload): Observable<{ mensaje: string; username: string }> {
@@ -122,9 +146,7 @@ export class AuthService {
       return of({ mensaje: 'Usuario creado (demo)', username: payload.username }).pipe(delay(300));
     }
     return this.http.post<{ mensaje: string; username: string }>(
-      `${this.gatewayUrl}/api/auth/register`,
-      payload,
-      { headers: this.authHeaders() }
+      `${this.gatewayUrl}/api/auth/register`, payload
     );
   }
 
@@ -132,11 +154,7 @@ export class AuthService {
     if (environment.useMocks) {
       return of({ ok: true }).pipe(delay(200));
     }
-    return this.http.put(
-      `${this.gatewayUrl}/api/auth/usuarios/${id}/aprobar`,
-      {},
-      { headers: this.authHeaders() }
-    );
+    return this.http.put(`${this.gatewayUrl}/api/auth/usuarios/${id}/aprobar`, {});
   }
 
   /** Activa/desactiva un integrante (entrada/salida de personal). */
@@ -144,11 +162,7 @@ export class AuthService {
     if (environment.useMocks) {
       return of({ id, enabled: activo }).pipe(delay(200));
     }
-    return this.http.patch(
-      `${this.gatewayUrl}/api/auth/usuarios/${id}/estado`,
-      { activo },
-      { headers: this.authHeaders() }
-    );
+    return this.http.patch(`${this.gatewayUrl}/api/auth/usuarios/${id}/estado`, { activo });
   }
 
   /** Actualiza el teléfono del integrante (lo usa el bot para identificarlo). */
@@ -156,11 +170,7 @@ export class AuthService {
     if (environment.useMocks) {
       return of({ id, telefono }).pipe(delay(200));
     }
-    return this.http.patch(
-      `${this.gatewayUrl}/api/auth/usuarios/${id}/telefono`,
-      { telefono },
-      { headers: this.authHeaders() }
-    );
+    return this.http.patch(`${this.gatewayUrl}/api/auth/usuarios/${id}/telefono`, { telefono });
   }
 
   // ── Perfil propio (self-service) ──────────────────────────────
@@ -176,7 +186,7 @@ export class AuthService {
         apellido: u === 'admin' ? 'González' : '',
         telefono: '3516588576',
         rol: this.getRoles()[0] || 'ROLE_ADMIN',
-        enabled: true, pendienteAprobacion: false, terminosAceptados: true,
+        enabled: true, pendienteAprobacion: false, terminosAceptados: true, debeCambiarPassword: false,
       };
     }
     return this._mockPerfil;
@@ -184,7 +194,7 @@ export class AuthService {
 
   miPerfil(): Observable<PerfilResponse> {
     if (environment.useMocks) return of({ ...this.mockPerfil() }).pipe(delay(150));
-    return this.http.get<PerfilResponse>(`${this.gatewayUrl}/api/auth/me`, { headers: this.authHeaders() });
+    return this.http.get<PerfilResponse>(`${this.gatewayUrl}/api/auth/me`);
   }
 
   editarPerfil(req: PerfilUpdate): Observable<PerfilResponse> {
@@ -192,7 +202,7 @@ export class AuthService {
       this._mockPerfil = { ...this.mockPerfil(), ...req } as PerfilResponse;
       return of({ ...this._mockPerfil }).pipe(delay(250));
     }
-    return this.http.patch<PerfilResponse>(`${this.gatewayUrl}/api/auth/me`, req, { headers: this.authHeaders() });
+    return this.http.patch<PerfilResponse>(`${this.gatewayUrl}/api/auth/me`, req);
   }
 
   cambiarPassword(actual: string, nueva: string): Observable<{ mensaje: string }> {
@@ -202,48 +212,21 @@ export class AuthService {
       }
       return of({ mensaje: 'Contraseña actualizada correctamente.' }).pipe(delay(250));
     }
-    return this.http.post<{ mensaje: string }>(
-      `${this.gatewayUrl}/api/auth/me/password`, { actual, nueva }, { headers: this.authHeaders() });
-  }
-
-  saveToken(token: string): void {
-    localStorage.setItem(this.TOKEN_KEY, token);
-  }
-
-  getToken(): string | null {
-    return localStorage.getItem(this.TOKEN_KEY);
+    return this.http.post<{ mensaje: string }>(`${this.gatewayUrl}/api/auth/me/password`, { actual, nueva });
   }
 
   isLoggedIn(): boolean {
-    const token = this.getToken();
-    if (!token) return false;
-    try {
-      const payload = this.decodePayload(token);
-      return payload.exp * 1000 > Date.now();
-    } catch {
-      return false;
-    }
+    const exp = Number(localStorage.getItem(this.EXP_KEY));
+    return !!exp && exp > Date.now();
   }
 
   getUsername(): string {
-    const token = this.getToken();
-    if (!token) return '';
-    try {
-      return this.decodePayload(token).sub;
-    } catch {
-      return '';
-    }
+    return localStorage.getItem(this.USERNAME_KEY) ?? '';
   }
 
   getRoles(): string[] {
-    const token = this.getToken();
-    if (!token) return [];
-    try {
-      const roles = this.decodePayload(token).roles;
-      return roles ? roles.split(',') : [];
-    } catch {
-      return [];
-    }
+    const rol = localStorage.getItem(this.ROL_KEY);
+    return rol ? [rol] : [];
   }
 
   isAdmin(): boolean {
@@ -259,18 +242,19 @@ export class AuthService {
     return this.isAdmin() || this.isAdministrativo();
   }
 
+  /**
+   * Limpia el estado local YA (para que la UI redirija al toque) y avisa al
+   * backend para que invalide la cookie — best-effort, si falla no importa,
+   * total ya borramos las pistas locales y la sesión del browser murió igual.
+   */
   logout(): void {
-    localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.ROL_KEY);
+    localStorage.removeItem(this.EXP_KEY);
+    localStorage.removeItem(this.USERNAME_KEY);
     localStorage.removeItem(this.TERMINOS_KEY);
     localStorage.removeItem(this.DEBE_CAMBIAR_KEY);
-  }
-
-  private decodePayload(token: string): JwtPayload {
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(base64));
-  }
-
-  private authHeaders(): HttpHeaders {
-    return new HttpHeaders({ Authorization: `Bearer ${this.getToken()}` });
+    if (!environment.useMocks) {
+      this.http.post(`${this.gatewayUrl}/api/auth/logout`, {}).subscribe({ error: () => {} });
+    }
   }
 }

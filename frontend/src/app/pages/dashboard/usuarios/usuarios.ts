@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Subject, interval } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { AuthService } from '../../../services/auth';
@@ -104,10 +104,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  private headers(): HttpHeaders {
-    return new HttpHeaders({ Authorization: `Bearer ${this.authService.getToken()}` });
-  }
-
   /** @param silencioso true en los refrescos de fondo: no muestra el spinner ni pisa errores previos. */
   cargarUsuarios(silencioso = false) {
     if (!silencioso) { this.loading = true; this.error = ''; }
@@ -117,7 +113,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.http.get<MockUsuario[]>(`${this.gatewayUrl}/api/auth/usuarios`, { headers: this.headers() })
+    this.http.get<MockUsuario[]>(`${this.gatewayUrl}/api/auth/usuarios`)
       .subscribe({
         next: (data) => { this.usuarios = data; if (!silencioso) this.loading = false; },
         error: () => { if (!silencioso) { this.error = 'No se pudo cargar la lista de usuarios.'; this.loading = false; } }
@@ -158,7 +154,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.http.post(`${this.gatewayUrl}/api/auth/register`, this.form, { headers: this.headers() })
+    this.http.post(`${this.gatewayUrl}/api/auth/register`, this.form)
       .subscribe({
         next: () => {
           this.saving = false; this.saveSuccess = 'Usuario creado correctamente.';
@@ -189,8 +185,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       this.cargarUsuarios();
       return;
     }
-    this.http.patch(`${this.gatewayUrl}/api/auth/usuarios/${id}/estado`,
-      { activo }, { headers: this.headers() })
+    this.http.patch(`${this.gatewayUrl}/api/auth/usuarios/${id}/estado`, { activo })
       .subscribe({ next: () => this.cargarUsuarios(), error: () => {} });
   }
 
@@ -241,7 +236,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     }
 
     this.http.patch(`${this.gatewayUrl}/api/auth/usuarios/${id}/telefono`,
-      { telefono: this.formTel.telefono }, { headers: this.headers() })
+      { telefono: this.formTel.telefono })
       .subscribe({
         next: () => {
           this.savingTel = false; this.telSuccess = 'Teléfono actualizado correctamente.';
