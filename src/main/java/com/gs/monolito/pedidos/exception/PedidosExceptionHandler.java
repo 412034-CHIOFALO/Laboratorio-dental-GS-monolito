@@ -2,13 +2,19 @@ package com.gs.monolito.pedidos.exception;
 
 import com.gs.monolito.common.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-/** Excepciones de dominio propias de pedidos — ver {@link com.gs.monolito.catalogo.exception.CatalogoExceptionHandler} para el porqué de este patrón. */
+/**
+ * Excepciones de dominio propias de pedidos — ver {@link com.gs.monolito.catalogo.exception.CatalogoExceptionHandler} para el porqué de este patrón.
+ * {@code @Order} más chico que el de {@link com.gs.monolito.common.exception.GlobalExceptionHandler}
+ * (LOWEST_PRECEDENCE) para que este advice, más específico, se evalúe primero — ver el javadoc de esa clase.
+ */
 @RestControllerAdvice(basePackages = "com.gs.monolito.pedidos")
+@Order(0)
 public class PedidosExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)

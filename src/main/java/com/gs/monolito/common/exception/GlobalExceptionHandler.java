@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.security.access.AccessDeniedException;
@@ -35,8 +37,21 @@ import java.util.List;
  * `basePackages`, a medida que se portan esos módulos — ms-auth no tiene
  * excepciones de dominio propias (usa IllegalArgumentException/RuntimeException
  * directo), así que por ahora este handler cubre el 100% de los casos.
+ * <p>
+ * {@code @Order(LOWEST_PRECEDENCE)} es necesario: sin un orden explícito, Spring
+ * resuelve el {@code @ExceptionHandler} aplicable recorriendo los advices y se
+ * queda con el PRIMERO que tenga algún método compatible con la excepción
+ * (compatible = coincide con esa clase o con una superclase, ej. su propio
+ * {@code handleGeneric(Exception)} matchea CUALQUIER excepción) — no busca el
+ * más específico entre todos. Al no estar scoped por basePackages, este advice
+ * es aplicable a TODOS los controllers; sin este @Order, según el orden de
+ * registro de beans podía "ganarle" a los advices de dominio (Pedidos/
+ * Catalogo/Finanzas/Stock) y devolver 500 para excepciones que esos módulos
+ * ya sabían mapear a 404/409/422.
+ * </p>
  */
 @RestControllerAdvice
+@Order(Ordered.LOWEST_PRECEDENCE)
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);

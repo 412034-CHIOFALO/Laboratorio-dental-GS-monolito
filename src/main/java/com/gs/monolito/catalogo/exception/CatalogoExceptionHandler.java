@@ -2,6 +2,7 @@ package com.gs.monolito.catalogo.exception;
 
 import com.gs.monolito.common.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -13,8 +14,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * {@link com.gs.monolito.common.exception.GlobalExceptionHandler} — scoped acá
  * por basePackages para no competir con los advices de dominio de los otros
  * módulos cuando se porten.
+ * {@code @Order} más chico que el de {@code GlobalExceptionHandler}
+ * (LOWEST_PRECEDENCE) para que este advice, más específico, se evalúe primero
+ * — ver el javadoc de esa clase.
  */
 @RestControllerAdvice(basePackages = "com.gs.monolito.catalogo")
+@Order(0)
 public class CatalogoExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
