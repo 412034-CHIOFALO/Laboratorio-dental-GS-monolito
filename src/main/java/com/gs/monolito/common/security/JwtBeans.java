@@ -16,7 +16,14 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPrivateKey;
@@ -36,7 +43,17 @@ import java.util.stream.Collectors;
 @Configuration
 public class JwtBeans {
 
-    @Value("${gs.auth.keystore.path:classpath:keys/gs-auth.p12}")
+    private static final Logger log = LoggerFactory.getLogger(JwtBeans.class);
+
+    /**
+     * "file:./keys/..." (no "classpath:") a propósito: el keystore real ya NO
+     * se versiona en git (contenía la clave privada real de firma de todos los
+     * JWT del sistema). En su lugar, si el archivo no existe en disco, se
+     * genera uno nuevo la primera vez que arranca (ver {@link #generarSiNoExiste}),
+     * y de ahí en más persiste en ese path — en el VPS eso es un volumen Docker
+     * montado en /app/keys, así que sobrevive a redeploys.
+     */
+    @Value("${gs.auth.keystore.path:file:./keys/gs-auth.p12}")
     private Resource keystorePath;
 
     @Value("${gs.auth.keystore.password:gs_keystore_2025}")
@@ -51,6 +68,7 @@ public class JwtBeans {
      */
     @Bean
     public RSAKey rsaKey() {
+        generarSiNoExiste();
         try (InputStream is = keystorePath.getInputStream()) {
             KeyStore keyStore = KeyStore.getInstance("PKCS12");
             keyStore.load(is, keystorePassword.toCharArray());
@@ -67,6 +85,54 @@ public class JwtBeans {
         } catch (Exception e) {
             throw new IllegalStateException(
                 "No se pudo cargar el keystore RSA desde: " + keystorePath, e);
+        }
+    }
+
+    /**
+     * Si el keystore configurado no existe en disco, genera uno nuevo con
+     * {@code keytool} (viene incluido en cualquier JRE, sin dependencias
+     * extra). Solo funciona para paths "file:" — si alguien configura
+     * "classpath:" a propósito (bundlear su propio keystore en el jar), no se
+     * toca y sigue el flujo normal (falla con un mensaje claro si tampoco existe).
+     */
+    private void generarSiNoExiste() {
+        if (keystorePath.exists() || !keystorePath.isFile()) return;
+        try {
+            File file = keystorePath.getFile();
+            File dir = file.getParentFile();
+            if (dir != null) dir.mkdirs();
+
+            log.warn("[GS-AUTH] No existe el keystore JWT en {} — generando uno nuevo. "
+                    + "Esto invalida cualquier JWT emitido anteriormente (esperable en el primer arranque).",
+                    file.getAbsolutePath());
+
+            ProcessBuilder pb = new ProcessBuilder(
+                "keytool", "-genkeypair",
+                "-alias", keystoreAlias,
+                "-keyalg", "RSA", "-keysize", "2048", "-validity", "3650",
+                "-keystore", file.getAbsolutePath(),
+                "-storetype", "PKCS12",
+                "-storepass", keystorePassword,
+                "-dname", "CN=gs-monolito, OU=Laboratorio G&S"
+            );
+            pb.redirectErrorStream(true);
+            Process proceso = pb.start();
+
+            StringBuilder salida = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(proceso.getInputStream(), StandardCharsets.UTF_8))) {
+                String linea;
+                while ((linea = reader.readLine()) != null) salida.append(linea).append('\n');
+            }
+            int codigo = proceso.waitFor();
+            if (codigo != 0) {
+                throw new IllegalStateException("keytool terminó con código " + codigo + ": " + salida);
+            }
+            log.info("[GS-AUTH] Keystore JWT generado en {}", file.getAbsolutePath());
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo generar el keystore JWT en " + keystorePath, e);
         }
     }
 

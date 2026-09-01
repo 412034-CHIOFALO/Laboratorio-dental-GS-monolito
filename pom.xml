@@ -54,6 +54,16 @@
 			<scope>runtime</scope>
 		</dependency>
 
+		<!-- Migraciones de esquema versionadas — reemplaza ddl-auto=update -->
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-mysql</artifactId>
+		</dependency>
+
 		<!-- MinIO: usado por finanzas/pedidos (Etapas 4-5) -->
 		<dependency>
 			<groupId>io.minio</groupId>

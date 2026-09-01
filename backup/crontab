@@ -1,0 +1,6 @@
+# Corre todos los dias a las 3:00 AM (hora Argentina, ver TZ en el Dockerfile).
+# /etc/cron.d requiere la columna de usuario (a diferencia de /etc/crontabs/root en Alpine).
+# `. /etc/cron-env` carga MYSQL_ROOT_PASSWORD/TZ: cron NO hereda el entorno del
+# contenedor, así que lo vuelca el entrypoint al arrancar (ver entrypoint.sh).
+# Sin esto el backup moría por variable sin definir (backup.sh tiene set -u).
+0 3 * * * root . /etc/cron-env; /backup.sh >> /var/log/backup.log 2>&1

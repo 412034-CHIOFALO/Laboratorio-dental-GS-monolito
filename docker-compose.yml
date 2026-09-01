@@ -24,6 +24,11 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    volumes:
+      # Keystore RSA persistente: se genera una sola vez (primer arranque) y se
+      # reusa en cada rebuild/redeploy. Sin esto, cada deploy regeneraba la
+      # clave y invalidaba TODOS los JWT ya emitidos (deslogueaba a todos).
+      - app_keys:/app/keys
     depends_on:
       mysql:
         condition: service_healthy
@@ -68,6 +73,31 @@ services:
       - "9000:9000"
       - "9001:9001"
 
+  # Backup diario 3 AM → Google Drive (dumps de las 5 bases + archivos de
+  # MinIO) + disparo manual desde el botón del panel. Ver backup/README.md
+  # para la config de rclone (una sola vez, en el VPS).
+  backup:
+    build: ./backup
+    init: true   # crond como PID 1 sin esto tira "setpgid: Operation not permitted"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      BACKUP_TRIGGER_KEY: ${GS_INTERNAL_API_KEY:-gs-internal-key-cambiar-en-prod}
+    volumes:
+      - minio_data:/minio_data:ro
+      # Directorio, no el archivo directo: rclone reescribe su config al
+      # refrescar el token OAuth (rename atómico), y eso rompe con
+      # "device or resource busy" si el archivo está bind-mounteado solo.
+      - ./backup/rclone-config:/root/.config/rclone
+      - backup_tmp:/backups/tmp
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   mysql_data:
   minio_data:
+  app_keys:
+  backup_tmp:

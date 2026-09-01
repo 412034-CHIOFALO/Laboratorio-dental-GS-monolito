@@ -32,4 +32,6 @@ target/
 
 ### Env local / secretos ###
 .env
+/keys/
+/backup/rclone-config/
 

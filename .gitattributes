@@ -1,0 +1,7 @@
+# Scripts que corren dentro de contenedores Linux — nunca CRLF, aunque se
+# clone/edite en Windows. Un CRLF acá rompe el shebang (#!/bin/bash^M: bad
+# interpreter) recién al ejecutarlo dentro del container, no al compilar.
+*.sh text eol=lf
+crontab text eol=lf
+Dockerfile text eol=lf
+*.sql text eol=lf
