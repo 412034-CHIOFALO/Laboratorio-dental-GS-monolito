@@ -8,6 +8,9 @@ import com.gs.monolito.auth.model.Usuario;
 import com.gs.monolito.auth.service.AuditoriaService;
 import com.gs.monolito.auth.service.UsuarioService;
 import com.gs.monolito.common.security.ClientIp;
+import com.gs.monolito.common.security.JwtCookieAuthenticationFilter;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -66,6 +69,10 @@ public class AuthController {
     @Value("${AUTH_ISSUER:http://localhost:8080}")
     private String issuer;
 
+    /** false solo para probar sin HTTPS en desarrollo local — nunca en producción real. */
+    @Value("${gs.auth.cookie-secure:true}")
+    private boolean cookieSecure;
+
     public AuthController(JwtEncoder jwtEncoder,
                           AuthenticationManager authenticationManager,
                           UsuarioService usuarioService,
@@ -107,10 +114,11 @@ public class AuthController {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining(","));
 
+            Instant expiraEn = Instant.now().plus(Duration.ofHours(tokenTtlHours));
             JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(issuer)
                 .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plus(Duration.ofHours(tokenTtlHours)))
+                .expiresAt(expiraEn)
                 .subject(auth.getName())
                 .claim("roles", roles)
                 .build();
@@ -121,11 +129,26 @@ public class AuthController {
                 "Sesión", "Login exitoso · roles: " + roles);
 
             Usuario u = usuarioService.buscarPorUsername(auth.getName());
-            return ResponseEntity.ok(Map.of(
-                "access_token", token,
-                "terminosAceptados", u.isTerminosAceptados(),
-                "debeCambiarPassword", u.isDebeCambiarPassword()
-            ));
+
+            // El JWT viaja en una cookie httpOnly — el navegador nunca deja que JS la
+            // lea (mitiga robo del token por XSS). El body solo devuelve datos NO
+            // sensibles que el frontend necesita para su UI (rol, expiración).
+            ResponseCookie cookie = ResponseCookie.from(JwtCookieAuthenticationFilter.COOKIE_NAME, token)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .sameSite("Strict")
+                .path("/")
+                .maxAge(Duration.ofHours(tokenTtlHours))
+                .build();
+
+            return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(Map.of(
+                    "rol", u.getRol().name(),
+                    "expiraEn", expiraEn.toEpochMilli(),
+                    "terminosAceptados", u.isTerminosAceptados(),
+                    "debeCambiarPassword", u.isDebeCambiarPassword()
+                ));
 
         } catch (DisabledException e) {
             auditoriaService.registrar(request.username(), "LOGIN_FALLIDO", "Intento de login rechazado",
@@ -138,6 +161,32 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("error", "Usuario o contraseña incorrectos."));
         }
+    }
+
+    @Operation(
+        summary = "Cerrar sesión",
+        description = "Invalida la cookie de sesión del lado del navegador (no hay revocación server-side " +
+                      "de JWT — el token sigue siendo técnicamente válido hasta que expire por su cuenta, " +
+                      "pero el browser deja de reenviarlo)."
+    )
+    @ApiResponse(responseCode = "200", description = "Sesión cerrada")
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(@AuthenticationPrincipal Jwt jwt) {
+        ResponseCookie cookie = ResponseCookie.from(JwtCookieAuthenticationFilter.COOKIE_NAME, "")
+            .httpOnly(true)
+            .secure(cookieSecure)
+            .sameSite("Strict")
+            .path("/")
+            .maxAge(0)
+            .build();
+
+        if (jwt != null) {
+            auditoriaService.registrar(jwt.getSubject(), "LOGOUT", "Cierre de sesión", "Sesión", "Logout manual");
+        }
+
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookie.toString())
+            .body(Map.of("mensaje", "Sesión cerrada."));
     }
 
     @Operation(

@@ -1,6 +1,9 @@
 package com.gs.monolito.auth.config;
 
 import com.gs.monolito.auth.service.CustomUserDetailsService;
+import com.gs.monolito.common.security.CsrfCookieFilter;
+import com.gs.monolito.common.security.CsrfRequestMatchers;
+import com.gs.monolito.common.security.JwtCookieAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -24,8 +27,12 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 import java.util.UUID;
 
@@ -78,14 +85,27 @@ public class AuthSecurityConfig {
     @Bean
     @Order(2)
     public SecurityFilterChain authDomainSecurityFilterChain(HttpSecurity http,
-                                                              JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
+                                                              JwtAuthenticationConverter jwtAuthenticationConverter,
+                                                              JwtCookieAuthenticationFilter jwtCookieAuthenticationFilter) throws Exception {
         http
             .securityMatcher("/api/auth/**")
-            // CORS: sin configurar todavía — se agrega en la Etapa 7 (infra + frontend).
+            // Mismo origen vía nginx (frontend y API comparten dominio) — sin CORS.
             .cors(cors -> cors.disable())
-            .csrf(csrf -> csrf.disable())
+            // login queda afuera: es el único POST que ocurre antes de que exista
+            // la cookie de sesión. El resto de /api/auth/** sí exige el token CSRF
+            // (cookie XSRF-TOKEN legible por JS + header X-XSRF-TOKEN) — la propia
+            // respuesta del login ya la deja puesta (ver CsrfCookieFilter), así que
+            // la siguiente petición mutante (ej. aceptar-terminos) ya la tiene.
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                .requireCsrfProtectionMatcher(CsrfRequestMatchers.requerirSalvo("/api/auth/login"))
+            )
+            .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
+            .addFilterBefore(jwtCookieAuthenticationFilter, BearerTokenAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login").permitAll()
+                .requestMatchers("/api/auth/logout").authenticated()
                 // Ver la bitácora — exclusiva de ADMIN
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/auditoria").hasRole("ADMIN")
                 // Backup manual (botón "hacer backup ahora") — exclusivo de ADMIN

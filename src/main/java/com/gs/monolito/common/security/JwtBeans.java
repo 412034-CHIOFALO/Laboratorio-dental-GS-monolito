@@ -155,6 +155,13 @@ public class JwtBeans {
         return new NimbusJwtEncoder(jwkSource);
     }
 
+    /** Ver {@link JwtCookieAuthenticationFilter} — por qué NO es un BearerTokenResolver. */
+    @Bean
+    public JwtCookieAuthenticationFilter jwtCookieAuthenticationFilter(JwtDecoder jwtDecoder,
+                                                                       JwtAuthenticationConverter jwtAuthenticationConverter) {
+        return new JwtCookieAuthenticationFilter(jwtDecoder, jwtAuthenticationConverter);
+    }
+
     /**
      * Mapea el claim "roles" del JWT (CSV, ej: "ROLE_ADMIN,ROLE_TECNICO") a
      * authorities. Sin esto, hasRole(...) daría 403 en todos los endpoints

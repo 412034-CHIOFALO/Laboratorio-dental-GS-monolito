@@ -1,5 +1,8 @@
 package com.gs.monolito.finanzas.config;
 
+import com.gs.monolito.common.security.CsrfCookieFilter;
+import com.gs.monolito.common.security.CsrfRequestMatchers;
+import com.gs.monolito.common.security.JwtCookieAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -11,6 +14,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 /**
  * Security de /api/finanzas/**. Conserva el {@link BotApiKeyFilter} (el bot no
@@ -32,11 +38,22 @@ public class FinanzasSecurityConfig {
     @Bean
     @Order(5)
     public SecurityFilterChain finanzasSecurityFilterChain(HttpSecurity http,
-                                                            JwtAuthenticationConverter jwtAuthenticationConverter) throws Exception {
+                                                            JwtAuthenticationConverter jwtAuthenticationConverter,
+                                                            JwtCookieAuthenticationFilter jwtCookieAuthenticationFilter) throws Exception {
         http
             .securityMatcher("/api/finanzas/**")
             .cors(cors -> cors.disable())
-            .csrf(csrf -> csrf.disable())
+            // El bot llama estas dos rutas server-to-server (X-Bot-Api-Key, sin
+            // cookie ni CSRF token posible) — se excluyen de la validación CSRF,
+            // no de la autenticación (BotApiKeyFilter sigue exigiendo la key).
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                .requireCsrfProtectionMatcher(CsrfRequestMatchers.requerirSalvo(
+                    "/api/finanzas/sueldos/pago-automatico",
+                    "/api/finanzas/sueldos/pago-efectivo"))
+            )
+            .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             // El bot se autentica por API key (header X-Bot-Api-Key) antes del JWT.
@@ -46,6 +63,7 @@ public class FinanzasSecurityConfig {
             // dependió del gateway para esto) y pago-efectivo ni siquiera necesita
             // una regla explícita, cae en anyRequest().authenticated() más abajo.
             .addFilterBefore(botApiKeyFilter, BearerTokenAuthenticationFilter.class)
+            .addFilterBefore(jwtCookieAuthenticationFilter, BearerTokenAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.POST, "/api/finanzas/sueldos/pago-automatico").hasRole("ADMIN")
                 .requestMatchers("/api/finanzas/cajas/**").hasAnyRole("ADMIN", "ADMINISTRATIVO")
