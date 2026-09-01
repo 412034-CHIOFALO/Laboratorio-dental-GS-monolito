@@ -1,5 +1,6 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService, PerfilResponse } from '../../../services/auth';
 import { NotificationService } from '../../../services/notification.service';
 
@@ -13,6 +14,11 @@ import { NotificationService } from '../../../services/notification.service';
 export class MiPerfilComponent implements OnInit {
   private auth = inject(AuthService);
   private notif = inject(NotificationService);
+  private route = inject(ActivatedRoute);
+  private router = inject(Router);
+
+  /** true si llegamos acá redirigidos a la fuerza por una contraseña temporal pendiente. */
+  cambioObligatorio = signal(false);
 
   cargando = signal(true);
   perfil = signal<PerfilResponse | null>(null);
@@ -25,6 +31,7 @@ export class MiPerfilComponent implements OnInit {
   cambiandoPass = signal(false);
 
   ngOnInit(): void {
+    this.cambioObligatorio.set(this.route.snapshot.queryParamMap.get('obligatorio') === '1');
     this.auth.miPerfil().subscribe({
       next: p => {
         this.perfil.set(p);
@@ -88,6 +95,11 @@ export class MiPerfilComponent implements OnInit {
         this.cambiandoPass.set(false);
         this.pass = { actual: '', nueva: '', repetir: '' };
         this.notif.exito(r.mensaje ?? 'Contraseña actualizada');
+        if (this.cambioObligatorio()) {
+          this.auth.saveDebeCambiarPassword(false);
+          this.cambioObligatorio.set(false);
+          this.router.navigate(['/dashboard']);
+        }
       },
       error: e => { this.cambiandoPass.set(false); this.notif.errorHttp(e, 'No se pudo cambiar la contraseña'); },
     });

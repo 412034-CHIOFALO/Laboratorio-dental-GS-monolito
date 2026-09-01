@@ -53,21 +53,22 @@ export class AuthService {
   private gatewayUrl = environment.gatewayUrl;
   private readonly TOKEN_KEY = 'gs_token';
   private readonly TERMINOS_KEY = 'gs_terminos_aceptados';
+  private readonly DEBE_CAMBIAR_KEY = 'gs_debe_cambiar_password';
 
   constructor(private http: HttpClient) {}
 
-  login(username: string, password: string): Observable<{ access_token: string; terminosAceptados: boolean }> {
+  login(username: string, password: string): Observable<{ access_token: string; terminosAceptados: boolean; debeCambiarPassword: boolean }> {
     // MODO DEMO: cualquier user/pass válido entra, ya se considera onboardeado
     if (environment.useMocks) {
       if (username && password) {
-        return of({ access_token: FAKE_JWT, terminosAceptados: true }).pipe(delay(400));
+        return of({ access_token: FAKE_JWT, terminosAceptados: true, debeCambiarPassword: false }).pipe(delay(400));
       }
       return throwError(() => ({ status: 401, error: { mensaje: 'Credenciales incorrectas' } }));
     }
 
     // El endpoint de login viene de environment.loginUrl: en dev va por el
     // gateway (:8080) y en prod va relativo (vía nginx). Siempre /api/auth/login.
-    return this.http.post<{ access_token: string; terminosAceptados: boolean }>(
+    return this.http.post<{ access_token: string; terminosAceptados: boolean; debeCambiarPassword: boolean }>(
       environment.loginUrl,
       { username, password }
     );
@@ -89,6 +90,24 @@ export class AuthService {
 
   terminosAceptados(): boolean {
     return localStorage.getItem(this.TERMINOS_KEY) === '1';
+  }
+
+  saveDebeCambiarPassword(v: boolean): void {
+    localStorage.setItem(this.DEBE_CAMBIAR_KEY, v ? '1' : '0');
+  }
+
+  debeCambiarPassword(): boolean {
+    return localStorage.getItem(this.DEBE_CAMBIAR_KEY) === '1';
+  }
+
+  /** Resetea la contraseña de otro usuario (ADMINISTRATIVO). Devuelve la temporal UNA sola vez. */
+  resetearPassword(id: number): Observable<{ mensaje: string; passwordTemporal: string }> {
+    if (environment.useMocks) {
+      return of({ mensaje: 'Contraseña reseteada (demo).', passwordTemporal: 'demo1234X' }).pipe(delay(300));
+    }
+    return this.http.post<{ mensaje: string; passwordTemporal: string }>(
+      `${this.gatewayUrl}/api/auth/usuarios/${id}/resetear-password`, {}, { headers: this.authHeaders() }
+    );
   }
 
   listarUsuarios(): Observable<UsuarioListado[]> {
@@ -242,6 +261,8 @@ export class AuthService {
 
   logout(): void {
     localStorage.removeItem(this.TOKEN_KEY);
+    localStorage.removeItem(this.TERMINOS_KEY);
+    localStorage.removeItem(this.DEBE_CAMBIAR_KEY);
   }
 
   private decodePayload(token: string): JwtPayload {

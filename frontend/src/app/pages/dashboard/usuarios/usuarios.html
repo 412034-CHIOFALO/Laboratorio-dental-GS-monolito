@@ -77,6 +77,11 @@
                 } @else {
                   <button class="btn-desactivar" (click)="desactivar(u.id)">Desactivar</button>
                 }
+                <button class="btn-icon-tel" title="Resetear contraseña" (click)="abrirResetModal(u)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                  </svg>
+                </button>
               </td>
             </tr>
           } @empty {
@@ -173,5 +178,45 @@
         </button>
       </div>
     </form>
+  </div>
+}
+
+<!-- ── MODAL RESETEAR CONTRASEÑA ── -->
+@if (showResetModal && resetUsuario) {
+  <div class="modal-backdrop" (click)="cerrarResetModal()"></div>
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2>Resetear contraseña de {{ resetUsuario.nombre }}</h2>
+      <button class="modal-close" (click)="cerrarResetModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-form">
+      @if (!passwordTemporal) {
+        <p class="modal-hint">
+          Se va a generar una contraseña temporal nueva para <strong>&#64;{{ resetUsuario.username }}</strong>.
+          Va a tener que cambiarla apenas inicie sesión. No hay envío de mail — se la vas a tener que pasar vos.
+        </p>
+        @if (resetError) { <div class="alert-error">{{ resetError }}</div> }
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="cerrarResetModal()">Cancelar</button>
+          <button type="button" class="btn-save" [disabled]="reseteando" (click)="confirmarReset()">
+            @if (reseteando) { <span class="spinner-sm"></span> } @else { <span>Resetear contraseña</span> }
+          </button>
+        </div>
+      } @else {
+        <div class="alert-success">Contraseña reseteada correctamente.</div>
+        <p class="modal-hint">Pasale esta contraseña temporal a {{ resetUsuario.nombre }} — solo se muestra ahora, no se puede volver a ver:</p>
+        <div class="field-group">
+          <input type="text" class="form-input" [value]="passwordTemporal" readonly>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancel" (click)="copiarPasswordTemporal()">Copiar</button>
+          <button type="button" class="btn-save" (click)="cerrarResetModal()">Listo</button>
+        </div>
+      }
+    </div>
   </div>
 }

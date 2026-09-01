@@ -23,7 +23,7 @@ import { FaqComponent } from './pages/dashboard/faq/faq';
 import { MiPerfilComponent } from './pages/dashboard/mi-perfil/mi-perfil';
 import { ErrorPageComponent } from './pages/error/error-page';
 import { TerminosComponent } from './pages/terminos/terminos';
-import { authGuard, termsGuard } from './guards/auth.guard';
+import { authGuard, termsGuard, forcePasswordChangeGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPage },
@@ -33,6 +33,7 @@ export const routes: Routes = [
     path: 'dashboard',
     component: DashboardComponent,
     canActivate: [termsGuard],
+    canActivateChild: [forcePasswordChangeGuard],
     children: [
       { path: '',            component: DashboardHomeComponent },
       { path: 'pedidos',     component: PedidosComponent },

@@ -58,6 +58,13 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   telError      = '';
   telSuccess    = '';
 
+  // ── Modal resetear contraseña ────────────────────────────────
+  showResetModal    = false;
+  resetUsuario: MockUsuario | null = null;
+  reseteando        = false;
+  resetError        = '';
+  passwordTemporal  = '';
+
   // Mock store
   private mockStore: MockUsuario[] = clonar(MOCK_USUARIOS);
   private nextMockId = 100;
@@ -76,6 +83,11 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   /** Dar de alta (activar) una cuenta pendiente es exclusivo de ADMINISTRATIVO — a
    * propósito no puede ser el mismo ADMIN que la creó (separación de poderes). */
   get puedeActivar(): boolean {
+    return this.authService.isAdministrativo();
+  }
+
+  /** Resetear la contraseña de otro integrante también es exclusivo de ADMINISTRATIVO. */
+  get puedeResetearPassword(): boolean {
     return this.authService.isAdministrativo();
   }
 
@@ -237,6 +249,47 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         },
         error: (err) => { this.savingTel = false; this.telError = this.mensajeError(err, 'Error al actualizar el teléfono.'); }
       });
+  }
+
+  // ── Resetear contraseña ──────────────────────────────────────
+
+  abrirResetModal(u: MockUsuario) {
+    if (!this.puedeResetearPassword) {
+      this.notif.alerta('Resetear una contraseña requiere rol Administrativo.', 'Sin permisos');
+      return;
+    }
+    this.resetUsuario = u;
+    this.resetError = '';
+    this.passwordTemporal = '';
+    this.showResetModal = true;
+  }
+
+  cerrarResetModal() {
+    this.showResetModal = false;
+    this.resetUsuario = null;
+    this.passwordTemporal = '';
+  }
+
+  confirmarReset() {
+    if (!this.resetUsuario) return;
+    this.reseteando = true;
+    this.resetError = '';
+    this.authService.resetearPassword(this.resetUsuario.id).subscribe({
+      next: (r) => {
+        this.reseteando = false;
+        this.passwordTemporal = r.passwordTemporal;
+      },
+      error: (err) => {
+        this.reseteando = false;
+        this.resetError = this.mensajeError(err, 'No se pudo resetear la contraseña.');
+      }
+    });
+  }
+
+  copiarPasswordTemporal() {
+    if (!this.passwordTemporal) return;
+    navigator.clipboard?.writeText(this.passwordTemporal);
+    this.notif.exito('Contraseña temporal copiada al portapapeles');
   }
 
   // ── Helpers ──────────────────────────────────────────────────

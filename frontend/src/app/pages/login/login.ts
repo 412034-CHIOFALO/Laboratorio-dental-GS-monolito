@@ -36,7 +36,13 @@ export class LoginComponent implements OnInit {
   /** El ícono de la PWA abre directo en /login — si ya hay sesión, saltamos a destino. */
   ngOnInit(): void {
     if (this.authService.isLoggedIn()) {
-      this.router.navigate([this.authService.terminosAceptados() ? '/dashboard' : '/terminos']);
+      if (!this.authService.terminosAceptados()) {
+        this.router.navigate(['/terminos']);
+      } else if (this.authService.debeCambiarPassword()) {
+        this.router.navigate(['/dashboard/mi-perfil'], { queryParams: { obligatorio: '1' } });
+      } else {
+        this.router.navigate(['/dashboard']);
+      }
     }
   }
 
@@ -62,8 +68,15 @@ export class LoginComponent implements OnInit {
       next: (response) => {
         this.authService.saveToken(response.access_token);
         this.authService.saveTerminosAceptados(response.terminosAceptados);
+        this.authService.saveDebeCambiarPassword(response.debeCambiarPassword);
         this.notif.exito(`Bienvenido ${this.username}`, 'Sesión iniciada');
-        this.router.navigate([response.terminosAceptados ? '/dashboard' : '/terminos']);
+        if (!response.terminosAceptados) {
+          this.router.navigate(['/terminos']);
+        } else if (response.debeCambiarPassword) {
+          this.router.navigate(['/dashboard/mi-perfil'], { queryParams: { obligatorio: '1' } });
+        } else {
+          this.router.navigate(['/dashboard']);
+        }
       },
       error: (err: HttpErrorResponse) => {
         this.loginLoading = false;
