@@ -9,6 +9,7 @@ import com.gs.monolito.pedidos.model.EscaneosPedido;
 import com.gs.monolito.pedidos.repository.EscaneosPedidoRepository;
 import com.gs.monolito.pedidos.repository.PedidoRepository;
 import com.gs.monolito.pedidos.service.PedidosDocumentoStorageService;
+import com.gs.monolito.pedidos.service.UploadValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -49,6 +50,7 @@ public class EscaneosController {
     private final EscaneosPedidoRepository escaneoRepo;
     private final PedidoRepository pedidoRepository;
     private final PedidosDocumentoStorageService minioStorageService;
+    private final UploadValidator uploadValidator;
 
     @Operation(
         summary = "Listar escaneos de un pedido",
@@ -94,6 +96,7 @@ public class EscaneosController {
         if (file.isEmpty()) {
             throw new BusinessException("El archivo está vacío");
         }
+        uploadValidator.validarEscaneo(file);
 
         String objectKey;
         try (InputStream in = file.getInputStream()) {

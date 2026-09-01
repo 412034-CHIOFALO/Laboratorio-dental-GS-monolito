@@ -9,6 +9,7 @@ import com.gs.monolito.pedidos.model.DocumentoPedido;
 import com.gs.monolito.pedidos.repository.DocumentoPedidoRepository;
 import com.gs.monolito.pedidos.repository.PedidoRepository;
 import com.gs.monolito.pedidos.service.PedidosDocumentoStorageService;
+import com.gs.monolito.pedidos.service.UploadValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -49,6 +50,7 @@ public class DocumentoController {
     private final DocumentoPedidoRepository docRepo;
     private final PedidoRepository pedidoRepository;
     private final PedidosDocumentoStorageService minioStorageService;
+    private final UploadValidator uploadValidator;
 
     @Operation(
         summary = "Listar documentos de un pedido",
@@ -91,6 +93,7 @@ public class DocumentoController {
         if (file.isEmpty()) {
             throw new BusinessException("El archivo está vacío");
         }
+        uploadValidator.validarDocumento(file);
 
         byte[] bytes;
         try {
