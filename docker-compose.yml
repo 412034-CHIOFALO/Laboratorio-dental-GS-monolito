@@ -50,7 +50,12 @@ services:
     image: mysql:8.0
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      # Leídas por docker-entrypoint-initdb.d/init-schemas.sh para crear el
+      # usuario de aplicación con privilegios acotados a los 5 schemas gs_*
+      # (la app nunca se conecta como root — ver .env.example).
+      GS_APP_DB_USER: ${DB_USERNAME:-gs_app}
+      GS_APP_DB_PASSWORD: ${DB_PASSWORD}
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
@@ -80,7 +85,11 @@ services:
     build: ./backup
     init: true   # crond como PID 1 sin esto tira "setpgid: Operation not permitted"
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      # El backup sí necesita root: mysqldump lee las 5 bases completas y
+      # además inserta directo en auditoria_eventos (ver backup/backup.sh).
+      # No es el hallazgo que se resuelve acá — ese es el usuario de runtime
+      # de la app (ver servicio "mysql" y "app" más abajo).
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       BACKUP_TRIGGER_KEY: ${GS_INTERNAL_API_KEY:-gs-internal-key-cambiar-en-prod}
     volumes:
       - minio_data:/minio_data:ro
