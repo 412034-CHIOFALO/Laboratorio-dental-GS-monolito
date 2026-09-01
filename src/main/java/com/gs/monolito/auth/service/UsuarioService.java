@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.EnumSet;
 import java.util.List;
@@ -24,6 +25,10 @@ public class UsuarioService {
 
     /** Roles del laboratorio que cobran sueldo. ODONTOLOGO es cliente, no empleado. */
     private static final Set<Rol> ROLES_EMPLEADO = EnumSet.of(Rol.TECNICO, Rol.ADMINISTRATIVO, Rol.ADMIN);
+
+    private static final String ALFABETO_PASSWORD_TEMPORAL =
+        "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
@@ -122,7 +127,34 @@ public class UsuarioService {
             throw new IllegalArgumentException("La contraseña actual no es correcta.");
         }
         u.setPassword(passwordEncoder.encode(nueva));
+        u.setDebeCambiarPassword(false);
         return usuarioRepository.save(u);
+    }
+
+    /**
+     * Resetea la contraseña de otro usuario (ADMIN). Genera una temporal
+     * aleatoria, la devuelve en texto plano UNA sola vez (para que el ADMIN se
+     * la pase al empleado) y marca la cuenta para forzar el cambio en el
+     * próximo login. No hay envío de mail: este sistema no tiene SMTP
+     * configurado, así que la entrega es manual (de palabra, WhatsApp, etc.).
+     */
+    public String resetearPassword(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+        String temporal = generarPasswordTemporal();
+        usuario.setPassword(passwordEncoder.encode(temporal));
+        usuario.setDebeCambiarPassword(true);
+        usuarioRepository.save(usuario);
+        log.info("[GS-AUTH] Contraseña reseteada por ADMIN para el usuario {}", usuario.getUsername());
+        return temporal;
+    }
+
+    private String generarPasswordTemporal() {
+        StringBuilder sb = new StringBuilder(10);
+        for (int i = 0; i < 10; i++) {
+            sb.append(ALFABETO_PASSWORD_TEMPORAL.charAt(RANDOM.nextInt(ALFABETO_PASSWORD_TEMPORAL.length())));
+        }
+        return sb.toString();
     }
 
     public Usuario aceptarTerminos(String username) {

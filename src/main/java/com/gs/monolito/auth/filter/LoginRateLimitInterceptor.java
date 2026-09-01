@@ -1,5 +1,6 @@
 package com.gs.monolito.auth.filter;
 
+import com.gs.monolito.common.security.ClientIp;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,7 +39,7 @@ public class LoginRateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        String ip = resolveClientIp(request);
+        String ip = ClientIp.resolve(request);
         Bucket bucket = buckets.computeIfAbsent(ip, this::newBucket);
 
         if (bucket.tryConsume(1)) {
@@ -63,17 +64,5 @@ public class LoginRateLimitInterceptor implements HandlerInterceptor {
                 .refillGreedy(CAPACITY, REFILL_PERIOD)
                 .build())
             .build();
-    }
-
-    private String resolveClientIp(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp;
-        }
-        return request.getRemoteAddr();
     }
 }

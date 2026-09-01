@@ -7,6 +7,7 @@ import com.gs.monolito.auth.dto.UsuarioResponse;
 import com.gs.monolito.auth.model.Usuario;
 import com.gs.monolito.auth.service.AuditoriaService;
 import com.gs.monolito.auth.service.UsuarioService;
+import com.gs.monolito.common.security.ClientIp;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -95,7 +96,8 @@ public class AuthController {
         @ApiResponse(responseCode = "429", description = "Demasiados intentos de login — rate limit alcanzado", content = @Content)
     })
     @PostMapping("/login")
-    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request,
+                                   jakarta.servlet.http.HttpServletRequest httpRequest) {
         try {
             Authentication auth = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password())
@@ -121,15 +123,56 @@ public class AuthController {
             Usuario u = usuarioService.buscarPorUsername(auth.getName());
             return ResponseEntity.ok(Map.of(
                 "access_token", token,
-                "terminosAceptados", u.isTerminosAceptados()
+                "terminosAceptados", u.isTerminosAceptados(),
+                "debeCambiarPassword", u.isDebeCambiarPassword()
             ));
 
         } catch (DisabledException e) {
+            auditoriaService.registrar(request.username(), "LOGIN_FALLIDO", "Intento de login rechazado",
+                "Sesión", "Cuenta pendiente de aprobación · IP " + ClientIp.resolve(httpRequest));
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(Map.of("error", "Tu cuenta está pendiente de aprobación por el administrador."));
         } catch (BadCredentialsException e) {
+            auditoriaService.registrar(request.username(), "LOGIN_FALLIDO", "Intento de login rechazado",
+                "Sesión", "Usuario o contraseña incorrectos · IP " + ClientIp.resolve(httpRequest));
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("error", "Usuario o contraseña incorrectos."));
+        }
+    }
+
+    @Operation(
+        summary = "Resetear la contraseña de un usuario (requiere ADMINISTRATIVO)",
+        description = "Genera una contraseña temporal aleatoria, la aplica al usuario y marca la cuenta " +
+                      "para forzar el cambio en el próximo login. La temporal se devuelve UNA sola vez en " +
+                      "esta respuesta — no hay envío de mail, hay que comunicarla manualmente (WhatsApp, de palabra). " +
+                      "Requiere rol ADMINISTRATIVO (Bearer JWT)."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Contraseña reseteada — devuelve la temporal",
+            content = @Content(mediaType = "application/json",
+                schema = @Schema(example = "{\"mensaje\": \"Contraseña reseteada.\", \"passwordTemporal\": \"aB3xK9mP2q\"}"))),
+        @ApiResponse(responseCode = "403", description = "Sin permisos de administrador", content = @Content),
+        @ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = @Content)
+    })
+    @PostMapping("/usuarios/{id}/resetear-password")
+    public ResponseEntity<?> resetearPassword(
+            @Parameter(description = "ID del usuario a resetear", example = "5")
+            @PathVariable @Positive Long id,
+            @AuthenticationPrincipal Jwt jwt) {
+        if (!esAdministrativo(jwt)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "Resetear una contraseña requiere rol ADMINISTRATIVO."));
+        }
+        try {
+            String temporal = usuarioService.resetearPassword(id);
+            auditoriaService.registrar(jwt.getSubject(), "EDITAR", "Reseteo de contraseña",
+                "Usuario " + id, "Contraseña reseteada por administrador — pendiente de cambio en próximo login");
+            return ResponseEntity.ok(Map.of(
+                "mensaje", "Contraseña reseteada.",
+                "passwordTemporal", temporal
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
         }
     }
 

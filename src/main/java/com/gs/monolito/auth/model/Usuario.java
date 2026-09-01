@@ -52,4 +52,8 @@ public class Usuario {
     private boolean terminosAceptados = false;
 
     private Instant fechaAceptacionTerminos;
+
+    /** true tras un reseteo de contraseña por ADMIN — fuerza el cambio en el próximo login. */
+    @Builder.Default
+    private boolean debeCambiarPassword = false;
 }

@@ -12,7 +12,8 @@ public record UsuarioResponse(
     Rol rol,
     boolean enabled,
     boolean pendienteAprobacion,
-    boolean terminosAceptados
+    boolean terminosAceptados,
+    boolean debeCambiarPassword
 ) {
     public static UsuarioResponse from(Usuario u) {
         return new UsuarioResponse(
@@ -24,7 +25,8 @@ public record UsuarioResponse(
             u.getRol(),
             u.isEnabled(),
             u.isPendienteAprobacion(),
-            u.isTerminosAceptados()
+            u.isTerminosAceptados(),
+            u.isDebeCambiarPassword()
         );
     }
 }
