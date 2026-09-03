@@ -410,6 +410,33 @@
   padding: 2px 8px; border-radius: 20px; width: fit-content;
 }
 
+/* Banner "ver catálogo completo" — reemplaza a los 3 cards que se sacan del
+   teaser cuando el catálogo público está habilitado (ver catalogoDisponible()
+   en landing-page.ts). Si está apagado, no se muestra: sin esto el grid
+   vuelve a los 6 cards de siempre, no hace falta el banner. */
+.servicios-cta {
+  display: flex; align-items: center; justify-content: space-between; gap: 1.5rem;
+  max-width: 1100px; margin: 2rem auto 0; padding: 1.5rem 2rem;
+  background: linear-gradient(135deg, rgba(34,197,94,0.08) 0%, var(--gs-card) 70%);
+  border: 1px solid var(--gs-green-border); border-radius: 14px;
+  text-decoration: none; color: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.servicios-cta:hover { border-color: var(--gs-green); box-shadow: 0 8px 32px rgba(34,197,94,0.12); transform: translateY(-2px); }
+.servicios-cta strong { display: block; font-size: 1.05rem; color: var(--gs-white); margin-bottom: 0.2rem; }
+.servicios-cta span:not(.servicios-cta-btn) { font-size: 0.85rem; color: var(--gs-text-muted); }
+.servicios-cta-btn {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  background: var(--gs-gradient-brand); color: white;
+  padding: 0.7rem 1.3rem; border-radius: 10px;
+  font-weight: 700; font-size: 0.9rem; white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .servicios-cta { flex-direction: column; align-items: stretch; text-align: center; }
+  .servicios-cta-btn { justify-content: center; }
+}
+
 /* GALERIA */
 .trabajos { padding: 5rem 5%; background: var(--gs-bg); }
 

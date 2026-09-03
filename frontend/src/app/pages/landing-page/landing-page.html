@@ -227,33 +227,48 @@
         <span class="servicio-tag">Funcional</span>
       </div>
 
-      <div class="servicio-card">
-        <div class="servicio-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      @if (!catalogoDisponible()) {
+        <div class="servicio-card">
+          <div class="servicio-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <h3>Placas de Relajación ATM</h3>
+          <p>Para pacientes con bruxismo y trastornos de la articulación temporomandibular. Adaptadas a cada mordida.</p>
+          <span class="servicio-tag">ATM</span>
         </div>
-        <h3>Placas de Relajación ATM</h3>
-        <p>Para pacientes con bruxismo y trastornos de la articulación temporomandibular. Adaptadas a cada mordida.</p>
-        <span class="servicio-tag">ATM</span>
-      </div>
 
-      <div class="servicio-card">
-        <div class="servicio-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+        <div class="servicio-card">
+          <div class="servicio-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <h3>Ortodoncia Invisible</h3>
+          <p>Alineadores transparentes por fases. Estética y comodidad sin sacrificar eficacia clínica.</p>
+          <span class="servicio-tag">Invisible</span>
         </div>
-        <h3>Ortodoncia Invisible</h3>
-        <p>Alineadores transparentes por fases. Estética y comodidad sin sacrificar eficacia clínica.</p>
-        <span class="servicio-tag">Invisible</span>
-      </div>
 
-      <div class="servicio-card">
-        <div class="servicio-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        <div class="servicio-card">
+          <div class="servicio-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <h3>Bimler y aparatos 3D</h3>
+          <p>Diseños impresos en 3D con personalización total: colores, decoraciones y motivos a elección del paciente.</p>
+          <span class="servicio-tag">Personalizado</span>
         </div>
-        <h3>Bimler y aparatos 3D</h3>
-        <p>Diseños impresos en 3D con personalización total: colores, decoraciones y motivos a elección del paciente.</p>
-        <span class="servicio-tag">Personalizado</span>
-      </div>
+      }
     </div>
+
+    @if (catalogoDisponible()) {
+      <a class="servicios-cta" routerLink="/catalogo">
+        <div>
+          <strong>¿Querés ver todo lo que hacemos, con precios?</strong>
+          <span>Catálogo completo, actualizado, sin vueltas.</span>
+        </div>
+        <span class="servicios-cta-btn">
+          Ver catálogo completo
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </span>
+      </a>
+    }
   </section>
 
   <!-- ── GALERÍA DE TRABAJOS ── -->
