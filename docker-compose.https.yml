@@ -29,6 +29,11 @@ services:
       - certbot_www:/var/www/certbot:ro
 
   certbot:
+    # A diferencia de mysql/minio arriba, certbot/certbot lo mantiene EFF
+    # activamente — "latest" acá es un riesgo menor. Queda sin pinnear a un
+    # patch exacto porque no hay forma de confirmar cuál es el tag vigente sin
+    # arriesgar romper el pull con un número inventado; Dependabot (ver
+    # .github/dependabot.yml) va a ir proponiendo el pin real con cada bump.
     image: certbot/certbot:latest
     restart: unless-stopped
     volumes:

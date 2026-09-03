@@ -3,6 +3,7 @@ package com.gs.monolito.catalogo.config;
 import com.gs.monolito.common.security.CsrfCookieFilter;
 import com.gs.monolito.common.security.CsrfRequestMatchers;
 import com.gs.monolito.common.security.JwtCookieAuthenticationFilter;
+import com.gs.monolito.common.security.SecurityHeaders;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -42,6 +43,7 @@ public class CatalogoSecurityConfig {
             )
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .addFilterBefore(jwtCookieAuthenticationFilter, BearerTokenAuthenticationFilter.class)
+            .headers(SecurityHeaders::aplicar)
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth

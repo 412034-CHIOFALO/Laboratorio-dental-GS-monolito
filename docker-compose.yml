@@ -57,7 +57,9 @@ services:
         condition: service_healthy
 
   mysql:
-    image: mysql:8.0
+    # Pinneado a un patch real (no "8.0" flotante) — Dependabot lo mantiene al
+    # día (ver .github/dependabot.yml).
+    image: mysql:8.0.46
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
@@ -76,7 +78,15 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:latest
+    # ATENCIÓN: minio/minio dejó de publicarse — el repo community/open-source
+    # de MinIO está archivado desde abril 2026 (relicenciaron y frenaron la
+    # distribución en octubre 2025), así que esta imagen ya no recibe parches
+    # de seguridad de ningún tipo, se pinnee la versión que se pinnee. Se fija
+    # acá al último tag conocido en vez de "latest" para que el pull sea
+    # reproducible, pero esto no resuelve el problema de fondo — en algún
+    # momento conviene evaluar migrar a una alternativa mantenida (Garage,
+    # SeaweedFS) o a un S3 gestionado. Decisión aparte, no se resuelve acá.
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:

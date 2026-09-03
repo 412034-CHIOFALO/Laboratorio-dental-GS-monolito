@@ -4,6 +4,7 @@ import com.gs.monolito.auth.service.CustomUserDetailsService;
 import com.gs.monolito.common.security.CsrfCookieFilter;
 import com.gs.monolito.common.security.CsrfRequestMatchers;
 import com.gs.monolito.common.security.JwtCookieAuthenticationFilter;
+import com.gs.monolito.common.security.SecurityHeaders;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -78,6 +79,7 @@ public class AuthSecurityConfig {
         http.exceptionHandling(ex -> ex
             .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
         ).oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
+        http.headers(SecurityHeaders::aplicar);
         return http.build();
     }
 
@@ -103,6 +105,7 @@ public class AuthSecurityConfig {
             )
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .addFilterBefore(jwtCookieAuthenticationFilter, BearerTokenAuthenticationFilter.class)
+            .headers(SecurityHeaders::aplicar)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login").permitAll()
                 .requestMatchers("/api/auth/refresh").permitAll()

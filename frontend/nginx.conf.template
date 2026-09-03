@@ -35,6 +35,16 @@ server {
         add_header Content-Type text/plain;
     }
 
+    # Headers de seguridad — sin Strict-Transport-Security acá a propósito: no
+    # tiene efecto sobre HTTP plano (los browsers lo ignoran si no vino por
+    # HTTPS) y este template es el que usa tanto dev local como el arranque de
+    # bootstrap en prod antes del primer certificado. Ver nginx.https.conf.template
+    # para el resto de la explicación de la CSP.
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://images.unsplash.com; media-src 'self'; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+
     # Tamaño máximo de body para uploads (fotos de catálogo, comprobantes,
     # escaneos 3D — los STL/PLY de alta resolución pueden pesar bastante más que 10MB)
     client_max_body_size 200M;

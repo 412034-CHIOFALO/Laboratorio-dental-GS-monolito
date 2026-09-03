@@ -1,5 +1,6 @@
 package com.gs.monolito.common.config;
 
+import com.gs.monolito.common.security.SecurityHeaders;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -28,6 +29,7 @@ public class PublicEndpointsSecurityConfig {
             .securityMatcher("/actuator/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html")
             .cors(cors -> cors.disable())
             .csrf(csrf -> csrf.disable())
+            .headers(SecurityHeaders::aplicar)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return http.build();

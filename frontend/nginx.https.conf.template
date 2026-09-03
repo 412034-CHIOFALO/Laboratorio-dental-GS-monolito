@@ -45,10 +45,19 @@ server {
 
     # Headers de seguridad — el resto de la config (SPA, /api/, /api/bot/) es
     # idéntica a nginx.conf.template, así que estos headers cubren toda la app.
+    # "always" es necesario para que se manden incluso en respuestas de error
+    # (4xx/5xx), no solo en las 200.
     add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    # fonts.googleapis.com/gstatic.com: la app carga Inter/JetBrains Mono de
+    # Google Fonts (ver index.html/styles.css). images.unsplash.com: fotos de
+    # stock en la landing. media-src 'self': el <video> de instagram/ que sirve
+    # esta misma nginx. El backend (SecurityHeaders.java) manda una CSP más
+    # estricta porque lo único que sirve como HTML ahí es Swagger, sin estas
+    # dependencias externas.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://images.unsplash.com; media-src 'self'; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
 
     # Tamaño máximo de body para uploads (fotos de catálogo, comprobantes,
     # escaneos 3D — los STL/PLY de alta resolución pueden pesar bastante más que 10MB)

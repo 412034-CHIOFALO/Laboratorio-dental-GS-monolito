@@ -1,0 +1,42 @@
+# Abre un PR automático cuando hay una versión nueva disponible — esto es
+# justo lo que hubiera avisado del atraso de Spring Boot (3.3.0, línea
+# entera fuera de soporte) antes de que se acumularan 2 años de diferencia.
+# No mergea nada solo: cada PR pasa por el CI normal (ver .github/workflows/ci.yml)
+# antes de poder mergearse.
+version: 2
+updates:
+  # Backend: pom.xml (Spring Boot, Spring Security, etc.)
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Frontend: package.json
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+
+  # Imágenes base de los 3 Dockerfile + los tags de mysql/minio/certbot en
+  # los docker-compose*.yml de la raíz (Dependabot escanea ambos con el mismo
+  # ecosystem "docker").
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "docker"
+    directory: "/backup"
+    schedule:
+      interval: "weekly"
+
+  # Actions usadas en cd.yml/ci.yml (actions/checkout, docker/build-push-action, etc.)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

@@ -14,7 +14,17 @@ RUN mvn -B -q clean package -DskipTests
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-COPY --from=build /build/target/monolito-*.jar app.jar
+# Corre como usuario propio, no root — este proceso es el que procesa uploads
+# (escaneos/documentos, ver UploadValidator) y entrada de usuario sin
+# sanitizar antes de validarla; sin esto, un bug de escritura de archivos
+# corre con privilegios de root adentro del container. /app/keys se crea acá
+# (no en el volumen) para que el primer "docker compose up" arranque el
+# volumen nuevo ya con el owner correcto.
+RUN addgroup -S gs && adduser -S gs -G gs \
+    && mkdir -p /app/keys && chown -R gs:gs /app
+USER gs
+
+COPY --from=build --chown=gs:gs /build/target/monolito-*.jar app.jar
 
 EXPOSE 8080
 

@@ -3,6 +3,7 @@ package com.gs.monolito.pedidos.config;
 import com.gs.monolito.common.security.CsrfCookieFilter;
 import com.gs.monolito.common.security.CsrfRequestMatchers;
 import com.gs.monolito.common.security.JwtCookieAuthenticationFilter;
+import com.gs.monolito.common.security.SecurityHeaders;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -39,7 +40,13 @@ public class PedidosSecurityConfig {
             )
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .addFilterBefore(jwtCookieAuthenticationFilter, BearerTokenAuthenticationFilter.class)
-            .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
+            // sameOrigin ya estaba así antes de este cambio (no se toca el motivo
+            // original) — se preserva tal cual, sumando el resto de los headers
+            // comunes (HSTS/CSP/Referrer-Policy) que sí son nuevos.
+            .headers(headers -> {
+                SecurityHeaders.aplicar(headers);
+                headers.frameOptions(frame -> frame.sameOrigin());
+            })
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
