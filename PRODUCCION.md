@@ -22,12 +22,16 @@ Dos cosas a chequear antes de seguir:
   `chmod 600 .env`.
 
 No hace falta ningún gestor de secrets (Vault y similares) para este tamaño
-de despliegue — un `.env` en el VPS (gitignoreado, con permisos acotados) más
-los secrets de GitHub Actions que ya usa `.github/workflows/cd.yml`
-(`VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY`) es el patrón estándar para un solo
-servidor. Un gestor dedicado empieza a valer la pena recién con varios
-entornos/servidores o gente con acceso que necesita permisos separados por
-secreto — no es este caso.
+de despliegue — un `.env` en el VPS (gitignoreado, con permisos acotados) es
+el patrón estándar para un solo servidor. Un gestor dedicado empieza a valer
+la pena recién con varios entornos/servidores o gente con acceso que
+necesita permisos separados por secreto — no es este caso.
+
+Nota sobre `.github/workflows/cd.yml`: corre tests y sube las imágenes a
+ghcr.io en cada push a `master`, pero **no** hace deploy automático al VPS —
+el servidor no está prendido 24/7, así que el paso de subir/levantar los
+contenedores queda manual (ver paso 4). Los secrets `VPS_HOST`/`VPS_USER`/
+`VPS_SSH_KEY` quedaron guardados en el repo sin uso; no hace falta borrarlos.
 
 ## 3. Emitir el certificado (una sola vez)
 
@@ -42,8 +46,15 @@ todo el circuito (DNS, challenge, nginx) funciona antes de pedir el real.
 
 ## 4. Deploy normal (día a día, desde acá en adelante)
 
+Cada push a `master` deja una imagen nueva lista en ghcr.io (ver
+`.github/workflows/cd.yml`) — el deploy es manual a propósito (el servidor no
+está prendido 24/7). Cuando lo prendas y quieras actualizar:
+
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.https.yml up -d
+cd /opt/gs-monolito
+docker compose -f docker-compose.yml -f docker-compose.https.yml pull app frontend
+docker compose -f docker-compose.yml -f docker-compose.https.yml up -d app frontend
+docker image prune -f
 ```
 
 La renovación del certificado es automática (el servicio `certbot` reintenta
@@ -67,12 +78,10 @@ El código ya manda logs/métricas/trazas, solo falta activarlo:
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.https.yml -f docker-compose.observability.yml up -d
    ```
-   **Importante:** el deploy automático (`.github/workflows/cd.yml`) todavía NO
-   incluye este overlay a propósito (el plugin `loki` recién se instala acá,
-   en este paso) — una vez que lo actives a mano, agregá también
-   `-f docker-compose.observability.yml` a las 2 líneas de `docker compose`
-   en `cd.yml` (job `deploy`), o cada push a `master` va a volver a levantar
-   `app`/`frontend` sin el driver de logging de Loki.
+   El deploy es manual (ver nota del paso 2), así que alcanza con acordarte de
+   sumar `-f docker-compose.observability.yml` vos mismo a partir de ahora
+   cada vez que actualices — no hay ningún pipeline automático que lo tenga
+   que saber.
 
 ### Verificar que llegó
 

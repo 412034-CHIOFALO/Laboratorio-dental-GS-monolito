@@ -1,18 +1,21 @@
 name: CD
 
-# Se dispara al mergear a master. Requiere estos secrets en el repo
-# (Settings > Secrets and variables > Actions):
-#   VPS_HOST      IP o dominio del servidor
-#   VPS_USER      usuario SSH
-#   VPS_SSH_KEY   clave privada SSH (la pública debe estar en el servidor)
-# GITHUB_TOKEN ya existe automáticamente, no hace falta crearlo.
+# Se dispara al mergear a master: corre los tests y, si pasan, arma las
+# imágenes de backend/frontend y las sube a ghcr.io (tags "latest" y el SHA
+# del commit). Nada de esto toca el servidor real — no hay ningún paso de
+# deploy automático a propósito, porque el servidor (un laboratorio) no está
+# prendido 24/7 y el dueño prefiere manejar el pull/up él mismo, cuando
+# quiere y desde donde quiere.
 #
-# Requiere que en el VPS ya exista /opt/gs-monolito con docker-compose.yml,
-# docker-compose.https.yml y .env configurados, y que ./init-letsencrypt.sh
-# ya se haya corrido una vez a mano (ver PRODUCCION.md — setup inicial, una
-# sola vez). Sin -f docker-compose.https.yml en el deploy de abajo, cada push
-# volvería a levantar "frontend" sin HTTPS (sin puerto 443, sin DOMAIN, sin
-# los volúmenes del certificado).
+# Deploy manual, en el servidor, cuando esté prendido y quieras actualizar
+# (ver PRODUCCION.md para el setup inicial completo):
+#   cd /opt/gs-monolito
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml pull app frontend
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d app frontend
+#   docker image prune -f
+#
+# El secret VPS_SSH_KEY (y VPS_HOST/VPS_USER) quedan guardados en el repo sin
+# uso por ahora — no hace falta borrarlos, no molestan estando ahí.
 
 on:
   push:
@@ -78,20 +81,3 @@ jobs:
             ${{ steps.image.outputs.name }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.nombre }}
           cache-to: type=gha,mode=max,scope=${{ matrix.nombre }}
-
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Desplegar en el VPS por SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          script: |
-            cd /opt/gs-monolito
-            COMPOSE="docker compose -f docker-compose.yml -f docker-compose.https.yml"
-            $COMPOSE pull app frontend
-            $COMPOSE up -d app frontend
-            docker image prune -f
