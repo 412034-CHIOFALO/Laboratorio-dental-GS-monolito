@@ -91,20 +91,21 @@ public class AuthSecurityConfig {
             .securityMatcher("/api/auth/**")
             // Mismo origen vía nginx (frontend y API comparten dominio) — sin CORS.
             .cors(cors -> cors.disable())
-            // login queda afuera: es el único POST que ocurre antes de que exista
-            // la cookie de sesión. El resto de /api/auth/** sí exige el token CSRF
-            // (cookie XSRF-TOKEN legible por JS + header X-XSRF-TOKEN) — la propia
-            // respuesta del login ya la deja puesta (ver CsrfCookieFilter), así que
-            // la siguiente petición mutante (ej. aceptar-terminos) ya la tiene.
+            // login y refresh quedan afuera de CSRF: son los únicos POST que pueden
+            // ocurrir sin una cookie de sesión válida todavía (refresh corre
+            // justo cuando el access token ya venció). Igual de seguro que login
+            // sin CSRF: la respuesta (Set-Cookie httpOnly) solo la puede leer el
+            // browser legítimo del usuario, nunca el sitio que forzó el POST.
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                .requireCsrfProtectionMatcher(CsrfRequestMatchers.requerirSalvo("/api/auth/login"))
+                .requireCsrfProtectionMatcher(CsrfRequestMatchers.requerirSalvo("/api/auth/login", "/api/auth/refresh"))
             )
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .addFilterBefore(jwtCookieAuthenticationFilter, BearerTokenAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login").permitAll()
+                .requestMatchers("/api/auth/refresh").permitAll()
                 .requestMatchers("/api/auth/logout").authenticated()
                 // Ver la bitácora — exclusiva de ADMIN
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/auditoria").hasRole("ADMIN")

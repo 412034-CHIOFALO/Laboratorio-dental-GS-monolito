@@ -33,6 +33,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.beans.factory.annotation.Value;
 import java.time.Duration;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -58,13 +59,20 @@ import java.util.stream.Collectors;
 @Validated
 public class AuthController {
 
+    /** Cookie separada de la de sesión, con path acotado — ver refrescar(). Package-private para los tests. */
+    static final String REFRESH_COOKIE_NAME = "gs_refresh";
+
     private final JwtEncoder jwtEncoder;
+    private final JwtDecoder jwtDecoder;
     private final AuthenticationManager authenticationManager;
     private final UsuarioService usuarioService;
     private final AuditoriaService auditoriaService;
 
     @Value("${gs.auth.token-ttl-hours:12}")
     private long tokenTtlHours;
+
+    @Value("${gs.auth.refresh-ttl-days:30}")
+    private long refreshTtlDays;
 
     @Value("${AUTH_ISSUER:http://localhost:8080}")
     private String issuer;
@@ -74,10 +82,12 @@ public class AuthController {
     private boolean cookieSecure;
 
     public AuthController(JwtEncoder jwtEncoder,
+                          JwtDecoder jwtDecoder,
                           AuthenticationManager authenticationManager,
                           UsuarioService usuarioService,
                           AuditoriaService auditoriaService) {
         this.jwtEncoder            = jwtEncoder;
+        this.jwtDecoder            = jwtDecoder;
         this.authenticationManager = authenticationManager;
         this.usuarioService        = usuarioService;
         this.auditoriaService      = auditoriaService;
@@ -114,16 +124,11 @@ public class AuthController {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining(","));
 
-            Instant expiraEn = Instant.now().plus(Duration.ofHours(tokenTtlHours));
-            JwtClaimsSet claims = JwtClaimsSet.builder()
-                .issuer(issuer)
-                .issuedAt(Instant.now())
-                .expiresAt(expiraEn)
-                .subject(auth.getName())
-                .claim("roles", roles)
-                .build();
-
-            String token = jwtEncoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
+            Instant ahora = Instant.now();
+            Instant expiraEn = ahora.plus(Duration.ofHours(tokenTtlHours));
+            String token = mintToken(auth.getName(), roles, ahora, expiraEn, null);
+            String refreshToken = mintToken(auth.getName(), null, ahora,
+                ahora.plus(Duration.ofDays(refreshTtlDays)), "refresh");
 
             auditoriaService.registrar(auth.getName(), "LOGIN", "Inicio de sesión",
                 "Sesión", "Login exitoso · roles: " + roles);
@@ -133,16 +138,9 @@ public class AuthController {
             // El JWT viaja en una cookie httpOnly — el navegador nunca deja que JS la
             // lea (mitiga robo del token por XSS). El body solo devuelve datos NO
             // sensibles que el frontend necesita para su UI (rol, expiración).
-            ResponseCookie cookie = ResponseCookie.from(JwtCookieAuthenticationFilter.COOKIE_NAME, token)
-                .httpOnly(true)
-                .secure(cookieSecure)
-                .sameSite("Strict")
-                .path("/")
-                .maxAge(Duration.ofHours(tokenTtlHours))
-                .build();
-
             return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .header(HttpHeaders.SET_COOKIE, sessionCookie(token, Duration.ofHours(tokenTtlHours)).toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken).toString())
                 .body(Map.of(
                     "rol", u.getRol().name(),
                     "expiraEn", expiraEn.toEpochMilli(),
@@ -164,6 +162,95 @@ public class AuthController {
     }
 
     @Operation(
+        summary = "Renovar el access token con la cookie de refresh",
+        description = "Si la cookie gs_refresh (" + "30 días por default) sigue siendo válida y la cuenta sigue " +
+                      "habilitada, emite un access token nuevo (12hs por default) sin pedir credenciales de nuevo. " +
+                      "Pensado para que el frontend lo llame solo cuando el access token venció, en vez de " +
+                      "desloguear al usuario de una."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Access token renovado"),
+        @ApiResponse(responseCode = "401", description = "Sin cookie de refresh, vencida/inválida, o cuenta deshabilitada — hay que loguearse de nuevo", content = @Content)
+    })
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refrescar(jakarta.servlet.http.HttpServletRequest httpRequest) {
+        String refreshToken = com.gs.monolito.common.security.CookieUtil.leer(httpRequest, REFRESH_COOKIE_NAME);
+        if (refreshToken == null) {
+            return sesionInvalida();
+        }
+        try {
+            Jwt jwt = jwtDecoder.decode(refreshToken);
+            if (!"refresh".equals(jwt.getClaimAsString("typ"))) {
+                return sesionInvalida();
+            }
+            Usuario u = usuarioService.buscarPorUsername(jwt.getSubject());
+            if (!u.isEnabled()) {
+                return sesionInvalida();
+            }
+
+            Instant ahora = Instant.now();
+            Instant expiraEn = ahora.plus(Duration.ofHours(tokenTtlHours));
+            String token = mintToken(u.getUsername(), "ROLE_" + u.getRol().name(), ahora, expiraEn, null);
+
+            return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, sessionCookie(token, Duration.ofHours(tokenTtlHours)).toString())
+                .body(Map.of(
+                    "rol", u.getRol().name(),
+                    "expiraEn", expiraEn.toEpochMilli(),
+                    "terminosAceptados", u.isTerminosAceptados(),
+                    "debeCambiarPassword", u.isDebeCambiarPassword()
+                ));
+        } catch (RuntimeException e) {
+            return sesionInvalida();
+        }
+    }
+
+    /** Cookie de refresh inválida/vencida/cuenta deshabilitada: limpiamos todo, hay que loguearse de nuevo. */
+    private ResponseEntity<?> sesionInvalida() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .header(HttpHeaders.SET_COOKIE, sessionCookie("", Duration.ZERO).toString())
+            .header(HttpHeaders.SET_COOKIE, refreshCookie("").mutate().maxAge(0).build().toString())
+            .body(Map.of("error", "Tu sesión expiró. Iniciá sesión de nuevo."));
+    }
+
+    private String mintToken(String subject, String roles, Instant issuedAt, Instant expiresAt, String typ) {
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
+            .issuer(issuer)
+            .issuedAt(issuedAt)
+            .expiresAt(expiresAt)
+            .subject(subject);
+        if (roles != null) claims.claim("roles", roles);
+        if (typ != null) claims.claim("typ", typ);
+        return jwtEncoder.encode(JwtEncoderParameters.from(claims.build())).getTokenValue();
+    }
+
+    private ResponseCookie sessionCookie(String token, Duration ttl) {
+        return ResponseCookie.from(JwtCookieAuthenticationFilter.COOKIE_NAME, token)
+            .httpOnly(true)
+            .secure(cookieSecure)
+            .sameSite("Strict")
+            .path("/")
+            .maxAge(ttl)
+            .build();
+    }
+
+    /**
+     * Path acotado a propósito: el browser solo manda esta cookie al propio
+     * endpoint de refresh, nunca al resto de la API — reduce la exposición de
+     * un token que vive semanas (vs. horas del access token) a la única ruta
+     * que realmente lo necesita.
+     */
+    private ResponseCookie refreshCookie(String token) {
+        return ResponseCookie.from(REFRESH_COOKIE_NAME, token)
+            .httpOnly(true)
+            .secure(cookieSecure)
+            .sameSite("Strict")
+            .path("/api/auth/refresh")
+            .maxAge(Duration.ofDays(refreshTtlDays))
+            .build();
+    }
+
+    @Operation(
         summary = "Cerrar sesión",
         description = "Invalida la cookie de sesión del lado del navegador (no hay revocación server-side " +
                       "de JWT — el token sigue siendo técnicamente válido hasta que expire por su cuenta, " +
@@ -172,20 +259,13 @@ public class AuthController {
     @ApiResponse(responseCode = "200", description = "Sesión cerrada")
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@AuthenticationPrincipal Jwt jwt) {
-        ResponseCookie cookie = ResponseCookie.from(JwtCookieAuthenticationFilter.COOKIE_NAME, "")
-            .httpOnly(true)
-            .secure(cookieSecure)
-            .sameSite("Strict")
-            .path("/")
-            .maxAge(0)
-            .build();
-
         if (jwt != null) {
             auditoriaService.registrar(jwt.getSubject(), "LOGOUT", "Cierre de sesión", "Sesión", "Logout manual");
         }
 
         return ResponseEntity.ok()
-            .header(HttpHeaders.SET_COOKIE, cookie.toString())
+            .header(HttpHeaders.SET_COOKIE, sessionCookie("", Duration.ZERO).toString())
+            .header(HttpHeaders.SET_COOKIE, refreshCookie("").mutate().maxAge(0).build().toString())
             .body(Map.of("mensaje", "Sesión cerrada."));
     }
 

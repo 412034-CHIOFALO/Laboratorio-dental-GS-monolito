@@ -2,7 +2,6 @@ package com.gs.monolito.common.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -53,8 +52,15 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
             if (token != null) {
                 try {
                     Jwt jwt = jwtDecoder.decode(token);
-                    AbstractAuthenticationToken auth = jwtAuthenticationConverter.convert(jwt);
-                    SecurityContextHolder.getContext().setAuthentication(auth);
+                    // Defensa en profundidad: un refresh token (típ=refresh, ver
+                    // AuthController) está firmado con la misma clave y decodifica
+                    // bien acá también — sin este chequeo, alguien podría pisar la
+                    // cookie de sesión con uno y autenticarse igual, mucho más
+                    // tiempo del que debería (el refresh dura semanas, no horas).
+                    if (!"refresh".equals(jwt.getClaimAsString("typ"))) {
+                        AbstractAuthenticationToken auth = jwtAuthenticationConverter.convert(jwt);
+                        SecurityContextHolder.getContext().setAuthentication(auth);
+                    }
                 } catch (JwtException e) {
                     // Cookie vencida/inválida — seguimos sin autenticar; cae a 401 más adelante.
                 }
@@ -64,13 +70,6 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String leerCookie(HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies == null) return null;
-        for (Cookie cookie : cookies) {
-            if (COOKIE_NAME.equals(cookie.getName()) && !cookie.getValue().isBlank()) {
-                return cookie.getValue();
-            }
-        }
-        return null;
+        return CookieUtil.leer(request, COOKIE_NAME);
     }
 }

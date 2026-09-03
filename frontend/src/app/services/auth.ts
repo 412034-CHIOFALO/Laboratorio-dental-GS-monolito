@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of, throwError } from 'rxjs';
-import { delay } from 'rxjs/operators';
+import { delay, tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { MOCK_USUARIOS, clonar } from './mock-data';
 
@@ -98,6 +98,26 @@ export class AuthService {
     // Residuo de versiones previas (guardaban el JWT crudo acá) — lo sacamos
     // en cuanto alguien vuelve a loguearse, para no dejarlo pudriéndose.
     localStorage.removeItem('gs_token');
+  }
+
+  /**
+   * Renueva el access token usando la cookie de refresh (30 días), sin pedir
+   * credenciales de nuevo. La llama el interceptor de errores ante un 401, y
+   * los guards de ruta cuando la pista local de expiración ya venció pero
+   * todavía podría haber una sesión recuperable.
+   */
+  refrescar(): Observable<LoginResponse> {
+    if (environment.useMocks) {
+      return of({
+        rol: 'ADMIN',
+        expiraEn: Date.now() + 12 * 60 * 60 * 1000,
+        terminosAceptados: true,
+        debeCambiarPassword: false,
+      });
+    }
+    return this.http.post<LoginResponse>(`${this.gatewayUrl}/api/auth/refresh`, {}).pipe(
+      tap(resp => this.saveSession(this.getUsername(), resp))
+    );
   }
 
   aceptarTerminos(): Observable<PerfilResponse> {
@@ -237,9 +257,24 @@ export class AuthService {
     return this.getRoles().includes('ROLE_ADMINISTRATIVO');
   }
 
+  isTecnico(): boolean {
+    return this.getRoles().includes('ROLE_TECNICO');
+  }
+
   /** ADMIN o ADMINISTRATIVO — los dos roles que ven información financiera. */
   puedeVerFinanzas(): boolean {
     return this.isAdmin() || this.isAdministrativo();
+  }
+
+  /**
+   * ADMIN, ADMINISTRATIVO o TECNICO — los únicos roles con lectura de
+   * pedidos/stock en el backend (son datos operativos internos del
+   * laboratorio). ODONTOLOGO es cliente del laboratorio, no personal: no
+   * tiene ninguna ruta GET habilitada acá, ni falta que le haga para lo que
+   * sí puede hacer (cargar un pedido nuevo, subir documentos).
+   */
+  puedeVerOperativa(): boolean {
+    return this.isAdmin() || this.isAdministrativo() || this.isTecnico();
   }
 
   /**

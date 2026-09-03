@@ -19,8 +19,11 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import jakarta.servlet.http.Cookie;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -42,6 +45,7 @@ import static org.mockito.Mockito.*;
 class AuthControllerTest {
 
     @Mock private JwtEncoder jwtEncoder;
+    @Mock private JwtDecoder jwtDecoder;
     @Mock private AuthenticationManager authenticationManager;
     @Mock private UsuarioService usuarioService;
     @Mock private AuditoriaService auditoriaService;
@@ -51,8 +55,9 @@ class AuthControllerTest {
 
     @BeforeEach
     void setUp() {
-        controller = new AuthController(jwtEncoder, authenticationManager, usuarioService, auditoriaService);
+        controller = new AuthController(jwtEncoder, jwtDecoder, authenticationManager, usuarioService, auditoriaService);
         ReflectionTestUtils.setField(controller, "tokenTtlHours", 12L);
+        ReflectionTestUtils.setField(controller, "refreshTtlDays", 30L);
         ReflectionTestUtils.setField(controller, "issuer", "http://test-issuer");
         ReflectionTestUtils.setField(controller, "cookieSecure", true);
     }
@@ -115,5 +120,94 @@ class AuthControllerTest {
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         verify(auditoriaService).registrar(eq("nuevo"), eq("LOGIN_FALLIDO"), any(), any(), any());
         verifyNoInteractions(jwtEncoder);
+    }
+
+    // ── refrescar (refresh token) ──────────────────────────────
+
+    @Test
+    void refrescar_conCookieDeRefreshValida_renuevaLaSesionSinPedirCredenciales() {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setCookies(new Cookie(AuthController.REFRESH_COOKIE_NAME, "refresh-token-valido"));
+
+        Jwt refreshJwt = mock(Jwt.class);
+        when(refreshJwt.getClaimAsString("typ")).thenReturn("refresh");
+        when(refreshJwt.getSubject()).thenReturn("admin");
+        when(jwtDecoder.decode("refresh-token-valido")).thenReturn(refreshJwt);
+
+        Usuario u = Usuario.builder()
+                .username("admin").rol(Rol.ADMIN).enabled(true)
+                .terminosAceptados(true).debeCambiarPassword(false)
+                .build();
+        when(usuarioService.buscarPorUsername("admin")).thenReturn(u);
+
+        Jwt nuevoAccessJwt = mock(Jwt.class);
+        when(nuevoAccessJwt.getTokenValue()).thenReturn("access-token-nuevo");
+        when(jwtEncoder.encode(any())).thenReturn(nuevoAccessJwt);
+
+        ResponseEntity<?> resp = controller.refrescar(req);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        List<String> cookies = resp.getHeaders().get(HttpHeaders.SET_COOKIE);
+        assertThat(cookies)
+                .as("solo debe renovar la cookie de sesión — el refresh token NO rota, tiene un techo real")
+                .hasSize(1);
+        assertThat(cookies.get(0)).contains(JwtCookieAuthenticationFilter.COOKIE_NAME + "=access-token-nuevo");
+    }
+
+    @Test
+    void refrescar_sinCookieDeRefresh_devuelve401() {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+
+        ResponseEntity<?> resp = controller.refrescar(req);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verifyNoInteractions(jwtDecoder);
+    }
+
+    @Test
+    void refrescar_conUnAccessTokenEnVezDeUnoDeRefresh_loRechaza() {
+        // Defensa en profundidad: un access token normal (sin claim typ=refresh)
+        // no debe poder usarse para renovar — ver JwtCookieAuthenticationFilter.
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setCookies(new Cookie(AuthController.REFRESH_COOKIE_NAME, "access-token-cualquiera"));
+
+        Jwt accessJwt = mock(Jwt.class);
+        when(accessJwt.getClaimAsString("typ")).thenReturn(null);
+        when(jwtDecoder.decode("access-token-cualquiera")).thenReturn(accessJwt);
+
+        ResponseEntity<?> resp = controller.refrescar(req);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verifyNoInteractions(usuarioService);
+    }
+
+    @Test
+    void refrescar_deUsuarioDeshabilitado_loRechaza() {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setCookies(new Cookie(AuthController.REFRESH_COOKIE_NAME, "refresh-token-valido"));
+
+        Jwt refreshJwt = mock(Jwt.class);
+        when(refreshJwt.getClaimAsString("typ")).thenReturn("refresh");
+        when(refreshJwt.getSubject()).thenReturn("exempleado");
+        when(jwtDecoder.decode("refresh-token-valido")).thenReturn(refreshJwt);
+
+        Usuario u = Usuario.builder().username("exempleado").rol(Rol.TECNICO).enabled(false).build();
+        when(usuarioService.buscarPorUsername("exempleado")).thenReturn(u);
+
+        ResponseEntity<?> resp = controller.refrescar(req);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        verifyNoInteractions(jwtEncoder);
+    }
+
+    @Test
+    void refrescar_conCookieVencidaOInvalida_devuelve401() {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setCookies(new Cookie(AuthController.REFRESH_COOKIE_NAME, "refresh-token-vencido"));
+        when(jwtDecoder.decode("refresh-token-vencido")).thenThrow(new JwtException("vencido"));
+
+        ResponseEntity<?> resp = controller.refrescar(req);
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 }
