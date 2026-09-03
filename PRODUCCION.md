@@ -15,6 +15,20 @@ En el VPS, copiar `.env.example` a `.env` y completar los valores reales —
 en particular `DOMAIN` y `LETSENCRYPT_EMAIL` (nuevos), que tienen que
 coincidir con el dominio del paso 1 y con `AUTH_ISSUER`.
 
+Dos cosas a chequear antes de seguir:
+- Que no haya quedado ningún `cambiar-esto` / `cambiar-en-produccion` sin
+  reemplazar: `grep cambiar .env` no debería devolver nada.
+- Permisos del archivo, para que solo el usuario que despliega pueda leerlo:
+  `chmod 600 .env`.
+
+No hace falta ningún gestor de secrets (Vault y similares) para este tamaño
+de despliegue — un `.env` en el VPS (gitignoreado, con permisos acotados) más
+los secrets de GitHub Actions que ya usa `.github/workflows/cd.yml`
+(`VPS_HOST`/`VPS_USER`/`VPS_SSH_KEY`) es el patrón estándar para un solo
+servidor. Un gestor dedicado empieza a valer la pena recién con varios
+entornos/servidores o gente con acceso que necesita permisos separados por
+secreto — no es este caso.
+
 ## 3. Emitir el certificado (una sola vez)
 
 ```bash
@@ -53,6 +67,12 @@ El código ya manda logs/métricas/trazas, solo falta activarlo:
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.https.yml -f docker-compose.observability.yml up -d
    ```
+   **Importante:** el deploy automático (`.github/workflows/cd.yml`) todavía NO
+   incluye este overlay a propósito (el plugin `loki` recién se instala acá,
+   en este paso) — una vez que lo actives a mano, agregá también
+   `-f docker-compose.observability.yml` a las 2 líneas de `docker compose`
+   en `cd.yml` (job `deploy`), o cada push a `master` va a volver a levantar
+   `app`/`frontend` sin el driver de logging de Loki.
 
 ### Verificar que llegó
 

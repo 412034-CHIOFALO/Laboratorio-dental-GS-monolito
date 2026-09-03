@@ -7,9 +7,12 @@ name: CD
 #   VPS_SSH_KEY   clave privada SSH (la pública debe estar en el servidor)
 # GITHUB_TOKEN ya existe automáticamente, no hace falta crearlo.
 #
-# Requiere que en el VPS ya exista /opt/gs-monolito con docker-compose.yml
-# y .env configurados (ver docker-compose.yml del repo — setup inicial manual,
-# una sola vez).
+# Requiere que en el VPS ya exista /opt/gs-monolito con docker-compose.yml,
+# docker-compose.https.yml y .env configurados, y que ./init-letsencrypt.sh
+# ya se haya corrido una vez a mano (ver PRODUCCION.md — setup inicial, una
+# sola vez). Sin -f docker-compose.https.yml en el deploy de abajo, cada push
+# volvería a levantar "frontend" sin HTTPS (sin puerto 443, sin DOMAIN, sin
+# los volúmenes del certificado).
 
 on:
   push:
@@ -88,6 +91,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd /opt/gs-monolito
-            docker compose pull app frontend
-            docker compose up -d app frontend
+            COMPOSE="docker compose -f docker-compose.yml -f docker-compose.https.yml"
+            $COMPOSE pull app frontend
+            $COMPOSE up -d app frontend
             docker image prune -f
