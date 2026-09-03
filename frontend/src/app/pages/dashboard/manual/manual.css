@@ -137,10 +137,15 @@
      terminaba angosto/cortado a la derecha aunque la página no scrolleaba
      horizontal (el overflow quedaba "adentro" del grid, invisible). */
   .manual-nav, .manual-contenido { min-width: 0; }
+  /* El resto de las páginas del dashboard queda a ~16px del borde en mobile
+     (ver .home-view en dashboard.css); acá el padding horizontal quedaba en
+     4px (.manual-contenido) o directamente 0 (.manual-nav, el título "Manual
+     de uso" pegado al borde) — inconsistente con el resto de la app. */
+  .manual-contenido { padding-left: 1rem; padding-right: 1rem; }
   .manual-nav {
     border-right: none;
     border-bottom: 1px solid var(--border);
-    padding: 0 0 0.75rem;
+    padding: 0 1rem 0.75rem;
     /* Antes: max-height: 160px con overflow oculto — con más de ~10 secciones
        las últimas quedaban cortadas y el scroll interno no se notaba. Ahora es
        una tira horizontal (patrón típico de tabs en mobile: siempre entra todo,

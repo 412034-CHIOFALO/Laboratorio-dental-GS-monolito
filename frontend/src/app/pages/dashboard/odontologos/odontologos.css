@@ -131,6 +131,7 @@
 .odo-card-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.65rem;
 }
 .odo-avatar {
@@ -149,7 +150,12 @@
 }
 .odo-avatar.lg { width: 56px; height: 56px; font-size: 1.1rem; }
 
-.odo-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+/* min-width acota cuánto puede angostarse el nombre antes de que los badges
+   (estado + "sin pedidos hace tiempo") se vean forzados a bajar a otra línea
+   en vez de comerse todo el ancho — los badges tienen white-space:nowrap sin
+   overflow:hidden, así que nunca ceden espacio propio; sin este mínimo, todo
+   el achique de flexbox recaía en el nombre y lo dejaba truncado a "Dr. C…". */
+.odo-id { display: flex; flex-direction: column; gap: 2px; min-width: 110px; flex: 1 1 auto; }
 .odo-id h3 {
   margin: 0;
   font-size: 0.88rem;

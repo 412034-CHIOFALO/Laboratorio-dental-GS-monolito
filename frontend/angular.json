@@ -90,6 +90,9 @@
             },
             "development": {
               "buildTarget": "frontend-app:build:development"
+            },
+            "demo": {
+              "buildTarget": "frontend-app:build:demo"
             }
           },
           "defaultConfiguration": "development"

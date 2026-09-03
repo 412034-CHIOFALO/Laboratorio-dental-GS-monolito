@@ -95,16 +95,24 @@
 .hamburger.open span:nth-child(3) { transform: translateY(-9px) rotate(-45deg); }
 
 /* OVERLAY */
+/* pointer-events:none es crítico acá, no cosmético: a partir de la media
+   query de abajo esto pasa a display:block SIEMPRE en mobile (para poder
+   animar su opacity cuando el menú abre) — sin pointer-events, quedaba
+   tapando TODA la página con un div invisible (opacity:0) que interceptaba
+   cualquier tap por debajo (el video de la galería, los botones de
+   WhatsApp, todo lo que no fuera el header) aunque el menú nunca se hubiera
+   abierto. Mismo patrón que .mobile-overlay en dashboard.css. */
 .nav-overlay {
   display: none;
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);
   z-index: 98;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.25s ease;
   backdrop-filter: blur(4px);
 }
-.nav-overlay.visible { opacity: 1; }
+.nav-overlay.visible { opacity: 1; pointer-events: all; }
 
 /* MOBILE NAV DRAWER */
 .mobile-nav {
@@ -649,6 +657,17 @@
 @media (max-width: 480px) {
   .navbar { padding: 0 4%; height: 60px; }
   .brand-tag { display: none; }
+  /* A los ~375px de un iPhone SE/mini, brand + theme-toggle + "Acceder" +
+     hamburguesa ya no entran en una sola fila aunque .brand-tag esté oculto
+     (~407px de contenido contra 375px de viewport) — el ícono de tema
+     terminaba pisando la letra de "Ortodoncia". Mismo problema que ya se
+     resolvió para .btn-wa arriba, pero un escalón más angosto. */
+  .brand { gap: 8px; }
+  .brand-icon { width: 36px; height: 36px; }
+  .brand-icon svg { width: 20px; height: 20px; }
+  .brand-name { font-size: 1.05rem; }
+  .nav-actions { gap: 6px; }
+  .btn-login { padding: 0.4rem 0.75rem; font-size: 0.78rem; }
   .hero { padding: 2rem 4%; }
   .hero-title { font-size: 1.9rem; }
   .hero-stats { gap: 1rem; }
