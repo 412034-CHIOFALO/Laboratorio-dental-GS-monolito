@@ -93,7 +93,7 @@
 		<dependency>
 			<groupId>io.minio</groupId>
 			<artifactId>minio</artifactId>
-			<version>8.5.12</version>
+			<version>9.0.3</version>
 		</dependency>
 
 		<!-- OpenPDF: generación de reportes en PDF (cierre diario / resumen mensual) -->
