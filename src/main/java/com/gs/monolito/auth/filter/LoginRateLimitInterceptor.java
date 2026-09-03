@@ -13,8 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Rate limiter para POST /api/auth/login (Token Bucket, Bucket4j).
@@ -26,8 +26,20 @@ public class LoginRateLimitInterceptor implements HandlerInterceptor {
     private static final String LOGIN_PATH = "/api/auth/login";
     private static final int CAPACITY = 5;
     private static final Duration REFILL_PERIOD = Duration.ofMinutes(1);
+    // Tope duro para que el mapa no crezca sin límite — cada IP nueva que
+    // intenta loguearse agregaba una entrada que nunca se borraba (una fuga
+    // lenta; en el peor caso, un ataque distribuido con muchas IPs reales
+    // podía crecerlo indefinidamente). LinkedHashMap con accessOrder=true +
+    // removeEldestEntry es un LRU simple: al pasar el tope, tira la entrada
+    // menos usada recientemente, no la más vieja por inserción.
+    private static final int MAX_ENTRADAS = 10_000;
 
-    private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
+    private final Map<String, Bucket> buckets = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Bucket> eldest) {
+            return size() > MAX_ENTRADAS;
+        }
+    };
 
     @Override
     public boolean preHandle(HttpServletRequest request,
@@ -40,7 +52,15 @@ public class LoginRateLimitInterceptor implements HandlerInterceptor {
         }
 
         String ip = ClientIp.resolve(request);
-        Bucket bucket = buckets.computeIfAbsent(ip, this::newBucket);
+        // LinkedHashMap no es thread-safe (a diferencia del ConcurrentHashMap
+        // que tenía antes) — todo acceso pasa por acá sincronizado, necesario
+        // además para que el reordenamiento LRU + removeEldestEntry no se
+        // corrompa con requests concurrentes. El bloque es corto (sin I/O),
+        // así que el costo de la sincronización es despreciable.
+        Bucket bucket;
+        synchronized (buckets) {
+            bucket = buckets.computeIfAbsent(ip, this::newBucket);
+        }
 
         if (bucket.tryConsume(1)) {
             long remaining = bucket.getAvailableTokens();
