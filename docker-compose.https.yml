@@ -1,0 +1,48 @@
+# Overlay OBLIGATORIO en producción real (a diferencia de
+# docker-compose.observability.yml, que es opcional): agrega HTTPS de verdad
+# vía nginx + Certbot. Sin esto, gs.auth.cookie-secure=true (default en
+# prod) hace que el browser directamente no mande la cookie de sesión — nadie
+# puede loguearse.
+#
+# Setup (una sola vez, en el VPS, ANTES del primer "up" con este overlay):
+#   1. DNS: el dominio (DOMAIN en .env) ya apuntando al IP del VPS.
+#   2. ./init-letsencrypt.sh — pide el primer certificado real y deja todo
+#      arriba (ver ese script para el detalle paso a paso).
+#
+# Uso día a día (siempre junto al compose base, nunca solo):
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d
+#
+# La renovación es automática: "certbot" reintenta cada 12h (Let's Encrypt
+# renueva certificados que están a menos de 30 días de vencer — con eso
+# sobra), y el loop de fondo en docker-entrypoint.sh recarga nginx cada 6h
+# para que la renovación se aplique sin reiniciar nada a mano.
+services:
+  frontend:
+    ports:
+      - "443:443"
+    environment:
+      # GS_BOT_API_KEY ya viene del docker-compose.yml base — Compose mergea
+      # "environment" clave por clave entre archivos, no hace falta repetirlo.
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    # "renew" no hace nada si el certificado no está cerca de vencer — correr
+    # esto cada 12h es el patrón estándar recomendado por Certbot mismo.
+    # (forma de lista, no string, para no depender de cómo Compose envuelve
+    # un entrypoint en formato string dentro de otro "sh -c" implícito)
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done;"
+
+volumes:
+  certbot_certs:
+  certbot_www:

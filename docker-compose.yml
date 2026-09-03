@@ -10,18 +10,27 @@
 #     `docker compose pull && docker compose up -d` contra las imágenes ya
 #     armadas en ghcr.io.
 #
-# Setup inicial en el VPS (una sola vez):
-#   1. Copiar este archivo + docker-entrypoint-initdb.d/ al servidor.
-#   2. Copiar .env.example a .env y completar los valores reales.
-#   3. docker compose up -d
+# Setup inicial en el VPS (una sola vez) — ver PRODUCCION.md para la versión
+# completa y comentada:
+#   1. Copiar este repo al servidor (incluye docker-entrypoint-initdb.d/,
+#      docker-compose.https.yml e init-letsencrypt.sh).
+#   2. Copiar .env.example a .env y completar los valores reales (incluye
+#      DOMAIN y LETSENCRYPT_EMAIL, nuevos, para el HTTPS de abajo).
+#   3. DNS del dominio ya apuntando al IP del VPS, y ./init-letsencrypt.sh
+#      corrido una vez (pide el primer certificado real).
+#   4. docker compose -f docker-compose.yml -f docker-compose.https.yml up -d
+#      (sumar -f docker-compose.observability.yml si ya se configuró Grafana
+#      Cloud — ver PRODUCCION.md).
 
 services:
   app:
     build: .
     image: ${GS_IMAGE:-ghcr.io/412034-chiofalo/laboratorio-dental-gs-monolito:latest}
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    # Sin puerto público a propósito: nginx ("frontend") ya proxyea /api/ por
+    # la red interna de Docker. Exponer 8080 acá dejaría la API alcanzable
+    # directo por HTTP plano, esquivando el HTTPS/headers de seguridad de
+    # nginx por completo (ver docker-compose.https.yml).
     env_file:
       - .env
     volumes:
@@ -44,7 +53,8 @@ services:
     environment:
       GS_BOT_API_KEY: ${GS_BOT_API_KEY:-gs-bot-dev-key-cambiar-en-prod}
     depends_on:
-      - app
+      app:
+        condition: service_healthy
 
   mysql:
     image: mysql:8.0
@@ -74,9 +84,12 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+    # Sin puertos públicos a propósito: "app" es el único que habla con MinIO
+    # (por la red interna de Docker, gs.minio.endpoint=http://minio:9000) —
+    # todo archivo se sube/baja como stream a través del backend, nunca con
+    # una URL directa al browser, así que no hace falta exponer ni el puerto
+    # de la API (9000) ni el de la consola de administración (9001). Para
+    # entrar a la consola desde el VPS: túnel SSH, ver PRODUCCION.md.
 
   # Backup diario 3 AM → Google Drive (dumps de las 5 bases + archivos de
   # MinIO) + disparo manual desde el botón del panel. Ver backup/README.md
