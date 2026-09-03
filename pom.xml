@@ -100,7 +100,7 @@
 		<dependency>
 			<groupId>com.github.librepdf</groupId>
 			<artifactId>openpdf</artifactId>
-			<version>1.3.35</version>
+			<version>3.0.5</version>
 		</dependency>
 
 		<!-- Rate limiting del login (token bucket) -->
