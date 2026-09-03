@@ -6,6 +6,7 @@ import org.springframework.boot.web.client.ClientHttpRequestFactories;
 import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -41,6 +42,12 @@ public class NotificacionBotService {
                 .build();
     }
 
+    /**
+     * Async a propósito ("taskExecutor", ver MonolitoApplication): el cambio de
+     * estado del pedido a LISTO no debería quedar esperando la respuesta del
+     * bot (hasta el timeout de 5s de más arriba) para completarse.
+     */
+    @Async("taskExecutor")
     public void notificarPedidoListo(String nroPedido, String trabajo, Odontologo odontologo) {
         if (odontologo == null || odontologo.getTelefono() == null || odontologo.getTelefono().isBlank()) {
             log.debug("[Bot] Odontólogo sin teléfono — no se envía notificación para {}", nroPedido);

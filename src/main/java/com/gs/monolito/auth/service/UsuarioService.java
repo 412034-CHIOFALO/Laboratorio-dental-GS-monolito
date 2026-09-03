@@ -4,10 +4,16 @@ import com.gs.monolito.auth.dto.RegisterRequest;
 import com.gs.monolito.auth.model.Rol;
 import com.gs.monolito.auth.model.Usuario;
 import com.gs.monolito.auth.repository.UsuarioRepository;
+import com.gs.monolito.finanzas.dto.CrearEmpleadoRequest;
+import com.gs.monolito.finanzas.exception.ConflictException;
+import com.gs.monolito.finanzas.model.FrecuenciaPago;
+import com.gs.monolito.finanzas.service.IGestionSueldoService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
 
 import java.security.SecureRandom;
 import java.time.Instant;
@@ -32,10 +38,13 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final IGestionSueldoService gestionSueldoService;
 
-    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
+    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder,
+                          IGestionSueldoService gestionSueldoService) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
+        this.gestionSueldoService = gestionSueldoService;
     }
 
     public Usuario registrar(RegisterRequest request) {
@@ -82,21 +91,33 @@ public class UsuarioService {
 
     /**
      * Da de alta automáticamente al empleado en el módulo de finanzas apenas
-     * se activa su cuenta.
-     *
-     * TODO(Etapa 4): esto llamaba por Feign a ms-finanzas
-     * (POST /api/finanzas/sueldos/empleados, con fallback best-effort si no
-     * respondía). El módulo finanzas todavía no existe en este repo — cuando
-     * se porte (Etapa 4), reemplazar este log por una llamada directa e
-     * in-process al Service de finanzas que dé de alta al empleado. Hasta
-     * entonces se comporta igual que el fallback de siempre: nunca hace
-     * fallar la activación, y el alta se puede completar a mano.
+     * se activa su cuenta — antes llamaba por Feign a ms-finanzas, ahora
+     * directo al Service en el mismo proceso (ver CrearEmpleadoRequest).
+     * Sin frecuencia/monto base todavía (el admin los configura después desde
+     * Finanzas → Sueldos): queda dado de alta con $0/MENSUAL como placeholder,
+     * así no se olvida — antes de esto, nada avisaba que faltaba configurarlo.
+     * Best-effort, como el resto de las llamadas entre módulos de este
+     * monolito: nunca debe hacer fallar la activación del usuario.
      */
     private void provisionarSueldoSiCorresponde(Usuario u) {
         if (!ROLES_EMPLEADO.contains(u.getRol())) return;
-        log.warn("[GS-AUTH] Alta automática en sueldos pendiente de implementar (Etapa 4) para el usuario {} "
-                + "({}). Se puede completar a mano desde Finanzas → Sueldos → \"Nuevo empleado\" una vez portado ese módulo.",
-                u.getId(), u.getUsername());
+        try {
+            CrearEmpleadoRequest req = new CrearEmpleadoRequest();
+            req.setUsuarioId(u.getId());
+            req.setNombre(u.getNombre() + " " + u.getApellido());
+            req.setRol(u.getRol().name());
+            req.setTelefono(u.getTelefono());
+            req.setFrecuencia(FrecuenciaPago.MENSUAL);
+            req.setMontoBase(BigDecimal.ZERO);
+            gestionSueldoService.crearEmpleado(req);
+            log.info("[GS-AUTH] Usuario {} dado de alta en sueldos (pendiente configurar frecuencia/monto real).",
+                    u.getUsername());
+        } catch (ConflictException e) {
+            log.debug("[GS-AUTH] Usuario {} ya estaba dado de alta en sueldos — nada que hacer.", u.getUsername());
+        } catch (Exception e) {
+            log.warn("[GS-AUTH] No se pudo dar de alta en sueldos al usuario {}: {} (se puede completar a mano "
+                    + "desde Finanzas → Sueldos → \"Nuevo empleado\").", u.getUsername(), e.getMessage());
+        }
     }
 
     public Usuario actualizarTelefono(Long id, String telefono) {

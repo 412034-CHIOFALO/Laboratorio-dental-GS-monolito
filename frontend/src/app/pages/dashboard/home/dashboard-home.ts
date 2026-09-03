@@ -69,6 +69,20 @@ export class DashboardHomeComponent implements OnInit {
 
   private cargar(silencioso = false): void {
     if (!silencioso) this.loading = true;
+
+    // ODONTOLOGO no tiene NINGUNA ruta GET habilitada en pedidos/stock (son
+    // datos operativos internos, no del cliente) — pedirlos igual tira 403 y
+    // el interceptor global redirige a /sin-permisos, dejándolo sin poder ni
+    // entrar al sistema. Sin una vista propia todavía, al menos no lo echamos.
+    if (!this.auth.puedeVerOperativa()) {
+      this.pedidos = [];
+      this.materiales = [];
+      this.resumenCajas = null;
+      this.calcular();
+      if (!silencioso) this.loading = false;
+      return;
+    }
+
     // El resumen de cajas es ADMIN/ADMINISTRATIVO en el backend (403 para el resto).
     // Si el rol no lo ve ni pedimos el endpoint: un 403 acá tira abajo TODO el forkJoin
     // y el interceptor global redirige a /sin-permisos, bloqueando el dashboard entero

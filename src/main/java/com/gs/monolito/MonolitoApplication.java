@@ -19,11 +19,12 @@ public class MonolitoApplication {
 	}
 
 	/**
-	 * Executor acotado para los métodos @Async (ej: registro de auditoría).
-	 * El default de Spring (SimpleAsyncTaskExecutor) crea un thread nuevo sin
-	 * límite por cada llamada — inofensivo en 5 procesos separados con poco
-	 * volumen cada uno, pero acá todo corre en un solo proceso pensado para
-	 * 1-2GB de RAM, así que conviene acotarlo.
+	 * Executor acotado para los métodos @Async (hoy: NotificacionBotService,
+	 * para que la notificación de WhatsApp no bloquee el cambio de estado del
+	 * pedido). El default de Spring (SimpleAsyncTaskExecutor) crea un thread
+	 * nuevo sin límite por cada llamada — inofensivo con poco volumen, pero
+	 * acá todo corre en un solo proceso pensado para 1-2GB de RAM, así que
+	 * conviene acotarlo.
 	 */
 	@Bean
 	public Executor taskExecutor() {

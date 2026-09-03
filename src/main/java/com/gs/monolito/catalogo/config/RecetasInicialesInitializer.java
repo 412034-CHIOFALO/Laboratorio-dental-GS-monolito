@@ -39,92 +39,48 @@ public class RecetasInicialesInitializer implements CommandLineRunner {
     private final TipoTrabajoRepository repository;
 
     private static final long YESO = 1, CERAMICA = 2, PORCELANA = 3, ACRILICO = 4,
-            METAL = 5, RESINA = 6, ALAMBRE = 7, ZIRCONIA = 8, CERA = 9, ADHESIVO = 10;
+            METAL = 5, ALAMBRE = 7, ZIRCONIA = 8, CERA = 9;
 
     private record Linea(long materialId, String materialNombre, String unidad, String cantidad) {}
 
+    /**
+     * Los nombres de acá tienen que ser EXACTAMENTE los 6 tipos de trabajo que
+     * carga {@link CatalogoDevDataInitializer} — antes buscaba 17 nombres que
+     * no coincidían con ninguno de los 6 reales (residuo de un seed más viejo),
+     * así que ninguna receta se cargaba nunca y el descuento automático de
+     * stock no tenía nada que descontar en el ambiente de prueba.
+     */
     @Override
     @Transactional
     public void run(String... args) {
         int completados = 0;
 
-        completados += aplicar("Corona de Zirconio",
-            linea(ZIRCONIA, "Discos de Zirconia", "unidad", "1"),
-            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.1"));
-
-        completados += aplicar("Corona de Porcelana sobre Metal",
+        completados += aplicar("Corona Metal-Cerámica",
             linea(METAL, "Aleación Cromo-Cobalto", "g", "15"),
             linea(PORCELANA, "Porcelana Estratificada", "frasco", "0.05"),
             linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.1"));
 
-        completados += aplicar("Puente de Porcelana (3 piezas)",
-            linea(METAL, "Aleación Cromo-Cobalto", "g", "35"),
-            linea(PORCELANA, "Porcelana Estratificada", "frasco", "0.1"),
-            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.15"));
+        completados += aplicar("Corona Porcelana Pura",
+            linea(ZIRCONIA, "Discos de Zirconia", "unidad", "1"),
+            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.1"));
 
-        completados += aplicar("Carilla de Porcelana",
+        completados += aplicar("Incrustación Onlay",
             linea(CERAMICA, "Cerámica Feldespática", "frasco", "0.03"),
             linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.05"));
 
-        completados += aplicar("Perno Muñón Colado",
-            linea(METAL, "Aleación Cromo-Cobalto", "g", "8"),
-            linea(CERA, "Cera para Encerado", "barra", "0.1"));
-
-        completados += aplicar("Prótesis Completa Superior",
+        completados += aplicar("Prótesis Total Superior",
             linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.3"),
             linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.4"),
             linea(CERA, "Cera para Encerado", "barra", "0.2"));
 
-        completados += aplicar("Prótesis Completa Inferior",
-            linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.3"),
-            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.4"),
-            linea(CERA, "Cera para Encerado", "barra", "0.2"));
-
-        completados += aplicar("Prótesis Parcial Metálica",
-            linea(METAL, "Aleación Cromo-Cobalto", "g", "25"),
-            linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.1"),
-            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.2"));
-
-        completados += aplicar("Prótesis Parcial Acrílica",
-            linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.15"),
-            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.2"));
-
-        completados += aplicar("Reparación de Prótesis",
-            linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.05"));
-
-        completados += aplicar("Placa de Ortodoncia Removible",
+        completados += aplicar("Aparato Funcional Bimler",
             linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.08"),
             linea(ALAMBRE, "Alambre Inoxidable 0.7mm", "rollo", "0.3"),
             linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.15"));
 
-        completados += aplicar("Retenedor de Hawley",
-            linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.05"),
-            linea(ALAMBRE, "Alambre Inoxidable 0.7mm", "rollo", "0.2"),
-            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.1"));
-
-        completados += aplicar("Retenedor Fijo Lingual",
-            linea(ALAMBRE, "Alambre Inoxidable 0.7mm", "rollo", "0.15"),
-            linea(ADHESIVO, "Adhesivo Dental", "frasco", "0.02"));
-
-        completados += aplicar("Aparato de Expansión Palatina",
-            linea(METAL, "Aleación Cromo-Cobalto", "g", "20"),
-            linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.05"),
-            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.15"));
-
-        completados += aplicar("Placa Miorelajante",
+        completados += aplicar("Férula Miorelajante ATM",
             linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.1"),
             linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.15"));
-
-        completados += aplicar("Placa de Reposicionamiento",
-            linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.1"),
-            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.15"));
-
-        completados += aplicar("Aparato de ATM Completo",
-            linea(ACRILICO, "Acrílico Rosa Termocurable", "kg", "0.2"),
-            linea(YESO, "Yeso Piedra Tipo IV", "kg", "0.3"),
-            linea(ALAMBRE, "Alambre Inoxidable 0.7mm", "rollo", "0.1"));
-
-        // "Trabajo a Medida" queda sin receta a propósito — es genérico, se define caso a caso.
 
         if (completados == 0) {
             log.info("[GS-CATALOGO] Recetas ya cargadas — nada que completar.");
