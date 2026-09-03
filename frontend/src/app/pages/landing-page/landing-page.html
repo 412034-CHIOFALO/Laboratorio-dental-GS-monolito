@@ -21,6 +21,9 @@
     <nav class="nav-links">
       <a href="#servicios">Servicios</a>
       <a href="#trabajos">Trabajos</a>
+      @if (catalogoDisponible()) {
+        <a routerLink="/catalogo">Catálogo</a>
+      }
       <a href="#nosotros">Nosotros</a>
       <a href="#contacto">Contacto</a>
     </nav>
@@ -57,6 +60,9 @@
   <nav class="mobile-nav" [class.open]="mobileMenuOpen">
     <a href="#servicios" (click)="closeMenu()">Servicios</a>
     <a href="#trabajos" (click)="closeMenu()">Trabajos</a>
+    @if (catalogoDisponible()) {
+      <a routerLink="/catalogo" (click)="closeMenu()">Catálogo</a>
+    }
     <a href="#nosotros" (click)="closeMenu()">Nosotros</a>
     <a href="#contacto" (click)="closeMenu()">Contacto</a>
     <div class="mobile-nav-actions">

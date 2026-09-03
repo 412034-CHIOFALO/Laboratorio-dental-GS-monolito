@@ -21,14 +21,19 @@ import { ProveedoresComponent } from './pages/dashboard/proveedores/proveedores'
 import { ManualComponent } from './pages/dashboard/manual/manual';
 import { FaqComponent } from './pages/dashboard/faq/faq';
 import { MiPerfilComponent } from './pages/dashboard/mi-perfil/mi-perfil';
+import { ConfiguracionComponent } from './pages/dashboard/configuracion/configuracion';
+import { CatalogoPublicoComponent } from './pages/catalogo-publico/catalogo-publico';
 import { ErrorPageComponent } from './pages/error/error-page';
 import { TerminosComponent } from './pages/terminos/terminos';
 import { authGuard, termsGuard, forcePasswordChangeGuard } from './guards/auth.guard';
+import { catalogoPublicoGuard } from './guards/catalogo-publico.guard';
 
 export const routes: Routes = [
   { path: '', component: LandingPage },
   { path: 'login', component: LoginComponent },
   { path: 'terminos', component: TerminosComponent, canActivate: [authGuard] },
+  { path: 'catalogo', component: CatalogoPublicoComponent, canActivate: [catalogoPublicoGuard] },
+  { path: 'catalogo-no-disponible', component: ErrorPageComponent, data: { tipo: 'catalogo-deshabilitado' } },
   {
     path: 'dashboard',
     component: DashboardComponent,
@@ -52,6 +57,7 @@ export const routes: Routes = [
       { path: 'auditoria',      component: AuditoriaComponent },
       { path: 'usuarios',       component: UsuariosComponent },
       { path: 'mi-perfil',      component: MiPerfilComponent },
+      { path: 'configuracion',  component: ConfiguracionComponent },
       { path: 'manual',         component: ManualComponent },
       { path: 'faq',            component: FaqComponent },
     ]

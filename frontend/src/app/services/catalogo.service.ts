@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { MOCK_CATALOGO, clonar } from './mock-data';
@@ -48,6 +48,21 @@ export interface TipoTrabajoRequest {
   receta?: IngredienteRecetaRequest[];
 }
 
+/** Espejo de TipoTrabajoResponse para /api/publico/catalogo — sin receta a propósito. */
+export interface TipoTrabajoPublicoResponse {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  precio: number;
+  categoria: Categoria;
+  tiempoEstimadoDias: number;
+  fotoUrl: string | null;
+}
+
+export interface ConfiguracionCatalogoPublicoResponse {
+  habilitado: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CatalogoService {
 
@@ -56,6 +71,9 @@ export class CatalogoService {
   // Estado mock en memoria (se mutila para que crear/editar/eliminar funcionen visualmente)
   private mockStore: TipoTrabajoResponse[] = clonar(MOCK_CATALOGO);
   private nextMockId = 11;
+  // Arranca deshabilitado — mismo default que el backend real (ver
+  // ConfiguracionCatalogoPublico), para que el modo demo se comporte igual.
+  private mockCatalogoPublicoHabilitado = false;
 
   constructor(private http: HttpClient) {}
 
@@ -123,5 +141,45 @@ export class CatalogoService {
       return of(void 0).pipe(delay(200));
     }
     return this.http.delete<void>(`${this.base}/${id}`);
+  }
+
+  // ─── Catálogo público (sin login) ──────────────────────────────────────
+
+  catalogoPublicoHabilitado(): Observable<ConfiguracionCatalogoPublicoResponse> {
+    if (environment.useMocks) {
+      return of({ habilitado: this.mockCatalogoPublicoHabilitado }).pipe(delay(150));
+    }
+    return this.http.get<ConfiguracionCatalogoPublicoResponse>(`${environment.apiUrl}/api/publico/catalogo/habilitado`);
+  }
+
+  listarPublico(): Observable<TipoTrabajoPublicoResponse[]> {
+    if (environment.useMocks) {
+      if (!this.mockCatalogoPublicoHabilitado) {
+        return throwError(() => ({ status: 404 })).pipe(delay(150));
+      }
+      const publicos: TipoTrabajoPublicoResponse[] = this.mockStore
+        .filter(t => t.activo)
+        .map(({ id, nombre, descripcion, precio, categoria, tiempoEstimadoDias, fotoUrl }) =>
+          ({ id, nombre, descripcion, precio, categoria, tiempoEstimadoDias, fotoUrl }));
+      return of(clonar(publicos)).pipe(delay(200));
+    }
+    return this.http.get<TipoTrabajoPublicoResponse[]>(`${environment.apiUrl}/api/publico/catalogo`);
+  }
+
+  // ─── Configuración (ADMIN) ──────────────────────────────────────────────
+
+  obtenerConfiguracionPublica(): Observable<ConfiguracionCatalogoPublicoResponse> {
+    if (environment.useMocks) {
+      return of({ habilitado: this.mockCatalogoPublicoHabilitado }).pipe(delay(150));
+    }
+    return this.http.get<ConfiguracionCatalogoPublicoResponse>(`${this.base}/configuracion-publica`);
+  }
+
+  actualizarConfiguracionPublica(habilitado: boolean): Observable<ConfiguracionCatalogoPublicoResponse> {
+    if (environment.useMocks) {
+      this.mockCatalogoPublicoHabilitado = habilitado;
+      return of({ habilitado }).pipe(delay(250));
+    }
+    return this.http.put<ConfiguracionCatalogoPublicoResponse>(`${this.base}/configuracion-publica`, { habilitado });
   }
 }

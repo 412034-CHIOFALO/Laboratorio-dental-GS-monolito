@@ -1,6 +1,7 @@
 package com.gs.monolito.catalogo.service;
 
 import com.gs.monolito.auth.service.AuditoriaService;
+import com.gs.monolito.catalogo.dto.TipoTrabajoPublicoResponse;
 import com.gs.monolito.catalogo.dto.TipoTrabajoRequest;
 import com.gs.monolito.catalogo.dto.TipoTrabajoResponse;
 import com.gs.monolito.catalogo.exception.ResourceNotFoundException;
@@ -34,6 +35,13 @@ public class TipoTrabajoService implements ITipoTrabajoService {
         return repository.findByActivoTrue()
                 .stream()
                 .map(TipoTrabajoResponse::from)
+                .toList();
+    }
+
+    public List<TipoTrabajoPublicoResponse> listarPublico() {
+        return repository.findByActivoTrue()
+                .stream()
+                .map(TipoTrabajoPublicoResponse::from)
                 .toList();
     }
 

@@ -1,0 +1,85 @@
+:host { display: block; background: var(--bg); min-height: 100vh; color: var(--text); }
+
+.page { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem 4rem; }
+
+/* ── Topbar ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1.5rem 0;
+}
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+.brand-icon {
+  width: 36px; height: 36px; border-radius: var(--r-card, 10px);
+  background: var(--grad-brand, var(--accent)); color: var(--on-accent, #fff);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.brand-name { font-weight: 700; font-size: 1.05rem; }
+
+.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.theme-toggle {
+  width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border-med);
+  background: var(--card); color: var(--text); display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.btn-volver {
+  color: var(--text); text-decoration: none; font-size: 0.9rem; font-weight: 600;
+  padding: 0.5rem 0.9rem; border-radius: var(--r-btn, 8px); border: 1px solid var(--border-med);
+}
+.btn-volver:hover { background: var(--row-hover); }
+
+/* ── Intro ── */
+.intro { padding: 1.5rem 0 2.5rem; text-align: center; }
+.eyebrow {
+  display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+  padding: 3px 12px; border-radius: var(--r-pill, 999px); margin-bottom: 0.75rem;
+}
+.intro h1 { margin: 0 0 0.5rem; font-size: clamp(1.8rem, 4vw, 2.4rem); }
+.intro p { margin: 0; color: var(--muted); font-size: 1rem; }
+
+/* ── Grid ── */
+.grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.25rem;
+}
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card, 10px);
+  overflow: hidden; display: flex; flex-direction: column;
+}
+.card-foto { aspect-ratio: 16 / 10; overflow: hidden; background: var(--row-hover); }
+.card-foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card-body { padding: 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; }
+.card-categoria {
+  align-self: flex-start; font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  padding: 2px 9px; border-radius: var(--r-pill, 999px);
+}
+.card-body h3 { margin: 0; font-size: 1.05rem; }
+.card-desc { margin: 0; color: var(--muted); font-size: 0.88rem; line-height: 1.5; flex: 1; }
+.card-footer {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  margin-top: auto; padding-top: 0.6rem; border-top: 1px solid var(--border);
+}
+.card-precio { font-weight: 700; font-size: 1.05rem; color: var(--text); }
+.card-tiempo { font-size: 0.78rem; color: var(--muted); }
+
+.estado-vacio {
+  text-align: center; color: var(--muted); padding: 3rem 1rem; border: 1px dashed var(--border-med);
+  border-radius: var(--r-card, 10px);
+}
+
+/* ── CTA final ── */
+.cta {
+  margin-top: 3rem; padding: 2rem; text-align: center; border-radius: var(--r-card, 10px);
+  background: color-mix(in srgb, var(--accent) 8%, transparent); border: 1px solid var(--border);
+}
+.cta p { margin: 0 0 1rem; color: var(--text); }
+.btn-wa {
+  display: inline-flex; align-items: center; gap: 8px; background: #25d366; color: #fff;
+  padding: 0.65rem 1.3rem; border-radius: var(--r-btn, 8px); text-decoration: none; font-weight: 600;
+}
+.btn-wa:hover { filter: brightness(0.95); }
+
+@media (max-width: 560px) {
+  .page { padding: 0 1rem 3rem; }
+  .brand-name { display: none; }
+}

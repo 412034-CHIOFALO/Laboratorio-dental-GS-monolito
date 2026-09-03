@@ -1,0 +1,40 @@
+:host { display: block; }
+
+.page-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.header-left { display: flex; align-items: center; gap: 0.85rem; }
+.page-icon { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.page-icon.green { background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
+.page-header h1 { margin: 0; font-size: 1.4rem; font-weight: 700; color: var(--text); }
+.subtitle { margin: 0.15rem 0 0; color: var(--muted); font-size: 0.8rem; }
+
+.config-loading { color: var(--muted); padding: 2rem 0; }
+
+.config-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card, 10px);
+  padding: 1.25rem 1.4rem;
+}
+
+.config-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; }
+.config-info h3 { margin: 0 0 0.4rem; font-size: 0.98rem; color: var(--text); }
+.config-info p { margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.55; max-width: 56ch; }
+.config-info code { font-family: var(--font-mono); font-size: 0.82em; background: var(--row-hover); padding: 1px 5px; border-radius: 4px; }
+
+/* ── Switch ── */
+.switch {
+  position: relative; flex-shrink: 0; width: 44px; height: 26px; border-radius: 999px;
+  border: 1px solid var(--border-med); background: var(--row-hover); cursor: pointer;
+  padding: 0; transition: background .15s, border-color .15s;
+}
+.switch.on { background: var(--accent); border-color: var(--accent); }
+.switch:disabled { opacity: 0.6; cursor: default; }
+.switch-thumb {
+  position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: var(--shadow-sm); transition: transform .15s;
+}
+.switch.on .switch-thumb { transform: translateX(18px); }
+
+.config-estado {
+  margin-top: 0.9rem; padding-top: 0.9rem; border-top: 1px solid var(--border);
+  font-size: 0.8rem; font-weight: 600; color: var(--muted);
+}
+.config-estado.on { color: var(--accent); }

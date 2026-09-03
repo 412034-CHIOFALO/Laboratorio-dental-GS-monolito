@@ -47,6 +47,10 @@ public class CatalogoSecurityConfig {
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                // Más específica primero: la config del catálogo público es
+                // ADMIN-only en lectura (PUT ya cae en la regla genérica de
+                // abajo, que ya exige ADMIN para todo /api/catalogo/** con PUT).
+                .requestMatchers(HttpMethod.GET, "/api/catalogo/configuracion-publica").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/catalogo", "/api/catalogo/**").authenticated()
                 .requestMatchers(HttpMethod.POST,   "/api/catalogo/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT,    "/api/catalogo/**").hasRole("ADMIN")
@@ -56,6 +60,27 @@ public class CatalogoSecurityConfig {
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
             );
+        return http.build();
+    }
+
+    /**
+     * Catálogo PÚBLICO (sin login) — ver
+     * {@link com.gs.monolito.catalogo.controller.PublicoCatalogoController}.
+     * Chain separada (no un permitAll dentro de la de arriba) porque el resto
+     * de /api/catalogo/** exige autenticación; acá es exactamente lo opuesto.
+     * Solo GET, sin CSRF: no hay ningún endpoint que cambie estado acá.
+     */
+    @Bean
+    @org.springframework.core.annotation.Order(7)
+    public SecurityFilterChain publicoCatalogoSecurityFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/api/publico/catalogo/**")
+            .cors(cors -> cors.disable())
+            .csrf(csrf -> csrf.disable())
+            .headers(SecurityHeaders::aplicar)
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return http.build();
     }
 }

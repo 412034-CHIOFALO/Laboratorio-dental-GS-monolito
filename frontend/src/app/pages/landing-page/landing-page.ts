@@ -1,6 +1,7 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ThemeService } from '../../services/theme.service';
+import { CatalogoService } from '../../services/catalogo.service';
 
 interface ItemGaleria {
   tipo: 'foto' | 'video';
@@ -26,10 +27,22 @@ const GALERIA_INSTAGRAM: ItemGaleria[] = [
   templateUrl: './landing-page.html',
   styleUrls: ['./landing-page.css'],
 })
-export class LandingPage {
+export class LandingPage implements OnInit {
   readonly galeria = GALERIA_INSTAGRAM;
   readonly themeService = inject(ThemeService);
+  private readonly catalogo = inject(CatalogoService);
   mobileMenuOpen = false;
+
+  // Arranca en false: el link "Catálogo" no aparece hasta confirmar que el
+  // ADMIN lo habilitó — nunca hay un parpadeo de "aparece y desaparece".
+  readonly catalogoDisponible = signal(false);
+
+  ngOnInit(): void {
+    this.catalogo.catalogoPublicoHabilitado().subscribe({
+      next: resp => this.catalogoDisponible.set(resp.habilitado),
+      error: () => this.catalogoDisponible.set(false),
+    });
+  }
 
   toggleMenu() {
     this.mobileMenuOpen = !this.mobileMenuOpen;

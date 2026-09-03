@@ -43,6 +43,12 @@ export class ErrorPageComponent {
       mensaje: 'Algo salió mal de nuestro lado. Probá de nuevo en unos minutos.',
       icono: 'server',
     },
+    'catalogo-deshabilitado': {
+      codigo: '—',
+      titulo: 'Catálogo no disponible',
+      mensaje: 'El laboratorio no tiene esta sección habilitada por el momento.',
+      icono: 'search',
+    },
   };
 
   info: ErrorInfo = this.tipos[this.route.snapshot.data['tipo'] ?? 'not-found'] ?? this.tipos['not-found'];
