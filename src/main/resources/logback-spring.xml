@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Consola legible en dev (la que ya traía Spring Boot por default) vs JSON
+  estructurado en prod — lo que espera cualquier agregador de logs (Loki,
+  Grafana Cloud) para poder filtrar/buscar sin parsear texto libre. Los
+  campos traceId/spanId los agrega Micrometer Tracing solo al MDC de cada
+  línea (ver management.tracing.* en application.properties) — correlacionan
+  cada log con su trace en Grafana Tempo sin ningún código adicional.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <springProfile name="!prod">
+        <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="prod">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <includeMdcKeyName>traceId</includeMdcKeyName>
+                <includeMdcKeyName>spanId</includeMdcKeyName>
+                <customFields>{"app":"gs-monolito"}</customFields>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+</configuration>

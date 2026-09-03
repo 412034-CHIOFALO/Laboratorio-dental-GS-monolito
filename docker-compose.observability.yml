@@ -1,0 +1,42 @@
+# Override OPCIONAL para producción (VPS): manda los logs de los contenedores
+# directo a Grafana Cloud Loki vía el driver de logging nativo de Docker — sin
+# sumar ningún contenedor nuevo al stack (a diferencia de correr un colector
+# propio). Complementa a management.otlp.* de application.properties, que ya
+# manda métricas y trazas directo desde la app — los logs van por acá porque
+# Spring Boot 3.3 todavía no tiene soporte nativo de export de logs por OTLP.
+#
+# Setup (una sola vez, en el VPS):
+#   1. docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
+#   2. Completar LOKI_URL en el .env real (sale de Grafana Cloud → Connections → Loki):
+#      LOKI_URL=https://<usuario>:<api-token>@logs-prod-XXX.grafana.net/loki/api/v1/push
+#
+# Uso (siempre junto al compose normal, nunca solo):
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+services:
+  app:
+    logging:
+      driver: loki
+      options:
+        loki-url: "${LOKI_URL}"
+        loki-retries: "3"
+        loki-batch-size: "400"
+        # non-blocking: si Loki no responde un momento, el logging driver
+        # buffers en vez de trabar los stdout writes de la app misma.
+        mode: non-blocking
+        max-buffer-size: 4m
+
+  frontend:
+    logging:
+      driver: loki
+      options:
+        loki-url: "${LOKI_URL}"
+        mode: non-blocking
+        max-buffer-size: 4m
+
+  backup:
+    logging:
+      driver: loki
+      options:
+        loki-url: "${LOKI_URL}"
+        mode: non-blocking
+        max-buffer-size: 4m

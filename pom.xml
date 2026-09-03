@@ -48,6 +48,31 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
+		<!-- Observabilidad: métricas y trazas vía OpenTelemetry (protocolo OTLP,
+		     independiente del backend — hoy Grafana Cloud, mañana cualquier otro
+		     sin tocar código). Los logs van por JSON estructurado (ver
+		     logback-spring.xml) + el driver de logging de Docker, no por acá. -->
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-otlp</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-tracing-bridge-otel</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.opentelemetry</groupId>
+			<artifactId>opentelemetry-exporter-otlp</artifactId>
+		</dependency>
+
+		<!-- Logs en JSON estructurado (perfil prod) con traceId/spanId correlados
+		     a las métricas/trazas de arriba — ver logback-spring.xml. -->
+		<dependency>
+			<groupId>net.logstash.logback</groupId>
+			<artifactId>logstash-logback-encoder</artifactId>
+			<version>7.4</version>
+		</dependency>
+
 		<dependency>
 			<groupId>com.mysql</groupId>
 			<artifactId>mysql-connector-j</artifactId>
