@@ -32,7 +32,13 @@ EXPOSE 8080
 # usado por docker-compose.yml para que "frontend" espere a que Spring termine
 # de levantar (depends_on: condition: service_healthy) en vez de arrancar a
 # proxyear contra un backend que todavía no responde.
-HEALTHCHECK --interval=15s --timeout=5s --start-period=45s --retries=6 \
+# start-period generoso: el primer arranque real corre las migraciones de
+# Flyway + siembra datos iniciales y tardó ~64s en un despliegue real — si
+# encima el primer intento choca con un mysql que todavía no acepta
+# conexiones (típico, mysql tarda más en estar listo que en "arrancar") y
+# Docker lo reinicia solo (restart: unless-stopped), ese segundo intento
+# necesita su propio margen completo, no lo que haya sobrado del primero.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=150s --retries=5 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
 
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
