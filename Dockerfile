@@ -11,7 +11,7 @@ COPY src ./src
 RUN mvn -B -q clean package -DskipTests
 
 # --- Etapa de runtime ------------------------------------------------------
-FROM eclipse-temurin:17-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 WORKDIR /app
 
 # Corre como usuario propio, no root — este proceso es el que procesa uploads
