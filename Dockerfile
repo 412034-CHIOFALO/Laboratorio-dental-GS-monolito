@@ -1,5 +1,5 @@
 # --- Etapa de build ------------------------------------------------------
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM maven:3-eclipse-temurin-26 AS build
 WORKDIR /build
 
 # Copiamos primero solo el pom para cachear las dependencias en una capa
