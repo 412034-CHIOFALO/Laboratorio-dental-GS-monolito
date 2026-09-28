@@ -84,7 +84,10 @@ public class JwtBeans {
                 .build();
         } catch (Exception e) {
             throw new IllegalStateException(
-                "No se pudo cargar el keystore RSA desde: " + keystorePath, e);
+                "No se pudo cargar el keystore RSA desde: " + keystorePath
+                + ". Si cambiaste GS_KEYSTORE_PASSWORD, el keystore existente quedó con la contraseña "
+                + "anterior: borrá el archivo (en Docker, el volumen app_keys) y se regenera solo "
+                + "— todos tienen que volver a loguearse.", e);
         }
     }
 

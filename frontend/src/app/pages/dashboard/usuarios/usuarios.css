@@ -108,6 +108,18 @@
 .badge-rol.administrativo { background: var(--gs-amber-soft);  color: var(--gs-amber); }
 .badge-rol.odontologo     { background: var(--gs-cyan-soft);   color: var(--gs-cyan); }
 
+/* Selector de rol inline (solo lo ve el ADMIN, y nunca en su propia fila) */
+.select-rol {
+  padding: 3px 8px; border-radius: 7px;
+  border: 1.5px solid var(--gs-border-md);
+  background: var(--gs-card-2); color: var(--gs-text);
+  font-size: 0.78rem; font-weight: 600; font-family: 'Inter', sans-serif;
+  cursor: pointer; outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.select-rol:focus { border-color: var(--gs-green); box-shadow: 0 0 0 3px var(--gs-green-soft); }
+.select-rol option { background: var(--gs-card-2); color: var(--gs-text); }
+
 .badge-estado {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 9px; border-radius: 20px;
@@ -145,6 +157,8 @@
 .btn-icon-tel:hover { color: var(--gs-text); background: var(--gs-card-2); }
 
 .td-acciones { white-space: nowrap; }
+/* .btn-icon-tel es flex (bloque): en Acciones va al lado del botón, no abajo */
+.td-acciones .btn-icon-tel { display: inline-flex; vertical-align: middle; margin-left: 6px; }
 
 .modal-sm { max-width: 360px; }
 

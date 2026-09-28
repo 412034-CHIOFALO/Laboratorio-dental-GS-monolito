@@ -47,6 +47,13 @@ public class UsuarioService {
         this.gestionSueldoService = gestionSueldoService;
     }
 
+    /**
+     * Alta de un usuario por el ADMIN. Queda activo de entrada: el ADMIN es el
+     * único que administra usuarios y roles, así que no hace falta que otro lo
+     * apruebe (el esquema anterior de "crea ADMIN, activa ADMINISTRATIVO"
+     * terminaba dándole al ADMINISTRATIVO poder sobre las cuentas, incluida la
+     * del ADMIN).
+     */
     public Usuario registrar(RegisterRequest request) {
         if (usuarioRepository.existsByUsername(request.username())) {
             throw new IllegalArgumentException("El nombre de usuario ya está en uso.");
@@ -58,11 +65,13 @@ public class UsuarioService {
             .username(request.username())
             .password(passwordEncoder.encode(request.password()))
             .rol(request.rol())
-            .enabled(false)
-            .pendienteAprobacion(true)
+            .enabled(true)
+            .pendienteAprobacion(false)
             .build();
 
-        return usuarioRepository.save(nuevo);
+        Usuario guardado = usuarioRepository.save(nuevo);
+        provisionarSueldoSiCorresponde(guardado);
+        return guardado;
     }
 
     public List<Usuario> listarTodos() {
@@ -79,14 +88,55 @@ public class UsuarioService {
         return guardado;
     }
 
-    public Usuario cambiarEstado(Long id, boolean activo) {
+    /**
+     * @param actor username de quien hace el cambio — no puede desactivarse a
+     *              sí mismo (se quedaría afuera sin que nadie pueda reactivarlo).
+     * @throws IllegalStateException si deja al sistema sin ningún ADMIN activo.
+     */
+    public Usuario cambiarEstado(Long id, boolean activo, String actor) {
         Usuario usuario = usuarioRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+        if (!activo) {
+            if (usuario.getUsername().equals(actor)) {
+                throw new IllegalStateException("No podés desactivar tu propia cuenta.");
+            }
+            if (esUltimoAdminActivo(usuario)) {
+                throw new IllegalStateException("No se puede desactivar al único Administrador activo.");
+            }
+        }
         usuario.setEnabled(activo);
         usuario.setPendienteAprobacion(false);
         Usuario guardado = usuarioRepository.save(usuario);
         if (activo) provisionarSueldoSiCorresponde(guardado);
         return guardado;
+    }
+
+    /**
+     * Cambia el rol de otro usuario (exclusivo del ADMIN, ver AuthSecurityConfig).
+     *
+     * @param actor username de quien hace el cambio — no puede cambiarse su
+     *              propio rol (evita que el único ADMIN se degrade por error).
+     * @throws IllegalStateException si deja al sistema sin ningún ADMIN activo.
+     */
+    public Usuario cambiarRol(Long id, Rol nuevoRol, String actor) {
+        Usuario usuario = usuarioRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Usuario no encontrado."));
+        if (usuario.getUsername().equals(actor)) {
+            throw new IllegalStateException("No podés cambiar tu propio rol.");
+        }
+        if (usuario.getRol() == nuevoRol) return usuario;
+        if (nuevoRol != Rol.ADMIN && esUltimoAdminActivo(usuario)) {
+            throw new IllegalStateException("No se puede quitar el rol al único Administrador activo.");
+        }
+        usuario.setRol(nuevoRol);
+        Usuario guardado = usuarioRepository.save(usuario);
+        if (guardado.isEnabled()) provisionarSueldoSiCorresponde(guardado);
+        return guardado;
+    }
+
+    private boolean esUltimoAdminActivo(Usuario u) {
+        return u.getRol() == Rol.ADMIN && u.isEnabled()
+            && usuarioRepository.countByRolAndEnabledTrue(Rol.ADMIN) <= 1;
     }
 
     /**
@@ -166,7 +216,7 @@ public class UsuarioService {
         usuario.setPassword(passwordEncoder.encode(temporal));
         usuario.setDebeCambiarPassword(true);
         usuarioRepository.save(usuario);
-        log.info("[GS-AUTH] Contraseña reseteada por ADMIN para el usuario {}", usuario.getUsername());
+        log.info("[GS-AUTH] Contraseña reseteada por el ADMIN para el usuario {}", usuario.getUsername());
         return temporal;
     }
 

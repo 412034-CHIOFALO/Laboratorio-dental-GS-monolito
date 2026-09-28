@@ -45,6 +45,12 @@ jobs:
             CREATE DATABASE IF NOT EXISTS gs_stock;
             CREATE DATABASE IF NOT EXISTS gs_finanzas;
             CREATE DATABASE IF NOT EXISTS gs_pedidos;
+            CREATE USER IF NOT EXISTS 'gs_ci'@'%' IDENTIFIED BY 'ci-db-password';
+            GRANT ALL PRIVILEGES ON gs_auth.* TO 'gs_ci'@'%';
+            GRANT ALL PRIVILEGES ON gs_catalogo.* TO 'gs_ci'@'%';
+            GRANT ALL PRIVILEGES ON gs_stock.* TO 'gs_ci'@'%';
+            GRANT ALL PRIVILEGES ON gs_finanzas.* TO 'gs_ci'@'%';
+            GRANT ALL PRIVILEGES ON gs_pedidos.* TO 'gs_ci'@'%';
           "
 
       - name: Empaquetar
@@ -59,9 +65,18 @@ jobs:
           DB_HOST: 127.0.0.1
           DB_PORT: "3306"
           DB_NAME: gs_auth
-          DB_USERNAME: root
-          DB_PASSWORD: root
+          # Sin perfil "dev" corre SecretosProduccionValidator: arranca igual que
+          # en producción, así que necesita secretos que no sean los defaults
+          # (ni de menos de 8 caracteres — por eso no usa root/root).
+          DB_USERNAME: gs_ci
+          DB_PASSWORD: ci-db-password
           MINIO_ENABLED: "false"
+          GS_ADMIN_PASSWORD: ci-admin-password
+          GS_TECNICO_PASSWORD: ci-tecnico-password
+          GS_BOT_PEDIDOS_PASSWORD: ci-bot-pedidos-password
+          GS_INTERNAL_API_KEY: ci-internal-api-key
+          GS_BOT_API_KEY: ci-bot-api-key-0001
+          GS_KEYSTORE_PASSWORD: ci-keystore-password
         run: |
           JAR=$(ls target/monolito-*.jar)
           java -jar "$JAR" &

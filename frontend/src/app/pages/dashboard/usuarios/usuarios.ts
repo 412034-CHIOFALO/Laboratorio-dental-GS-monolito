@@ -75,27 +75,28 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     private notif: NotificationService,
   ) {}
 
-  /** Crear un usuario nuevo es exclusivo de ADMIN. */
-  get puedeCrear(): boolean {
+  readonly rolesDisponibles = ['ADMIN', 'ADMINISTRATIVO', 'TECNICO', 'ODONTOLOGO'];
+
+  /**
+   * El ADMIN es el único que administra usuarios: alta (activa de entrada),
+   * roles, activar/desactivar, contraseñas y teléfonos. ADMINISTRATIVO solo ve
+   * la lista. El backend aplica la misma regla — esto solo evita mostrar
+   * botones que van a dar 403.
+   */
+  get puedeGestionar(): boolean {
     return this.authService.isAdmin();
   }
 
-  /** Dar de alta (activar) una cuenta pendiente es exclusivo de ADMINISTRATIVO — a
-   * propósito no puede ser el mismo ADMIN que la creó (separación de poderes). */
-  get puedeActivar(): boolean {
-    return this.authService.isAdministrativo();
-  }
-
-  /** Resetear la contraseña de otro integrante también es exclusivo de ADMINISTRATIVO. */
-  get puedeResetearPassword(): boolean {
-    return this.authService.isAdministrativo();
+  /** Nadie se cambia el rol ni se desactiva a sí mismo (el backend también lo impide). */
+  esYo(u: MockUsuario): boolean {
+    return u.username === this.authService.getUsername();
   }
 
   ngOnInit() {
     this.cargarUsuarios();
-    // Refresco silencioso en segundo plano: con dos pestañas abiertas (ej. un
-    // ADMIN crea, un ADMINISTRATIVO activa), sin esto cada una queda mostrando
-    // datos viejos hasta que alguien recarga a mano.
+    // Refresco silencioso en segundo plano: con dos pestañas abiertas (ej. el
+    // ADMIN edita y un ADMINISTRATIVO mira la lista), sin esto cada una queda
+    // mostrando datos viejos hasta que alguien recarga a mano.
     interval(POLL_MS).pipe(takeUntil(this.destroy$)).subscribe(() => this.cargarUsuarios(true));
   }
 
@@ -123,7 +124,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   // ── Crear ────────────────────────────────────────────────────
 
   abrirModal() {
-    if (!this.puedeCrear) {
+    if (!this.puedeGestionar) {
       this.notif.alerta('Crear usuarios es exclusivo de un Administrador.', 'Sin permisos');
       return;
     }
@@ -146,9 +147,9 @@ export class UsuariosComponent implements OnInit, OnDestroy {
         this.mockStore.push({
           id: this.nextMockId++, username: this.form.username,
           nombre: this.form.nombre, apellido: this.form.apellido,
-          rol: this.form.rol as string, enabled: false
+          rol: this.form.rol as string, enabled: true
         });
-        this.saving = false; this.saveSuccess = 'Usuario creado correctamente.';
+        this.saving = false; this.saveSuccess = 'Usuario creado y activo.';
         setTimeout(() => { this.cerrarModal(); this.cargarUsuarios(); }, 1000);
       }, 300);
       return;
@@ -157,7 +158,7 @@ export class UsuariosComponent implements OnInit, OnDestroy {
     this.http.post(`${this.gatewayUrl}/api/auth/register`, this.form)
       .subscribe({
         next: () => {
-          this.saving = false; this.saveSuccess = 'Usuario creado correctamente.';
+          this.saving = false; this.saveSuccess = 'Usuario creado y activo.';
           setTimeout(() => { this.cerrarModal(); this.cargarUsuarios(); }, 1200);
         },
         error: (err) => { this.saving = false; this.saveError = this.mensajeError(err, 'Error al crear el usuario.'); }
@@ -167,10 +168,6 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   // ── Activar / Desactivar ─────────────────────────────────────
 
   activar(id: number) {
-    if (!this.puedeActivar) {
-      this.notif.alerta('Dar de alta un usuario requiere rol Administrativo — no puede ser el mismo Admin que lo creó.', 'Sin permisos');
-      return;
-    }
     this.cambiarEstado(id, true);
   }
 
@@ -179,6 +176,10 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   }
 
   private cambiarEstado(id: number, activo: boolean) {
+    if (!this.puedeGestionar) {
+      this.notif.alerta('Activar o desactivar usuarios es exclusivo del Administrador.', 'Sin permisos');
+      return;
+    }
     if (environment.useMocks) {
       const u = this.mockStore.find(x => x.id === id);
       if (u) u.enabled = activo;
@@ -186,7 +187,33 @@ export class UsuariosComponent implements OnInit, OnDestroy {
       return;
     }
     this.http.patch(`${this.gatewayUrl}/api/auth/usuarios/${id}/estado`, { activo })
-      .subscribe({ next: () => this.cargarUsuarios(), error: () => {} });
+      .subscribe({
+        next: () => this.cargarUsuarios(),
+        error: (err) => this.notif.alerta(this.mensajeError(err, 'No se pudo cambiar el estado.'), 'No se pudo'),
+      });
+  }
+
+  // ── Cambiar rol ──────────────────────────────────────────────
+
+  cambiarRol(u: MockUsuario, rol: string) {
+    if (!this.puedeGestionar || rol === u.rol) return;
+    if (environment.useMocks) {
+      const x = this.mockStore.find(m => m.id === u.id);
+      if (x) x.rol = rol;
+      this.cargarUsuarios();
+      return;
+    }
+    this.http.patch(`${this.gatewayUrl}/api/auth/usuarios/${u.id}/rol`, { rol })
+      .subscribe({
+        next: () => {
+          this.notif.exito(`${u.username} ahora es ${this.rolLabel(rol)}. Rige desde su próximo inicio de sesión.`);
+          this.cargarUsuarios();
+        },
+        error: (err) => {
+          this.notif.alerta(this.mensajeError(err, 'No se pudo cambiar el rol.'), 'No se pudo');
+          this.cargarUsuarios();   // vuelve el select al rol real
+        },
+      });
   }
 
   // ── Editar teléfono ──────────────────────────────────────────
@@ -249,8 +276,8 @@ export class UsuariosComponent implements OnInit, OnDestroy {
   // ── Resetear contraseña ──────────────────────────────────────
 
   abrirResetModal(u: MockUsuario) {
-    if (!this.puedeResetearPassword) {
-      this.notif.alerta('Resetear una contraseña requiere rol Administrativo.', 'Sin permisos');
+    if (!this.puedeGestionar) {
+      this.notif.alerta('Resetear una contraseña es exclusivo del Administrador.', 'Sin permisos');
       return;
     }
     this.resetUsuario = u;

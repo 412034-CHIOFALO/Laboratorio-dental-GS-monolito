@@ -1,5 +1,6 @@
 package com.gs.monolito.auth.config;
 
+import com.gs.monolito.auth.controllers.BotAccesoController;
 import com.gs.monolito.auth.service.CustomUserDetailsService;
 import com.gs.monolito.common.security.CsrfCookieFilter;
 import com.gs.monolito.common.security.CsrfRequestMatchers;
@@ -101,7 +102,10 @@ public class AuthSecurityConfig {
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                .requireCsrfProtectionMatcher(CsrfRequestMatchers.requerirSalvo("/api/auth/login", "/api/auth/refresh"))
+                // bot-acceso tampoco: es un chequeo sin efectos (nginx lo consulta por
+                // GET en cada request a /api/bot/**), no una acción que se pueda forzar.
+                .requireCsrfProtectionMatcher(CsrfRequestMatchers.requerirSalvo(
+                    "/api/auth/login", "/api/auth/refresh", BotAccesoController.RUTA))
             )
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .addFilterBefore(jwtCookieAuthenticationFilter, BearerTokenAuthenticationFilter.class)
@@ -114,11 +118,16 @@ public class AuthSecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/auditoria").hasRole("ADMIN")
                 // Backup manual (botón "hacer backup ahora") — exclusivo de ADMIN
                 .requestMatchers("/api/auth/backup/**").hasRole("ADMIN")
-                // Crear usuarios — exclusivo de ADMIN. Separación de poderes a propósito:
-                // quien crea la cuenta no puede ser quien la activa (ADMINISTRATIVO,
-                // controlado dentro de AuthController, no acá).
+                // Gestión de usuarios (alta, roles, estado, reseteo de contraseña,
+                // teléfono) — exclusiva del ADMIN. ADMINISTRATIVO solo puede LEER la
+                // lista (la usa Finanzas → Sueldos). AuthController repite el chequeo
+                // de ADMIN adentro de cada endpoint (defensa en profundidad).
                 .requestMatchers("/api/auth/register").hasRole("ADMIN")
-                .requestMatchers("/api/auth/usuarios/**").hasAnyRole("ADMIN", "ADMINISTRATIVO")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/auth/usuarios").hasAnyRole("ADMIN", "ADMINISTRATIVO")
+                .requestMatchers("/api/auth/usuarios/**").hasRole("ADMIN")
+                // Chequeo que usa nginx (auth_request) antes de dejar pasar algo a
+                // /api/bot/** — mismos roles que ven la pantalla "Bot WhatsApp".
+                .requestMatchers(BotAccesoController.RUTA).hasAnyRole("ADMIN", "ADMINISTRATIVO")
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

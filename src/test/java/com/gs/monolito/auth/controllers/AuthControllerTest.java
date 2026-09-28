@@ -200,6 +200,62 @@ class AuthControllerTest {
         verifyNoInteractions(jwtEncoder);
     }
 
+    // ── gestión de usuarios: exclusiva del ADMIN ───────────────
+
+    private Jwt jwtCon(String username, String roles) {
+        Jwt jwt = mock(Jwt.class);
+        lenient().when(jwt.getSubject()).thenReturn(username);
+        lenient().when(jwt.getClaimAsString("roles")).thenReturn(roles);
+        return jwt;
+    }
+
+    @Test
+    void administrativo_noPuedeResetearLaPasswordDeNadie_niSiquieraDelAdmin() {
+        // Era la escalada: el ADMINISTRATIVO reseteaba la del ADMIN y entraba como ADMIN.
+        ResponseEntity<?> resp = controller.resetearPassword(1L, jwtCon("recepcion", "ROLE_ADMINISTRATIVO"));
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        verify(usuarioService, never()).resetearPassword(any());
+    }
+
+    @Test
+    void administrativo_noPuedeCambiarRolesNiEstadosNiTelefonos() {
+        Jwt administrativo = jwtCon("recepcion", "ROLE_ADMINISTRATIVO");
+
+        assertThat(controller.cambiarRol(1L, Map.of("rol", "ADMIN"), administrativo).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(controller.cambiarEstado(1L, Map.of("activo", false), administrativo).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(controller.actualizarTelefono(1L, Map.of("telefono", "5491100000000"), administrativo).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        verifyNoInteractions(usuarioService);
+    }
+
+    @Test
+    void admin_creaUsuarioActivoYLaBitacoraRegistraAlAdminComoAutor() {
+        Usuario nuevo = Usuario.builder().username("jperez").rol(Rol.TECNICO).enabled(true).build();
+        when(usuarioService.registrar(any())).thenReturn(nuevo);
+
+        ResponseEntity<?> resp = controller.register(
+                new com.gs.monolito.auth.dto.RegisterRequest("Juan", "Pérez", "jperez", "clave-segura", Rol.TECNICO),
+                jwtCon("admin", "ROLE_ADMIN"));
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        verify(auditoriaService).registrar(eq("admin"), eq("CREAR"), any(), any(), any());
+    }
+
+    @Test
+    void admin_cambiaElRolDeOtro_yUnConflictoDeNegocioDevuelve409() {
+        Jwt admin = jwtCon("admin", "ROLE_ADMIN");
+        when(usuarioService.cambiarRol(1L, Rol.TECNICO, "admin"))
+                .thenThrow(new IllegalStateException("No podés cambiar tu propio rol."));
+
+        assertThat(controller.cambiarRol(1L, Map.of("rol", "TECNICO"), admin).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+        assertThat(controller.cambiarRol(1L, Map.of("rol", "SUPERUSUARIO"), admin).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
     @Test
     void refrescar_conCookieVencidaOInvalida_devuelve401() {
         MockHttpServletRequest req = new MockHttpServletRequest();

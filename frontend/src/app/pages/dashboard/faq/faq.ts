@@ -57,7 +57,7 @@ export class FaqComponent {
         {
           id: 'crear-usuario',
           pregunta: '¿Cómo doy de alta a un nuevo integrante del laboratorio?',
-          respuesta: 'Solo un ADMIN puede hacerlo, desde Administración → Usuarios → "Nuevo usuario". El usuario queda pendiente de aprobación hasta que lo actives.',
+          respuesta: 'Solo un ADMIN puede hacerlo, desde Administración → Usuarios → "Nuevo usuario". El usuario queda activo en el momento; el rol se lo podés cambiar después desde la misma tabla.',
         },
         {
           id: 'primer-login',

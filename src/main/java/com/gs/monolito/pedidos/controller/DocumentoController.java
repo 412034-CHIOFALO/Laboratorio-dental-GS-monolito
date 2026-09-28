@@ -9,6 +9,7 @@ import com.gs.monolito.pedidos.model.DocumentoPedido;
 import com.gs.monolito.pedidos.repository.DocumentoPedidoRepository;
 import com.gs.monolito.pedidos.repository.PedidoRepository;
 import com.gs.monolito.pedidos.service.PedidosDocumentoStorageService;
+import com.gs.monolito.pedidos.service.TiposArchivo;
 import com.gs.monolito.pedidos.service.UploadValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -102,7 +103,8 @@ public class DocumentoController {
             throw new BusinessException("Error al leer el archivo");
         }
 
-        String objectKey = minioStorageService.subir(bytes, file.getContentType(),
+        String contentType = TiposArchivo.mediaTypePara(file.getOriginalFilename()).toString();
+        String objectKey = minioStorageService.subir(bytes, contentType,
                 file.getOriginalFilename(), pedidoId);
         if (objectKey == null) {
             throw new BusinessException("No se pudo guardar el archivo (MinIO no disponible)");
@@ -113,7 +115,7 @@ public class DocumentoController {
                 .pedidoId(pedidoId)
                 .objectKey(objectKey)
                 .fileName(file.getOriginalFilename() != null ? file.getOriginalFilename() : "archivo")
-                .contentType(file.getContentType())
+                .contentType(contentType)
                 .tamanioBytes(file.getSize())
                 .subidoPor(subidoPor)
                 .build();
@@ -145,20 +147,12 @@ public class DocumentoController {
         if (in == null) {
             return ResponseEntity.status(503).build();
         }
+        // Tipo según la extensión, NO el contentType guardado: los registros
+        // anteriores a este cambio tienen el que declaró quien subió el archivo.
         return ResponseEntity.ok()
-                .contentType(mediaTypeSeguro(doc.getContentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + doc.getFileName() + "\"")
+                .contentType(TiposArchivo.mediaTypePara(doc.getFileName()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, TiposArchivo.contentDisposition(doc.getFileName()))
                 .body(new InputStreamResource(in));
-    }
-
-    /** Parsea el content-type guardado; ante uno no estándar o vacío, cae a octet-stream. */
-    private MediaType mediaTypeSeguro(String contentType) {
-        if (contentType == null || contentType.isBlank()) return MediaType.APPLICATION_OCTET_STREAM;
-        try {
-            return MediaType.parseMediaType(contentType);
-        } catch (Exception e) {
-            return MediaType.APPLICATION_OCTET_STREAM;
-        }
     }
 
     @Operation(
@@ -186,7 +180,8 @@ public class DocumentoController {
 
     private DocumentoPedidoResponse toResponse(DocumentoPedido d) {
         return new DocumentoPedidoResponse(
-                d.getId(), d.getPedidoId(), d.getFileName(), d.getContentType(),
+                d.getId(), d.getPedidoId(), d.getFileName(),
+                TiposArchivo.mediaTypePara(d.getFileName()).toString(),
                 d.getTamanioBytes(), d.getSubidoPor(), d.getFechaSubida());
     }
 }

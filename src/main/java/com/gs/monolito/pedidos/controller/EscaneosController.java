@@ -9,6 +9,7 @@ import com.gs.monolito.pedidos.model.EscaneosPedido;
 import com.gs.monolito.pedidos.repository.EscaneosPedidoRepository;
 import com.gs.monolito.pedidos.repository.PedidoRepository;
 import com.gs.monolito.pedidos.service.PedidosDocumentoStorageService;
+import com.gs.monolito.pedidos.service.TiposArchivo;
 import com.gs.monolito.pedidos.service.UploadValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -100,7 +101,8 @@ public class EscaneosController {
 
         String objectKey;
         try (InputStream in = file.getInputStream()) {
-            objectKey = minioStorageService.subirStream(in, file.getSize(), file.getContentType(),
+            objectKey = minioStorageService.subirStream(in, file.getSize(),
+                    MediaType.APPLICATION_OCTET_STREAM_VALUE,
                     file.getOriginalFilename(), pedidoId, "escaneos");
         } catch (IOException e) {
             throw new BusinessException("Error al leer el archivo");
@@ -114,7 +116,7 @@ public class EscaneosController {
                 .pedidoId(pedidoId)
                 .objectKey(objectKey)
                 .fileName(file.getOriginalFilename() != null ? file.getOriginalFilename() : "archivo")
-                .contentType(file.getContentType())
+                .contentType(MediaType.APPLICATION_OCTET_STREAM_VALUE)
                 .tamanioBytes(file.getSize())
                 .descripcion(descripcion)
                 .subidoPor(subidoPor)
@@ -147,20 +149,12 @@ public class EscaneosController {
         if (in == null) {
             return ResponseEntity.status(503).build();
         }
+        // STL/OBJ/PLY no se muestran en el navegador: siempre binario y como
+        // descarga, sin importar el contentType que haya quedado guardado.
         return ResponseEntity.ok()
-                .contentType(mediaTypeSeguro(e.getContentType()))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + e.getFileName() + "\"")
+                .contentType(TiposArchivo.mediaTypePara(e.getFileName()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, TiposArchivo.contentDisposition(e.getFileName()))
                 .body(new InputStreamResource(in));
-    }
-
-    /** Parsea el content-type guardado; ante uno no estándar o vacío, cae a octet-stream. */
-    private MediaType mediaTypeSeguro(String contentType) {
-        if (contentType == null || contentType.isBlank()) return MediaType.APPLICATION_OCTET_STREAM;
-        try {
-            return MediaType.parseMediaType(contentType);
-        } catch (Exception e) {
-            return MediaType.APPLICATION_OCTET_STREAM;
-        }
     }
 
     @Operation(

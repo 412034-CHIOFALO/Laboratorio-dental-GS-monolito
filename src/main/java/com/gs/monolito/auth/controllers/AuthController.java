@@ -4,6 +4,7 @@ import org.springframework.validation.annotation.Validated;
 
 import com.gs.monolito.auth.dto.RegisterRequest;
 import com.gs.monolito.auth.dto.UsuarioResponse;
+import com.gs.monolito.auth.model.Rol;
 import com.gs.monolito.auth.model.Usuario;
 import com.gs.monolito.auth.service.AuditoriaService;
 import com.gs.monolito.auth.service.UsuarioService;
@@ -50,7 +51,8 @@ import java.util.stream.Collectors;
  * Controlador REST para autenticación, registro y administración de usuarios del laboratorio G&amp;S.
  * <p>
  * Emite tokens JWT firmados con RS256 a partir de credenciales validadas contra la base de datos.
- * El ciclo de vida de un usuario es: registro (pendiente) → aprobación por ADMIN → habilitado.
+ * El ADMIN es el único que administra usuarios: los da de alta (activos de entrada), les asigna
+ * y cambia el rol, los activa/desactiva y les resetea la contraseña.
  * </p>
  */
 @Tag(name = "Autenticación y Usuarios", description = "Login JWT, registro, aprobación y gestión de usuarios del laboratorio")
@@ -270,11 +272,11 @@ public class AuthController {
     }
 
     @Operation(
-        summary = "Resetear la contraseña de un usuario (requiere ADMINISTRATIVO)",
+        summary = "Resetear la contraseña de un usuario (requiere ADMIN)",
         description = "Genera una contraseña temporal aleatoria, la aplica al usuario y marca la cuenta " +
                       "para forzar el cambio en el próximo login. La temporal se devuelve UNA sola vez en " +
                       "esta respuesta — no hay envío de mail, hay que comunicarla manualmente (WhatsApp, de palabra). " +
-                      "Requiere rol ADMINISTRATIVO (Bearer JWT)."
+                      "Requiere rol ADMIN."
     )
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Contraseña reseteada — devuelve la temporal",
@@ -288,9 +290,9 @@ public class AuthController {
             @Parameter(description = "ID del usuario a resetear", example = "5")
             @PathVariable @Positive Long id,
             @AuthenticationPrincipal Jwt jwt) {
-        if (!esAdministrativo(jwt)) {
+        if (!esAdmin(jwt)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("error", "Resetear una contraseña requiere rol ADMINISTRATIVO."));
+                .body(Map.of("error", "Resetear una contraseña es exclusivo del Administrador."));
         }
         try {
             String temporal = usuarioService.resetearPassword(id);
@@ -307,27 +309,31 @@ public class AuthController {
 
     @Operation(
         summary = "Registrar nuevo usuario (requiere ADMIN)",
-        description = "Crea un nuevo usuario en estado pendiente de aprobación. " +
-                      "El usuario queda deshabilitado hasta que un ADMINISTRATIVO lo active con PUT /usuarios/{id}/aprobar " +
-                      "(a propósito no puede ser el mismo ADMIN que lo creó). Requiere rol ADMIN (Bearer JWT)."
+        description = "Crea un nuevo usuario, activo de entrada: el ADMIN es el único que administra " +
+                      "usuarios y roles, así que no hace falta la aprobación de otro usuario. Requiere rol ADMIN."
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "201", description = "Solicitud de registro creada correctamente",
+        @ApiResponse(responseCode = "201", description = "Usuario creado y activo",
             content = @Content(mediaType = "application/json",
-                schema = @Schema(example = "{\"mensaje\": \"Solicitud enviada. El administrador activará tu cuenta pronto.\", \"username\": \"jperez\"}"))),
+                schema = @Schema(example = "{\"mensaje\": \"Usuario creado y activo.\", \"username\": \"jperez\"}"))),
         @ApiResponse(responseCode = "403", description = "Sin permisos de administrador", content = @Content),
         @ApiResponse(responseCode = "409", description = "El nombre de usuario ya está en uso", content = @Content(
             mediaType = "application/json",
             schema = @Schema(example = "{\"error\": \"El nombre de usuario ya está en uso.\"}")))
     })
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request,
+                                      @AuthenticationPrincipal Jwt jwt) {
+        if (!esAdmin(jwt)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "Crear usuarios es exclusivo del Administrador."));
+        }
         try {
             Usuario nuevo = usuarioService.registrar(request);
-            auditoriaService.registrar(nuevo.getUsername(), "CREAR", "Registro de usuario",
-                "Usuario " + nuevo.getUsername(), "Rol: " + nuevo.getRol() + " · pendiente de aprobación");
+            auditoriaService.registrar(jwt.getSubject(), "CREAR", "Alta de usuario",
+                "Usuario " + nuevo.getUsername(), "Rol: " + nuevo.getRol() + " · activo");
             return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                "mensaje", "Solicitud enviada. El administrador activará tu cuenta pronto.",
+                "mensaje", "Usuario creado y activo.",
                 "username", nuevo.getUsername()
             ));
         } catch (IllegalArgumentException e) {
@@ -376,9 +382,9 @@ public class AuthController {
             @Parameter(description = "ID numérico del usuario a aprobar", required = true, example = "5")
             @PathVariable @Positive Long id,
             @AuthenticationPrincipal Jwt jwt) {
-        if (!esAdministrativo(jwt)) {
+        if (!esAdmin(jwt)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("error", "Dar de alta un usuario requiere rol ADMINISTRATIVO."));
+                .body(Map.of("error", "Activar usuarios es exclusivo del Administrador."));
         }
         try {
             Usuario aprobado = usuarioService.aprobar(id);
@@ -419,15 +425,17 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "El campo 'activo' (true/false) es obligatorio."));
         }
         boolean activo = Boolean.TRUE.equals(body.get("activo"));
-        if (activo && !esAdministrativo(jwt)) {
+        if (!esAdmin(jwt)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("error", "Dar de alta un usuario requiere rol ADMINISTRATIVO."));
+                .body(Map.of("error", "Activar o desactivar usuarios es exclusivo del Administrador."));
         }
         try {
-            Usuario u = usuarioService.cambiarEstado(id, activo);
+            Usuario u = usuarioService.cambiarEstado(id, activo, jwt.getSubject());
             auditoriaService.registrar(jwt.getSubject(), "EDITAR", "Cambio de estado de usuario",
                 "Usuario " + u.getUsername(), activo ? "Activado" : "Desactivado");
             return ResponseEntity.ok(UsuarioResponse.from(u));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
         }
@@ -455,6 +463,12 @@ public class AuthController {
             @PathVariable @Positive Long id,
             @RequestBody Map<String, String> body,
             @AuthenticationPrincipal Jwt jwt) {
+        // El bot identifica por este número a quien carga un comprobante: cambiarlo
+        // equivale a poder cargar pagos a nombre de otro, así que también es del ADMIN.
+        if (!esAdmin(jwt)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "Editar el teléfono de otro usuario es exclusivo del Administrador."));
+        }
         String telefono = body.get("telefono");
         if (telefono != null && !telefono.isBlank()
                 && !telefono.matches("^[0-9+()\\-\\s]{6,30}$")) {
@@ -466,6 +480,49 @@ public class AuthController {
             auditoriaService.registrar(jwt.getSubject(), "EDITAR", "Actualización de teléfono",
                 "Usuario " + u.getUsername(), "Teléfono actualizado");
             return ResponseEntity.ok(UsuarioResponse.from(u));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Operation(
+        summary = "Cambiar el rol de un usuario (requiere ADMIN)",
+        description = "El ADMIN es el único que asigna roles. No puede cambiarse su propio rol ni dejar " +
+                      "al sistema sin ningún ADMIN activo. Body JSON: {@code {\"rol\": \"TECNICO\"}}. " +
+                      "El nuevo rol rige desde el próximo login o renovación de sesión del usuario."
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Rol actualizado — devuelve el UsuarioResponse actualizado",
+            content = @Content(mediaType = "application/json")),
+        @ApiResponse(responseCode = "400", description = "Rol inválido o ausente", content = @Content),
+        @ApiResponse(responseCode = "403", description = "Sin permisos de administrador", content = @Content),
+        @ApiResponse(responseCode = "404", description = "Usuario no encontrado", content = @Content),
+        @ApiResponse(responseCode = "409", description = "Cambio de rol propio, o dejaría el sistema sin ADMIN", content = @Content)
+    })
+    @PatchMapping("/usuarios/{id}/rol")
+    public ResponseEntity<?> cambiarRol(
+            @Parameter(description = "ID numérico del usuario", required = true, example = "5")
+            @PathVariable @Positive Long id,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal Jwt jwt) {
+        if (!esAdmin(jwt)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "Cambiar roles es exclusivo del Administrador."));
+        }
+        Rol nuevoRol;
+        try {
+            nuevoRol = Rol.valueOf(body == null ? "" : String.valueOf(body.get("rol")));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                "error", "El campo 'rol' es obligatorio: ADMIN, ADMINISTRATIVO, TECNICO u ODONTOLOGO."));
+        }
+        try {
+            Usuario u = usuarioService.cambiarRol(id, nuevoRol, jwt.getSubject());
+            auditoriaService.registrar(jwt.getSubject(), "EDITAR", "Cambio de rol de usuario",
+                "Usuario " + u.getUsername(), "Nuevo rol: " + nuevoRol);
+            return ResponseEntity.ok(UsuarioResponse.from(u));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
         }
@@ -540,11 +597,16 @@ public class AuthController {
         return ResponseEntity.ok(UsuarioResponse.from(u));
     }
 
-    /** ¿El JWT del que llama tiene ROLE_ADMINISTRATIVO? */
-    private boolean esAdministrativo(Jwt jwt) {
+    /**
+     * ¿El JWT del que llama tiene ROLE_ADMIN? AuthSecurityConfig ya restringe
+     * estas rutas al ADMIN — esto es la misma regla un nivel más adentro, para
+     * que un cambio en la config de seguridad no abra la gestión de usuarios.
+     */
+    private boolean esAdmin(Jwt jwt) {
+        if (jwt == null) return false;
         String roles = jwt.getClaimAsString("roles");
         if (roles == null) return false;
-        return Arrays.asList(roles.split(",")).contains("ROLE_ADMINISTRATIVO");
+        return Arrays.asList(roles.split(",")).contains("ROLE_ADMIN");
     }
 
     public record LoginRequest(

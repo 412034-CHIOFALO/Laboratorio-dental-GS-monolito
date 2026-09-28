@@ -1,5 +1,6 @@
 package com.gs.monolito.auth.repository;
 
+import com.gs.monolito.auth.model.Rol;
 import com.gs.monolito.auth.model.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -8,4 +9,5 @@ import java.util.Optional;
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByUsername(String username);
     boolean existsByUsername(String username);
+    long countByRolAndEnabledTrue(Rol rol);
 }

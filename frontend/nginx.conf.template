@@ -125,13 +125,35 @@ server {
     }
 
     # ─── Proxy al bot de WhatsApp: /api/bot/** ─────────────────────────────
-    # Antes lo manejaba el api-gateway directo (routes[6] en su application.properties):
-    # Path=/api/bot/** → BOT_URI, con AddRequestHeader X-Bot-Api-Key. El bot sigue
-    # siendo un proceso Node aparte (no se fusionó al monolito), así que nginx
-    # reproduce exactamente esa misma ruta + header ahora que el gateway no está.
-    # Requiere que el servicio se llame "gs-bot" en la red de docker-compose
-    # (si el bot no está levantado, esta ruta simplemente da error — no rompe nada más).
-    location /api/bot/ {
+    # nginx le agrega al bot la API key compartida, así que NUNCA puede dejar
+    # pasar una request sin verificar antes quién la manda (antes lo hacía:
+    # cualquiera desde internet podía mandar WhatsApps desde el número del
+    # laboratorio o re-vincular el bot a su propio teléfono). Dos reglas:
+    #   1. Solo las 3 rutas que usa el panel; /mensaje y /notificar son para el
+    #      monolito, que le habla al bot directo por la red interna (gs-bot:3001).
+    #   2. auth_request: cada request consulta /_auth_bot con la cookie de sesión
+    #      del usuario; solo pasa con ADMIN o ADMINISTRATIVO (ver BotAccesoController).
+    #      Los POST quedan protegidos contra CSRF por la cookie SameSite=Strict:
+    #      desde otro sitio el browser no la manda y el chequeo da 401.
+    # Requiere que el servicio se llame "gs-bot" en la red de docker-compose.
+    location = /_auth_bot {
+        internal;
+        resolver 127.0.0.11 valid=10s ipv6=off;
+        set $app_upstream app;
+        proxy_pass              http://$app_upstream:8080/api/auth/bot-acceso;
+        proxy_method            GET;
+        proxy_pass_request_body off;
+        proxy_set_header        Content-Length    "";
+        proxy_set_header        Host              $host;
+        proxy_set_header        X-Real-IP         $remote_addr;
+        proxy_set_header        X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header        X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    10s;
+    }
+
+    location ~ ^/api/bot/(estado|regenerar-qr|reconciliar)$ {
+        auth_request /_auth_bot;
         resolver 127.0.0.11 valid=10s ipv6=off;
         set $bot_upstream gs-bot;
         proxy_pass         http://$bot_upstream:3001;
@@ -144,6 +166,10 @@ server {
         proxy_connect_timeout 5s;
         proxy_send_timeout    30s;
         proxy_read_timeout    30s;
+    }
+
+    location /api/bot/ {
+        return 404;
     }
 
     # ─── Error pages ──────────────────────────────────────────────────────
