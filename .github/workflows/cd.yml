@@ -1,7 +1,7 @@
 name: CD
 
 # Se dispara al mergear a master: corre los tests y, si pasan, arma las
-# imágenes de backend/frontend y las sube a ghcr.io (tags "latest" y el SHA
+# imágenes de backend/frontend/bot y las sube a ghcr.io (tags "latest" y el SHA
 # del commit). Nada de esto toca el servidor real — no hay ningún paso de
 # deploy automático a propósito, porque el servidor (un laboratorio) no está
 # prendido 24/7 y el dueño prefiere manejar el pull/up él mismo, cuando
@@ -10,8 +10,8 @@ name: CD
 # Deploy manual, en el servidor, cuando esté prendido y quieras actualizar
 # (ver PRODUCCION.md para el setup inicial completo):
 #   cd /opt/gs-monolito
-#   docker compose -f docker-compose.yml -f docker-compose.https.yml pull app frontend
-#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d app frontend
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml pull app frontend gs-bot
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d app frontend gs-bot
 #   docker image prune -f
 #
 # El secret VPS_SSH_KEY (y VPS_HOST/VPS_USER) quedan guardados en el repo sin
@@ -53,6 +53,9 @@ jobs:
           - nombre: frontend
             context: ./frontend
             sufijo: "-frontend"
+          - nombre: bot
+            context: ./bot
+            sufijo: "-bot"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

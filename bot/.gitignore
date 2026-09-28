@@ -1,0 +1,9 @@
+# Dependencias
+node_modules/
+
+# Configuración con secretos
+.env
+
+# Sesión de WhatsApp (LocalAuth) — NUNCA subir, contiene las credenciales
+.wwebjs_auth/
+.wwebjs_cache/

@@ -52,8 +52,8 @@ está prendido 24/7). Cuando lo prendas y quieras actualizar:
 
 ```bash
 cd /opt/gs-monolito
-docker compose -f docker-compose.yml -f docker-compose.https.yml pull app frontend
-docker compose -f docker-compose.yml -f docker-compose.https.yml up -d app frontend
+docker compose -f docker-compose.yml -f docker-compose.https.yml pull app frontend gs-bot
+docker compose -f docker-compose.yml -f docker-compose.https.yml up -d app frontend gs-bot
 docker image prune -f
 ```
 

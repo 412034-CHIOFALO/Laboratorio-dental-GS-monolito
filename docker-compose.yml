@@ -2,8 +2,8 @@
 # image al mismo tiempo:
 #
 #   - DESARROLLO LOCAL: `docker compose up --build` compila todo desde el
-#     código fuente de este repo (backend + frontend) y levanta el sistema
-#     completo (frontend + monolito + mysql + minio) con un solo comando —
+#     código fuente de este repo (backend + frontend + bot) y levanta el sistema
+#     completo (frontend + monolito + mysql + minio + bot) con un solo comando —
 #     sin tocar ni levantar nada del repo viejo de microservicios.
 #   - PRODUCCIÓN (VPS): vive en /opt/gs-monolito/docker-compose.yml. El
 #     pipeline de CD no reconstruye nada acá — solo hace
@@ -33,6 +33,10 @@ services:
     # nginx por completo (ver docker-compose.https.yml).
     env_file:
       - .env
+    environment:
+      # Nombre del servicio del bot en la red interna de Docker (el mismo que usa
+      # nginx para /api/bot/). Pisa cualquier BOT_URI viejo que haya quedado en .env.
+      BOT_URI: http://gs-bot:3001
     volumes:
       # Keystore RSA persistente: se genera una sola vez (primer arranque) y se
       # reusa en cada rebuild/redeploy. Sin esto, cada deploy regeneraba la
@@ -128,8 +132,45 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # Bot de WhatsApp (Node + Chromium headless, ver bot/README.md). El nombre
+  # "gs-bot" no es casual: nginx proxyea /api/bot/ a gs-bot:3001 y el monolito
+  # le manda las notificaciones ahí (BOT_URI de "app"). La sesión de WhatsApp
+  # se guarda en el volumen wpp_auth: el QR se escanea UNA sola vez, desde
+  # la pantalla "Bot WhatsApp" del panel → Estado del bot (o con
+  # `docker compose logs -f gs-bot`).
+  gs-bot:
+    build: ./bot
+    image: ${GS_BOT_IMAGE:-ghcr.io/412034-chiofalo/laboratorio-dental-gs-monolito-bot:latest}
+    restart: unless-stopped
+    environment:
+      TZ: America/Argentina/Cordoba
+      BACKEND_URL: http://app:8080
+      BACKEND_ENABLED: ${BOT_BACKEND_ENABLED:-true}
+      # Tiene que ser la misma key que usan "app" (vía .env) y "frontend".
+      BOT_API_KEY: ${GS_BOT_API_KEY:-gs-bot-dev-key-cambiar-en-prod}
+      GRUPOS: ${BOT_GRUPOS:-Comprobantes Transferencias,Comprobantes Efectivo}
+      GRUPOS_EFECTIVO: ${BOT_GRUPOS_EFECTIVO:-Comprobantes Efectivo}
+      GRUPOS_JIDS: ${BOT_GRUPOS_JIDS:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_ENABLED: ${GEMINI_ENABLED:-false}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
+    # Liveness del servidor HTTP del bot (no de la conexión a WhatsApp). Usa
+    # node porque la imagen slim no trae wget/curl.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/bot/estado',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    volumes:
+      - wpp_auth:/app/.wwebjs_auth
+    depends_on:
+      app:
+        condition: service_healthy
+
 volumes:
   mysql_data:
   minio_data:
   app_keys:
   backup_tmp:
+  wpp_auth:
