@@ -41,7 +41,7 @@ public class CajaController {
                description = "Devuelve saldos actuales de las tres cajas, total de deuda a proveedores, sueldos pendientes y alertas relevantes.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Resumen obtenido correctamente"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/resumen")
     public ResponseEntity<ResumenCajasResponse> resumen() {
@@ -53,7 +53,7 @@ public class CajaController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Listado de movimientos obtenido"),
         @ApiResponse(responseCode = "400", description = "Tipo de caja inválido"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/{tipoCaja}/movimientos")
     public ResponseEntity<List<CajaMovimientoResponse>> movimientosByCaja(
@@ -67,7 +67,7 @@ public class CajaController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Movimientos del período obtenidos"),
         @ApiResponse(responseCode = "400", description = "Parámetros de fecha inválidos"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/movimientos")
     public ResponseEntity<List<CajaMovimientoResponse>> movimientosPeriodo(
@@ -83,7 +83,7 @@ public class CajaController {
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Movimiento registrado correctamente"),
         @ApiResponse(responseCode = "400", description = "Datos del request inválidos"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @PostMapping("/movimiento")
     public ResponseEntity<CajaMovimientoResponse> registrarMovimiento(
@@ -97,7 +97,7 @@ public class CajaController {
                description = "Genera un PDF con los movimientos del día indicado por caja, subtotales y saldos actuales. Si no se pasa fecha, usa el día de hoy.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "PDF generado (application/pdf)"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/reporte/cierre-diario")
     public ResponseEntity<byte[]> cierreDiarioPdf(
@@ -112,7 +112,7 @@ public class CajaController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "PDF generado (application/pdf)"),
         @ApiResponse(responseCode = "400", description = "Año/mes inválidos"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/reporte/mensual")
     public ResponseEntity<byte[]> resumenMensualPdf(

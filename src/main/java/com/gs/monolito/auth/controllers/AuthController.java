@@ -70,8 +70,11 @@ public class AuthController {
     private final UsuarioService usuarioService;
     private final AuditoriaService auditoriaService;
 
-    @Value("${gs.auth.token-ttl-hours:12}")
-    private long tokenTtlHours;
+    /** Claim del access token que marca una contraseña temporal pendiente de cambio (ver PasswordTemporalInterceptor). */
+    public static final String CLAIM_PASSWORD_TEMPORAL = "pwd_temporal";
+
+    @Value("${gs.auth.token-ttl-minutes:30}")
+    private long tokenTtlMinutes;
 
     @Value("${gs.auth.refresh-ttl-days:30}")
     private long refreshTtlDays;
@@ -99,19 +102,20 @@ public class AuthController {
         summary = "Autenticar usuario y obtener token JWT",
         description = "Valida las credenciales contra la base de datos. Si el usuario está habilitado y aprobado, " +
                       "devuelve un token JWT RS256 con los claims 'sub' (username) y 'roles'. " +
-                      "El token tiene una vigencia configurable (por defecto 12 horas). " +
+                      "El token viaja en la cookie httpOnly gs_session (nunca en el body) y dura " +
+                      "gs.auth.token-ttl-minutes (30 por default); después se renueva con /refresh. " +
                       "Este endpoint es público y está sujeto a rate limiting (bucket4j)."
     )
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Login exitoso — devuelve access_token JWT",
+        @ApiResponse(responseCode = "200", description = "Login exitoso — sesión en cookies httpOnly; el body trae rol y flags de UI",
             content = @Content(mediaType = "application/json",
-                schema = @Schema(example = "{\"access_token\": \"eyJhbGciOiJSUzI1NiJ9...\"}"))),
+                schema = @Schema(example = "{\"rol\": \"ADMIN\", \"expiraEn\": 1767225600000, \"terminosAceptados\": true, \"debeCambiarPassword\": false}"))),
         @ApiResponse(responseCode = "401", description = "Usuario o contraseña incorrectos", content = @Content(
             mediaType = "application/json",
             schema = @Schema(example = "{\"error\": \"Usuario o contraseña incorrectos.\"}"))),
-        @ApiResponse(responseCode = "403", description = "Cuenta pendiente de aprobación por el administrador", content = @Content(
+        @ApiResponse(responseCode = "403", description = "Contraseña correcta, pero la cuenta está desactivada", content = @Content(
             mediaType = "application/json",
-            schema = @Schema(example = "{\"error\": \"Tu cuenta está pendiente de aprobación por el administrador.\"}"))),
+            schema = @Schema(example = "{\"error\": \"Tu cuenta está desactivada. Hablá con el Administrador.\"}"))),
         @ApiResponse(responseCode = "429", description = "Demasiados intentos de login — rate limit alcanzado", content = @Content)
     })
     @PostMapping("/login")
@@ -126,22 +130,21 @@ public class AuthController {
                 .map(GrantedAuthority::getAuthority)
                 .collect(Collectors.joining(","));
 
+            Usuario u = usuarioService.buscarPorUsername(auth.getName());
             Instant ahora = Instant.now();
-            Instant expiraEn = ahora.plus(Duration.ofHours(tokenTtlHours));
-            String token = mintToken(auth.getName(), roles, ahora, expiraEn, null);
+            Instant expiraEn = ahora.plus(Duration.ofMinutes(tokenTtlMinutes));
+            String token = mintAccessToken(u, ahora, expiraEn);
             String refreshToken = mintToken(auth.getName(), null, ahora,
-                ahora.plus(Duration.ofDays(refreshTtlDays)), "refresh");
+                ahora.plus(Duration.ofDays(refreshTtlDays)), "refresh", false);
 
             auditoriaService.registrar(auth.getName(), "LOGIN", "Inicio de sesión",
                 "Sesión", "Login exitoso · roles: " + roles);
-
-            Usuario u = usuarioService.buscarPorUsername(auth.getName());
 
             // El JWT viaja en una cookie httpOnly — el navegador nunca deja que JS la
             // lea (mitiga robo del token por XSS). El body solo devuelve datos NO
             // sensibles que el frontend necesita para su UI (rol, expiración).
             return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, sessionCookie(token, Duration.ofHours(tokenTtlHours)).toString())
+                .header(HttpHeaders.SET_COOKIE, sessionCookie(token, Duration.ofMinutes(tokenTtlMinutes)).toString())
                 .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshToken).toString())
                 .body(Map.of(
                     "rol", u.getRol().name(),
@@ -151,10 +154,12 @@ public class AuthController {
                 ));
 
         } catch (DisabledException e) {
+            // Solo llega acá con la contraseña CORRECTA (ver AuthSecurityConfig.proveedorLogin):
+            // quien no la sabe recibe siempre "incorrectos", exista o no la cuenta.
             auditoriaService.registrar(request.username(), "LOGIN_FALLIDO", "Intento de login rechazado",
-                "Sesión", "Cuenta pendiente de aprobación · IP " + ClientIp.resolve(httpRequest));
+                "Sesión", "Cuenta desactivada · IP " + ClientIp.resolve(httpRequest));
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("error", "Tu cuenta está pendiente de aprobación por el administrador."));
+                .body(Map.of("error", "Tu cuenta está desactivada. Hablá con el Administrador."));
         } catch (BadCredentialsException e) {
             auditoriaService.registrar(request.username(), "LOGIN_FALLIDO", "Intento de login rechazado",
                 "Sesión", "Usuario o contraseña incorrectos · IP " + ClientIp.resolve(httpRequest));
@@ -166,7 +171,8 @@ public class AuthController {
     @Operation(
         summary = "Renovar el access token con la cookie de refresh",
         description = "Si la cookie gs_refresh (" + "30 días por default) sigue siendo válida y la cuenta sigue " +
-                      "habilitada, emite un access token nuevo (12hs por default) sin pedir credenciales de nuevo. " +
+                      "habilitada, emite un access token nuevo (30 min por default) con el rol ACTUAL de la base, " +
+                      "sin pedir credenciales de nuevo. " +
                       "Pensado para que el frontend lo llame solo cuando el access token venció, en vez de " +
                       "desloguear al usuario de una."
     )
@@ -191,11 +197,11 @@ public class AuthController {
             }
 
             Instant ahora = Instant.now();
-            Instant expiraEn = ahora.plus(Duration.ofHours(tokenTtlHours));
-            String token = mintToken(u.getUsername(), "ROLE_" + u.getRol().name(), ahora, expiraEn, null);
+            Instant expiraEn = ahora.plus(Duration.ofMinutes(tokenTtlMinutes));
+            String token = mintAccessToken(u, ahora, expiraEn);
 
             return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, sessionCookie(token, Duration.ofHours(tokenTtlHours)).toString())
+                .header(HttpHeaders.SET_COOKIE, sessionCookie(token, Duration.ofMinutes(tokenTtlMinutes)).toString())
                 .body(Map.of(
                     "rol", u.getRol().name(),
                     "expiraEn", expiraEn.toEpochMilli(),
@@ -215,7 +221,18 @@ public class AuthController {
             .body(Map.of("error", "Tu sesión expiró. Iniciá sesión de nuevo."));
     }
 
-    private String mintToken(String subject, String roles, Instant issuedAt, Instant expiresAt, String typ) {
+    /**
+     * Access token con el rol actual del usuario en la base. Si tiene una
+     * contraseña temporal pendiente, lleva el claim {@link #CLAIM_PASSWORD_TEMPORAL}:
+     * con él, el backend solo le deja usar su perfil hasta que la cambie.
+     */
+    private String mintAccessToken(Usuario u, Instant issuedAt, Instant expiresAt) {
+        return mintToken(u.getUsername(), "ROLE_" + u.getRol().name(), issuedAt, expiresAt, null,
+            u.isDebeCambiarPassword());
+    }
+
+    private String mintToken(String subject, String roles, Instant issuedAt, Instant expiresAt, String typ,
+                             boolean passwordTemporal) {
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
             .issuer(issuer)
             .issuedAt(issuedAt)
@@ -223,6 +240,7 @@ public class AuthController {
             .subject(subject);
         if (roles != null) claims.claim("roles", roles);
         if (typ != null) claims.claim("typ", typ);
+        if (passwordTemporal) claims.claim(CLAIM_PASSWORD_TEMPORAL, true);
         return jwtEncoder.encode(JwtEncoderParameters.from(claims.build())).getTokenValue();
     }
 
@@ -343,10 +361,10 @@ public class AuthController {
     }
 
     @Operation(
-        summary = "Listar todos los usuarios (requiere ADMIN)",
+        summary = "Listar todos los usuarios (ADMIN o ADMINISTRATIVO, solo lectura)",
         description = "Devuelve la lista completa de usuarios registrados en el sistema, " +
                       "incluyendo su estado (habilitado / pendiente de aprobación) y rol. " +
-                      "Requiere rol ADMIN (Bearer JWT)."
+                      "Requiere rol ADMIN o ADMINISTRATIVO (lo usa Finanzas → Sueldos); modificarlos es solo del ADMIN."
     )
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Lista de usuarios devuelta correctamente",
@@ -574,10 +592,16 @@ public class AuthController {
     public ResponseEntity<?> cambiarMiPassword(@Valid @RequestBody CambioPasswordRequest request,
                                                @AuthenticationPrincipal Jwt jwt) {
         try {
-            usuarioService.cambiarPassword(jwt.getSubject(), request.actual(), request.nueva());
+            Usuario u = usuarioService.cambiarPassword(jwt.getSubject(), request.actual(), request.nueva());
             auditoriaService.registrar(jwt.getSubject(), "EDITAR", "Cambio de contraseña propia",
                 "Usuario " + jwt.getSubject(), "Contraseña actualizada por el usuario");
-            return ResponseEntity.ok(Map.of("mensaje", "Contraseña actualizada correctamente."));
+            // Sesión nueva sin la marca de contraseña temporal: la anterior la
+            // tenía y el backend la seguiría limitando a su perfil hasta vencer.
+            Instant ahora = Instant.now();
+            String token = mintAccessToken(u, ahora, ahora.plus(Duration.ofMinutes(tokenTtlMinutes)));
+            return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, sessionCookie(token, Duration.ofMinutes(tokenTtlMinutes)).toString())
+                .body(Map.of("mensaje", "Contraseña actualizada correctamente."));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", e.getMessage()));
         } catch (RuntimeException e) {

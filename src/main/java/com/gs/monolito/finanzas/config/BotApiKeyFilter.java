@@ -20,12 +20,16 @@ import java.util.Set;
  * pago automático (el bot no tiene JWT). Aplica solo a
  * {@code /sueldos/pago-automatico} y {@code /sueldos/pago-efectivo}; el resto
  * de la API sigue protegido por JWT normal.
+ *
+ * <p>Deja un principal con ROLE_BOT (antes era ROLE_ADMIN: la key del bot daba
+ * todos los permisos del administrador durante esa request) y compara la ruta
+ * exacta (antes alcanzaba con que la URL <em>terminara</em> en una de ellas).</p>
  */
 @Component
 public class BotApiKeyFilter extends OncePerRequestFilter {
 
     private static final String HEADER = "X-Bot-Api-Key";
-    private static final Set<String> RUTAS_BOT = Set.of(
+    static final Set<String> RUTAS_BOT = Set.of(
             "/api/finanzas/sueldos/pago-automatico",
             "/api/finanzas/sueldos/pago-efectivo");
 
@@ -36,20 +40,16 @@ public class BotApiKeyFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
-        if (esRutaBot(request.getRequestURI())) {
+        if (RUTAS_BOT.contains(request.getRequestURI())) {
             String key = request.getHeader(HEADER);
             if (claveValida(key)) {
                 var auth = new UsernamePasswordAuthenticationToken(
                         "gs-bot", null,
-                        List.of(new SimpleGrantedAuthority("ROLE_ADMIN")));
+                        List.of(new SimpleGrantedAuthority("ROLE_BOT")));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
         chain.doFilter(request, response);
-    }
-
-    private boolean esRutaBot(String uri) {
-        return RUTAS_BOT.stream().anyMatch(uri::endsWith);
     }
 
     /**

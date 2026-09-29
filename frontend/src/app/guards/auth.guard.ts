@@ -5,7 +5,7 @@ import { catchError, map } from 'rxjs/operators';
 import { AuthService } from '../services/auth';
 
 /**
- * La pista local de expiración puede decir "vencido" (access token de 12hs)
+ * La pista local de expiración puede decir "vencido" (access token de 30 min)
  * mientras la cookie de refresh (30 días) todavía sirve — típico: alguien
  * reabre una pestaña vieja al otro día. Antes de mandar al login de una,
  * probamos renovar en silencio.

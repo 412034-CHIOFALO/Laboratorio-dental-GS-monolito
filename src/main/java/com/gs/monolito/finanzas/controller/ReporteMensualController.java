@@ -37,7 +37,7 @@ public class ReporteMensualController {
                description = "Devuelve los reportes ordenados del más reciente al más antiguo.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Listado obtenido"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping
     public ResponseEntity<List<ReporteMensualResponse>> listar() {
@@ -49,7 +49,7 @@ public class ReporteMensualController {
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Reporte generado y archivado"),
         @ApiResponse(responseCode = "422", description = "Mes inválido o almacenamiento no disponible"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @PostMapping("/generar")
     public ResponseEntity<ReporteMensualResponse> generar(
@@ -64,7 +64,7 @@ public class ReporteMensualController {
         @ApiResponse(responseCode = "200", description = "PDF servido correctamente"),
         @ApiResponse(responseCode = "422", description = "Reporte inexistente"),
         @ApiResponse(responseCode = "503", description = "MinIO no disponible — no se pudo obtener el archivo"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/{id}/archivo")
     public ResponseEntity<InputStreamResource> archivo(

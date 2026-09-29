@@ -80,6 +80,14 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
           return reintentarConRefresh(req, next, auth, router, notif);
 
         case 403:
+          // Contraseña temporal pendiente: el backend solo deja usar el perfil
+          // (ver PasswordTemporalInterceptor). No es "sin permisos" — lo llevamos
+          // a cambiarla. Llega también desde requests de fondo (campanita, etc.).
+          if ((err.error as { codigo?: string } | null)?.codigo === 'DEBE_CAMBIAR_PASSWORD') {
+            auth.saveDebeCambiarPassword(true);
+            router.navigate(['/dashboard/mi-perfil'], { queryParams: { obligatorio: '1' } });
+            break;
+          }
           notif.error('No tenés permiso para esa acción.', 'Sin permisos');
           router.navigate(['/sin-permisos']);
           break;

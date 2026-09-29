@@ -9,55 +9,46 @@ import com.gs.monolito.common.security.SecurityHeaders;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.AccountExpiredException;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.CredentialsExpiredException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.AuthorizationGrantType;
-import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
-import org.springframework.security.oauth2.core.oidc.OidcScopes;
-import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
-import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
-import org.springframework.security.oauth2.server.authorization.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration;
-import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
-import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
-import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
-import java.util.UUID;
-
 /**
  * Security del módulo auth. Antes eran 5 SecurityConfig, uno por microservicio,
  * cada uno dueño de todo su propio filtro; acá cada módulo aporta sus propios
- * `@Order`-ed `SecurityFilterChain` con `.securityMatcher(...)`, igual al
- * patrón que YA usaba ms-auth internamente con sus 2 chains (Authorization
- * Server + Resource Server) — se extiende ese mismo patrón, no se inventa uno
- * nuevo. El `JwtAuthenticationConverter`/`RSAKey`/`JwtDecoder`/`JwtEncoder` se
- * comparten desde {@link com.gs.monolito.common.security.JwtBeans}.
+ * `@Order`-ed `SecurityFilterChain` con `.securityMatcher(...)`. El
+ * `JwtAuthenticationConverter`/`RSAKey`/`JwtDecoder`/`JwtEncoder` se comparten
+ * desde {@link com.gs.monolito.common.security.JwtBeans}.
  *
  * Cambios respecto al SecurityConfig original de ms-auth:
  * - `securityMatcher("/api/auth/**")` explícito en la chain de negocio, para
- *   no interceptar rutas de otros módulos a medida que se agreguen (Etapa 2+).
+ *   no interceptar rutas de otros módulos.
  * - Se eliminó `InternalApiKeyFilter` y la regla de `/api/auth/auditoria/ingest`
  *   (ROLE_INTERNAL) — sin uso: ningún otro módulo llama más por HTTP a esa
  *   ingesta, ahora es una llamada directa a AuditoriaService en el mismo proceso.
  * - Se eliminó la regla de `/h2-console/**` y el `frameOptions` asociado — el
  *   monolito no usa H2, siempre MySQL (ver application.properties).
- * - CORS sigue disabled por ahora (antes lo manejaba únicamente el gateway);
- *   se agrega un `CorsConfigurationSource` compartido recién en la Etapa 7,
- *   cuando se conecte el frontend real.
+ * - Se eliminó el Authorization Server OAuth2 (chain de /oauth2/**, OIDC y el
+ *   client "gs-frontend" con su secreto escrito en el código): nadie lo usaba
+ *   — el login real es /api/auth/login — y exponía endpoints con un secreto
+ *   que, con el repo público, era público también.
+ * - CORS disabled: frontend y API comparten origen detrás de nginx.
  */
 @Configuration
 @EnableWebSecurity
@@ -70,21 +61,7 @@ public class AuthSecurityConfig {
         this.userDetailsService = userDetailsService;
     }
 
-    // 1. Filtro del Servidor de Autorización OAuth2 (flujo OIDC estándar)
-    @Bean
-    @Order(1)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
-        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
-        http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-            .oidc(Customizer.withDefaults());
-        http.exceptionHandling(ex -> ex
-            .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint("/login"))
-        ).oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
-        http.headers(SecurityHeaders::aplicar);
-        return http.build();
-    }
-
-    // 2. Endpoints de negocio de /api/auth/** — login abierto, register/usuarios por rol
+    // Endpoints de negocio de /api/auth/** — login abierto, gestión de usuarios por rol
     @Bean
     @Order(2)
     public SecurityFilterChain authDomainSecurityFilterChain(HttpSecurity http,
@@ -128,6 +105,7 @@ public class AuthSecurityConfig {
                 // Chequeo que usa nginx (auth_request) antes de dejar pasar algo a
                 // /api/bot/** — mismos roles que ven la pantalla "Bot WhatsApp".
                 .requestMatchers(BotAccesoController.RUTA).hasAnyRole("ADMIN", "ADMINISTRATIVO")
+                // /me, /me/password, /me/aceptar-terminos: cualquier usuario logueado
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
@@ -142,40 +120,31 @@ public class AuthSecurityConfig {
 
     @Bean
     public AuthenticationManager authenticationManager() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder());
-        return new ProviderManager(provider);
-    }
-
-    @Bean
-    public AuthorizationServerSettings authorizationServerSettings() {
-        return AuthorizationServerSettings.builder().build();
+        return new ProviderManager(proveedorLogin(userDetailsService, passwordEncoder()));
     }
 
     /**
-     * RegisteredClientRepository requerido por OAuth2AuthorizationServerConfiguration
-     * aunque el login principal sea el custom /api/auth/login. Sin uso real hoy,
-     * queda disponible por si el frontend migra al flow OIDC estándar.
+     * Proveedor de login que verifica la contraseña ANTES del estado de la cuenta.
+     *
+     * <p>Por default Spring chequea "deshabilitada/bloqueada" antes de mirar la
+     * contraseña: probando usuarios al azar con cualquier clave, la respuesta
+     * distinta ("cuenta desactivada" vs "usuario o contraseña incorrectos")
+     * revelaba qué cuentas existen. Moviendo esos chequeos a después, quien no
+     * sabe la contraseña siempre recibe el mismo "incorrectos".</p>
+     *
+     * <p>Package-private para testearlo sin levantar el contexto.</p>
      */
-    @Bean
-    public RegisteredClientRepository registeredClientRepository(PasswordEncoder passwordEncoder) {
-        RegisteredClient frontendClient = RegisteredClient.withId(UUID.randomUUID().toString())
-            .clientId("gs-frontend")
-            .clientSecret(passwordEncoder.encode("gs-frontend-secret"))
-            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-            .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
-            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-            .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-            .redirectUri("http://localhost:4200/login/oauth2/code/gs")
-            .redirectUri("http://localhost/login/oauth2/code/gs")
-            .scope(OidcScopes.OPENID)
-            .scope(OidcScopes.PROFILE)
-            .clientSettings(ClientSettings.builder()
-                .requireAuthorizationConsent(false)
-                .requireProofKey(true)
-                .build())
-            .build();
-        return new InMemoryRegisteredClientRepository(frontendClient);
+    static DaoAuthenticationProvider proveedorLogin(UserDetailsService uds, PasswordEncoder encoder) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(uds);
+        provider.setPasswordEncoder(encoder);
+        provider.setPreAuthenticationChecks(user -> { });
+        provider.setPostAuthenticationChecks(user -> {
+            if (!user.isAccountNonLocked())      throw new LockedException("Cuenta bloqueada");
+            if (!user.isEnabled())               throw new DisabledException("Cuenta deshabilitada");
+            if (!user.isAccountNonExpired())     throw new AccountExpiredException("Cuenta vencida");
+            if (!user.isCredentialsNonExpired()) throw new CredentialsExpiredException("Credenciales vencidas");
+        });
+        return provider;
     }
 }

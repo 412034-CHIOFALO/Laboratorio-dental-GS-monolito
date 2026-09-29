@@ -55,14 +55,17 @@ public class PedidosSecurityConfig {
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO", "TECNICO")
                 .requestMatchers(HttpMethod.DELETE, "/api/pedidos/*/escaneos/**")
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO", "TECNICO")
+                // ODONTOLOGO no sube ni crea nada por ahora: sin portal propio ni
+                // vínculo usuario→odontólogo, podía crear pedidos a nombre de
+                // cualquier odontólogo y subir archivos a pedidos ajenos.
                 .requestMatchers(HttpMethod.POST, "/api/pedidos/*/docs/**")
-                    .hasAnyRole("ADMIN", "ADMINISTRATIVO", "TECNICO", "ODONTOLOGO")
+                    .hasAnyRole("ADMIN", "ADMINISTRATIVO", "TECNICO")
                 // Lectura de pedidos — ADMIN, ADMINISTRATIVO, TECNICO
                 .requestMatchers(HttpMethod.GET, "/api/pedidos/**")
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO", "TECNICO")
-                // Crear pedido — ADMIN, ADMINISTRATIVO, ODONTOLOGO
+                // Crear pedido — ADMIN, ADMINISTRATIVO
                 .requestMatchers(HttpMethod.POST, "/api/pedidos/**")
-                    .hasAnyRole("ADMIN", "ADMINISTRATIVO", "ODONTOLOGO")
+                    .hasAnyRole("ADMIN", "ADMINISTRATIVO")
                 // Actualizar pedido completo — ADMIN, ADMINISTRATIVO
                 .requestMatchers(HttpMethod.PUT, "/api/pedidos/**")
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO")
@@ -82,7 +85,8 @@ public class PedidosSecurityConfig {
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO")
                 // Desactivar odontólogo — solo ADMIN
                 .requestMatchers(HttpMethod.DELETE, "/api/odontologos/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
+                // Fail-closed: lo que no tenga regla explícita arriba, se rechaza.
+                .anyRequest().denyAll()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))

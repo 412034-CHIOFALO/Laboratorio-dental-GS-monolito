@@ -20,10 +20,9 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 /**
- * Security de /api/finanzas/**. Conserva el {@link BotApiKeyFilter} (el bot no
- * tiene JWT) y el `permitAll` explícito de las dos rutas de pago del bot, que
- * antes lo garantizaba el gateway antes de llegar acá — ahora que no hay
- * gateway, hace falta declararlo en esta misma chain.
+ * Security de /api/finanzas/**. Las dos rutas de pago del bot se autentican con
+ * {@link BotApiKeyFilter} (el bot no tiene JWT), que deja un principal con
+ * ROLE_BOT — un rol que solo sirve para esas dos rutas, nada más.
  */
 @Configuration
 @EnableWebSecurity
@@ -57,17 +56,16 @@ public class FinanzasSecurityConfig {
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // El bot se autentica por API key (header X-Bot-Api-Key) antes del JWT.
-            // BotApiKeyFilter corre antes de esta authorization check y, si la key
-            // coincide, deja un principal ROLE_ADMIN ya autenticado en el contexto
-            // — por eso pago-automatico puede pedir hasRole("ADMIN") normal (nunca
-            // dependió del gateway para esto) y pago-efectivo ni siquiera necesita
-            // una regla explícita, cae en anyRequest().authenticated() más abajo.
+            // El bot se autentica por API key (header X-Bot-Api-Key) antes del JWT:
+            // si la key coincide, BotApiKeyFilter deja un principal ROLE_BOT. Sus
+            // dos rutas van primero y SOLO aceptan ROLE_BOT (el panel no las usa);
+            // y ROLE_BOT no matchea ninguna otra regla de abajo, así que la key
+            // del bot no sirve para nada más.
             .addFilterBefore(botApiKeyFilter, BearerTokenAuthenticationFilter.class)
             .addFilterBefore(jwtCookieAuthenticationFilter, BearerTokenAuthenticationFilter.class)
             .headers(SecurityHeaders::aplicar)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.POST, "/api/finanzas/sueldos/pago-automatico").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, BotApiKeyFilter.RUTAS_BOT.toArray(String[]::new)).hasRole("BOT")
                 .requestMatchers("/api/finanzas/cajas/**").hasAnyRole("ADMIN", "ADMINISTRATIVO")
                 .requestMatchers("/api/finanzas/reportes/**").hasAnyRole("ADMIN", "ADMINISTRATIVO")
                 .requestMatchers("/api/finanzas/sueldos/**").hasAnyRole("ADMIN", "ADMINISTRATIVO")
@@ -82,7 +80,8 @@ public class FinanzasSecurityConfig {
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO")
                 .requestMatchers(HttpMethod.POST, "/api/finanzas/odontologos/*/pagos")
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO")
-                .anyRequest().authenticated()
+                // Fail-closed: lo que no tenga regla explícita arriba, se rechaza.
+                .anyRequest().denyAll()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))

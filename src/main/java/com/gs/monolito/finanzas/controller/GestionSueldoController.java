@@ -47,7 +47,7 @@ public class GestionSueldoController {
                description = "Devuelve todos los integrantes del laboratorio con su configuración de sueldo actual (frecuencia, monto base) y el saldo devengado pendiente de pago.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Listado de empleados obtenido"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/empleados")
     public ResponseEntity<List<EmpleadoSueldoResponse>> listarEmpleados() {
@@ -74,7 +74,7 @@ public class GestionSueldoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Empleado encontrado"),
         @ApiResponse(responseCode = "404", description = "Empleado no encontrado"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/empleados/{usuarioId}")
     public ResponseEntity<EmpleadoSueldoResponse> buscarEmpleado(
@@ -89,7 +89,7 @@ public class GestionSueldoController {
         @ApiResponse(responseCode = "200", description = "Configuración guardada correctamente"),
         @ApiResponse(responseCode = "400", description = "Datos del request inválidos"),
         @ApiResponse(responseCode = "404", description = "Empleado no encontrado"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @PutMapping("/empleados/{usuarioId}/config")
     public ResponseEntity<EmpleadoSueldoResponse> guardarConfig(
@@ -104,7 +104,7 @@ public class GestionSueldoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Devengado ajustado correctamente"),
         @ApiResponse(responseCode = "404", description = "Empleado no encontrado"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @PatchMapping("/empleados/{usuarioId}/devengado")
     public ResponseEntity<EmpleadoSueldoResponse> ajustarDevengado(
@@ -123,7 +123,7 @@ public class GestionSueldoController {
                              "esperar al cron diario (00:05). Es idempotente. Pensado para testing/demos.")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Devengado recalculado"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @PostMapping("/devengar-ahora")
     public ResponseEntity<Void> devengarAhora() {
@@ -137,7 +137,7 @@ public class GestionSueldoController {
         @ApiResponse(responseCode = "201", description = "Pago registrado correctamente"),
         @ApiResponse(responseCode = "400", description = "Datos del request inválidos"),
         @ApiResponse(responseCode = "404", description = "Empleado no encontrado"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @PostMapping("/pago")
     public ResponseEntity<PagoSueldoResponse> registrarPago(@Valid @RequestBody PagoSueldoRequest req) {
@@ -181,7 +181,7 @@ public class GestionSueldoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Historial obtenido"),
         @ApiResponse(responseCode = "404", description = "Empleado no encontrado"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/empleados/{usuarioId}/pagos")
     public ResponseEntity<List<PagoSueldoResponse>> historialPagos(
@@ -194,7 +194,7 @@ public class GestionSueldoController {
                description = "Lista todos los pagos registrados (manuales y del bot) de todos los empleados, ordenados por fecha descendente.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Historial global obtenido"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/pagos")
     public ResponseEntity<List<PagoSueldoResponse>> historialGlobal() {
@@ -206,7 +206,7 @@ public class GestionSueldoController {
                    + "y propone asignar lo que sobra a la caja indicada. Es solo un cálculo: no registra nada.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Distribución sugerida calculada"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/cascada/sugerir")
     public ResponseEntity<DistribucionCascadaResponse> sugerirCascada(
@@ -222,7 +222,7 @@ public class GestionSueldoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Archivo servido correctamente"),
         @ApiResponse(responseCode = "404", description = "Pago no encontrado o sin comprobante"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/pagos/{pagoId}/comprobante/archivo")
     public ResponseEntity<InputStreamResource> archivoComprobante(
@@ -235,7 +235,7 @@ public class GestionSueldoController {
                description = "Lista TODO lo que el bot procesó: pagos de sueldo exitosos, pagos a proveedores, rechazos por receptor desconocido y duplicados.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Registros del bot obtenidos"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/registros-bot")
     public ResponseEntity<List<RegistroPagoBotResponse>> registrosBot() {
@@ -247,7 +247,7 @@ public class GestionSueldoController {
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Archivo servido correctamente"),
         @ApiResponse(responseCode = "404", description = "Registro no encontrado o sin comprobante"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
+        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @GetMapping("/registros-bot/{registroId}/comprobante/archivo")
     public ResponseEntity<InputStreamResource> archivoComprobanteRegistro(

@@ -56,7 +56,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         controller = new AuthController(jwtEncoder, jwtDecoder, authenticationManager, usuarioService, auditoriaService);
-        ReflectionTestUtils.setField(controller, "tokenTtlHours", 12L);
+        ReflectionTestUtils.setField(controller, "tokenTtlMinutes", 30L);
         ReflectionTestUtils.setField(controller, "refreshTtlDays", 30L);
         ReflectionTestUtils.setField(controller, "issuer", "http://test-issuer");
         ReflectionTestUtils.setField(controller, "cookieSecure", true);
@@ -198,6 +198,49 @@ class AuthControllerTest {
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         verifyNoInteractions(jwtEncoder);
+    }
+
+    // ── contraseña temporal y duración de sesión ───────────────
+
+    @Test
+    void loginConPasswordTemporal_marcaLaSesionYDuraTreintaMinutos() {
+        UsernamePasswordAuthenticationToken authOk = new UsernamePasswordAuthenticationToken(
+                "tecnico1", "temporal", List.of(new SimpleGrantedAuthority("ROLE_TECNICO")));
+        when(authenticationManager.authenticate(any())).thenReturn(authOk);
+        when(usuarioService.buscarPorUsername("tecnico1")).thenReturn(Usuario.builder()
+                .username("tecnico1").rol(Rol.TECNICO).terminosAceptados(true).debeCambiarPassword(true).build());
+        Jwt jwtMock = mock(Jwt.class);
+        when(jwtMock.getTokenValue()).thenReturn("token");
+        org.mockito.ArgumentCaptor<org.springframework.security.oauth2.jwt.JwtEncoderParameters> params =
+                org.mockito.ArgumentCaptor.forClass(org.springframework.security.oauth2.jwt.JwtEncoderParameters.class);
+        when(jwtEncoder.encode(params.capture())).thenReturn(jwtMock);
+
+        ResponseEntity<?> resp = controller.login(new AuthController.LoginRequest("tecnico1", "temporal"), httpRequest);
+
+        var accessClaims = params.getAllValues().get(0).getClaims();
+        assertThat(accessClaims.getClaims()).containsEntry(AuthController.CLAIM_PASSWORD_TEMPORAL, true);
+        assertThat(java.time.Duration.between(accessClaims.getIssuedAt(), accessClaims.getExpiresAt()))
+                .isEqualTo(java.time.Duration.ofMinutes(30));
+        assertThat(resp.getHeaders().getFirst(HttpHeaders.SET_COOKIE)).contains("Max-Age=1800");
+    }
+
+    @Test
+    void cambiarPassword_entregaUnaSesionNuevaSinLaMarcaTemporal() {
+        when(usuarioService.cambiarPassword("tecnico1", "temporal", "nueva-clave")).thenReturn(Usuario.builder()
+                .username("tecnico1").rol(Rol.TECNICO).debeCambiarPassword(false).build());
+        Jwt jwtMock = mock(Jwt.class);
+        when(jwtMock.getTokenValue()).thenReturn("token-limpio");
+        org.mockito.ArgumentCaptor<org.springframework.security.oauth2.jwt.JwtEncoderParameters> params =
+                org.mockito.ArgumentCaptor.forClass(org.springframework.security.oauth2.jwt.JwtEncoderParameters.class);
+        when(jwtEncoder.encode(params.capture())).thenReturn(jwtMock);
+
+        ResponseEntity<?> resp = controller.cambiarMiPassword(
+                new AuthController.CambioPasswordRequest("temporal", "nueva-clave"), jwtCon("tecnico1", "ROLE_TECNICO"));
+
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resp.getHeaders().getFirst(HttpHeaders.SET_COOKIE))
+                .contains(JwtCookieAuthenticationFilter.COOKIE_NAME + "=token-limpio");
+        assertThat(params.getValue().getClaims().getClaims()).doesNotContainKey(AuthController.CLAIM_PASSWORD_TEMPORAL);
     }
 
     // ── gestión de usuarios: exclusiva del ADMIN ───────────────

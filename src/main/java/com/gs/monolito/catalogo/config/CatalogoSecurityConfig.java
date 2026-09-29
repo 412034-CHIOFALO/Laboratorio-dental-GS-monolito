@@ -55,7 +55,8 @@ public class CatalogoSecurityConfig {
                 .requestMatchers(HttpMethod.POST,   "/api/catalogo/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PUT,    "/api/catalogo/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/catalogo/**").hasRole("ADMIN")
-                .anyRequest().authenticated()
+                // Fail-closed: lo que no tenga regla explícita arriba, se rechaza.
+                .anyRequest().denyAll()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))

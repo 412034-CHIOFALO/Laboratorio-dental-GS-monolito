@@ -50,9 +50,14 @@ public class StockSecurityConfig {
                     .hasAnyRole("ADMIN", "TECNICO")
                 .requestMatchers(HttpMethod.POST, "/api/stock/**")
                     .hasRole("ADMIN")
+                // Faltaba: PUT caía en anyRequest().authenticated() y cualquier rol
+                // (TECNICO, ODONTOLOGO) podía editar materiales y stock mínimo.
+                .requestMatchers(HttpMethod.PUT, "/api/stock/**")
+                    .hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/stock/**")
                     .hasRole("ADMIN")
-                .anyRequest().authenticated()
+                // Fail-closed: lo que no tenga regla explícita arriba, se rechaza.
+                .anyRequest().denyAll()
             )
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
