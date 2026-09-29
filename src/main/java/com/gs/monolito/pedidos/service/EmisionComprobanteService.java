@@ -63,6 +63,19 @@ public class EmisionComprobanteService {
     }
 
     /**
+     * Cuando se corrige el odontólogo de un pedido que ya tiene deuda, la deuda
+     * lo sigue (antes quedaba a nombre del anterior). A diferencia del monto,
+     * NO es best-effort: si no se puede (la deuda ya tiene pagos), la edición
+     * del pedido tiene que fallar, no quedar inconsistente.
+     *
+     * @return false si la deuda ya tiene pagos imputados y no se reasignó.
+     */
+    public boolean reasignarOdontologoSiCorresponde(Pedido pedido, Long odontologoId, String odontologoNombre) {
+        if (!pedido.isComprobanteGenerado()) return true;
+        return finanzasService.reasignarOdontologoPorPedido(pedido.getId(), odontologoId, odontologoNombre);
+    }
+
+    /**
      * Sincroniza el monto del comprobante cuando se edita "monto a facturar" de
      * un pedido YA entregado. No hace nada si el pedido no tiene comprobante
      * todavía. Best-effort: si finanzas lanza una excepción, no bloquea la

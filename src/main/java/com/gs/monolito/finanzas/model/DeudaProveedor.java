@@ -24,6 +24,10 @@ public class DeudaProveedor {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Bloqueo optimista: dos ediciones simultáneas no se pisan (ver V3__version_bloqueo_optimista.sql). */
+    @Version
+    private Long version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "proveedor_id", nullable = false)
     private Proveedor proveedor;

@@ -98,23 +98,6 @@ public class FinanzasService implements IFinanzasService {
         return ComprobanteResponse.from(repository.save(c));
     }
 
-    @Override
-    @Transactional
-    public ComprobanteResponse registrarCobro(Long id) {
-        Comprobante c = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Comprobante", id));
-        if (c.getEstadoPago() == EstadoPago.COBRADO) {
-            throw new BusinessException("El comprobante ya fue cobrado");
-        }
-        c.setEstadoPago(EstadoPago.COBRADO);
-        c.setMontoPagado(c.getMonto());
-        c.setFechaCobro(LocalDate.now());
-        ComprobanteResponse resp = ComprobanteResponse.from(repository.save(c));
-        auditoria.registrar(CurrentUser.usernameOrSistema(), "COBRO", "Comprobante cobrado", "Comprobante " + c.getNroComprobante(),
-                "Odontólogo " + c.getOdontologoNombre() + " · $" + c.getMonto());
-        return resp;
-    }
-
     /**
      * Sincroniza el monto del comprobante cuando se corrige el precio de un
      * pedido YA entregado. No permite bajar el monto por debajo de lo ya
@@ -139,6 +122,27 @@ public class FinanzasService implements IFinanzasService {
             }
             repository.save(c);
         });
+    }
+
+    /**
+     * Pasa la deuda de un pedido a otro odontólogo, cuando se corrige el
+     * odontólogo de un pedido ya entregado. Solo si la deuda no tiene pagos
+     * imputados: reasignarla movería plata ya cobrada de una cuenta a otra.
+     * No lanza (devuelve false) para no marcar la transacción del que llama.
+     *
+     * @return true si no había deuda o se reasignó; false si ya tiene pagos.
+     */
+    @Override
+    @Transactional
+    public boolean reasignarOdontologoPorPedido(Long pedidoId, Long odontologoId, String odontologoNombre) {
+        Optional<Comprobante> comprobante = repository.findByPedidoId(pedidoId);
+        if (comprobante.isEmpty()) return true;
+        Comprobante c = comprobante.get();
+        if (c.getMontoPagado() != null && c.getMontoPagado().signum() > 0) return false;
+        c.setOdontologoId(odontologoId);
+        c.setOdontologoNombre(odontologoNombre);
+        repository.save(c);
+        return true;
     }
 
     /**
@@ -188,12 +192,15 @@ public class FinanzasService implements IFinanzasService {
 
         TipoCaja caja = req.medio() == MedioPago.TRANSFERENCIA ? TipoCaja.BANCARIA : TipoCaja.FISICA;
         if (imputado.compareTo(BigDecimal.ZERO) > 0) {
+            // Con la fecha DEL PAGO, no la de hoy: un pago del lunes cargado el
+            // miércoles tiene que aparecer en el cierre del lunes.
             cajaRepo.save(CajaMovimiento.builder()
                     .tipo(TipoMovimientoCaja.INGRESO)
                     .tipoCaja(caja)
                     .concepto("Cobro cuenta corriente: " + nombre)
                     .monto(imputado)
-                    .creadoPor("panel")
+                    .fechaMovimiento(fecha)
+                    .creadoPor(CurrentUser.usernameOrSistema())
                     .build());
         }
 

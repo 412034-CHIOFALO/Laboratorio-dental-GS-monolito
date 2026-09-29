@@ -6,6 +6,7 @@ import com.gs.monolito.catalogo.dto.TipoTrabajoResponse;
 import com.gs.monolito.catalogo.model.Categoria;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Contrato de la capa de servicio para la gestión del catálogo de tipos de trabajo dental.
@@ -22,6 +23,9 @@ public interface ITipoTrabajoService {
     List<TipoTrabajoResponse> buscarPorNombre(String nombre);
 
     TipoTrabajoResponse buscarPorId(Long id);
+
+    /** Como buscarPorId, pero vacío en vez de lanzar si no existe (ver ConsumoStockService). */
+    Optional<TipoTrabajoResponse> buscarOpcional(Long id);
 
     TipoTrabajoResponse crear(TipoTrabajoRequest request);
 

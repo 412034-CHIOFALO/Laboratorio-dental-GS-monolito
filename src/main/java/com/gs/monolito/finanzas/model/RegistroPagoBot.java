@@ -24,6 +24,10 @@ public class RegistroPagoBot {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Bloqueo optimista: dos ediciones simultáneas no se pisan (ver V3__version_bloqueo_optimista.sql). */
+    @Version
+    private Long version;
+
     @Column(name = "fecha_hora", nullable = false, updatable = false)
     private LocalDateTime fechaHora;
 

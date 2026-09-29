@@ -74,8 +74,6 @@ public class FinanzasSecurityConfig {
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO")
                 .requestMatchers(HttpMethod.POST, "/api/finanzas/comprobantes")
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO")
-                .requestMatchers(HttpMethod.PATCH, "/api/finanzas/comprobantes/*/cobrar")
-                    .hasRole("ADMIN")
                 .requestMatchers(HttpMethod.PATCH, "/api/finanzas/comprobantes/pedido/*/monto")
                     .hasAnyRole("ADMIN", "ADMINISTRATIVO")
                 .requestMatchers(HttpMethod.POST, "/api/finanzas/odontologos/*/pagos")

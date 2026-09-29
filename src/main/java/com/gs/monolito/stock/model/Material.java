@@ -24,6 +24,10 @@ public class Material {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Bloqueo optimista: dos ediciones simultáneas no se pisan (ver V3__version_bloqueo_optimista.sql). */
+    @Version
+    private Long version;
+
     @Column(nullable = false, length = 200)
     private String nombre;
 

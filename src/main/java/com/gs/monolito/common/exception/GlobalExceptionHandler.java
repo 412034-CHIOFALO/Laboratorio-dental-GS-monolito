@@ -139,6 +139,17 @@ public class GlobalExceptionHandler {
             .body(ErrorResponse.of(409, "Conflict", ex.getMessage(), req.getRequestURI()));
     }
 
+    /** Dos escrituras simultáneas sobre el mismo registro (@Version, ver V3): la segunda no pisa, avisa. */
+    @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLock(org.springframework.dao.OptimisticLockingFailureException ex,
+                                                              HttpServletRequest req) {
+        log.warn("[GS] Conflicto de edición concurrente en {}: {}", req.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(ErrorResponse.of(409, "Conflict",
+                "Otra persona modificó este registro al mismo tiempo. Recargá la pantalla y volvé a intentar.",
+                req.getRequestURI()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, HttpServletRequest req) {
         log.error("[GS] Error inesperado en {}: {}", req.getRequestURI(), ex.getMessage(), ex);

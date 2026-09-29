@@ -7,6 +7,8 @@ import com.gs.monolito.pedidos.model.EstadoPedido;
 import com.gs.monolito.pedidos.model.Odontologo;
 import com.gs.monolito.pedidos.model.Pedido;
 import com.gs.monolito.pedidos.model.Prioridad;
+import com.gs.monolito.pedidos.repository.DocumentoPedidoRepository;
+import com.gs.monolito.pedidos.repository.EscaneosPedidoRepository;
 import com.gs.monolito.pedidos.repository.OdontologoRepository;
 import com.gs.monolito.pedidos.repository.PedidoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,13 +47,17 @@ class PedidoServiceTest {
     @Mock private NotificacionBotService notificacionBotService;
     @Mock private EmisionComprobanteService emisionComprobanteService;
     @Mock private AuditoriaService auditoria;
+    @Mock private DocumentoPedidoRepository documentoRepository;
+    @Mock private EscaneosPedidoRepository escaneosRepository;
+    @Mock private PedidosDocumentoStorageService documentoStorage;
 
     private PedidoService pedidoService;
 
     @BeforeEach
     void setUp() {
         pedidoService = new PedidoService(pedidoRepository, odontologoRepository, odontologoService,
-                consumoStockService, notificacionBotService, emisionComprobanteService, auditoria);
+                consumoStockService, notificacionBotService, emisionComprobanteService, auditoria,
+                documentoRepository, escaneosRepository, documentoStorage);
         ReflectionTestUtils.setField(pedidoService, "diasLimiteAtraso", 6);
         lenient().when(pedidoRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -92,13 +98,121 @@ class PedidoServiceTest {
     }
 
     @Test
-    void siYaEstabaEnProduccion_noVuelveADescontarStock() {
+    void dentroDeProduccion_reintentaElDescuento_queEsIdempotente() {
+        // Si el descuento quedó pendiente (receta con un material que no existe),
+        // se completa en el próximo movimiento. No descuenta dos veces: el flag
+        // stockConsumido lo chequea ConsumoStockService (ver su test).
         Pedido pedido = pedidoBase(EstadoPedido.EN_PROCESO);
         when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
 
         pedidoService.actualizarEstado(1L, EstadoPedido.CONTROL);
 
+        verify(consumoStockService).descontarSiCorresponde(pedido);
+    }
+
+    @Test
+    void volverARecibido_noIntentaDescontarStock() {
+        Pedido pedido = pedidoBase(EstadoPedido.EN_PROCESO);
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+
+        pedidoService.actualizarEstado(1L, EstadoPedido.RECIBIDO);
+
         verify(consumoStockService, never()).descontarSiCorresponde(any());
+        assertThat(pedido.getEstado()).isEqualTo(EstadoPedido.RECIBIDO);
+    }
+
+    // ── transiciones de estado ─────────────────────────────────
+
+    @Test
+    void pasarAEntregadoPorElKanban_seRechaza_porqueNoGeneraLaDeuda() {
+        Pedido pedido = pedidoBase(EstadoPedido.LISTO);
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+
+        assertThatThrownBy(() -> pedidoService.actualizarEstado(1L, EstadoPedido.ENTREGADO))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Registrar entrega");
+        verify(pedidoRepository, never()).save(any());
+    }
+
+    @Test
+    void entregadoYCancelado_sonEstadosFinales() {
+        Pedido entregado = pedidoBase(EstadoPedido.ENTREGADO);
+        Pedido cancelado = pedidoBase(EstadoPedido.CANCELADO);
+        cancelado.setId(2L);
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(entregado));
+        when(pedidoRepository.findById(2L)).thenReturn(Optional.of(cancelado));
+
+        assertThatThrownBy(() -> pedidoService.actualizarEstado(1L, EstadoPedido.RECIBIDO))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> pedidoService.actualizarEstado(1L, EstadoPedido.CANCELADO))
+                .isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> pedidoService.actualizarEstado(2L, EstadoPedido.EN_PROCESO))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void cancelarDesdeCualquierColumnaDelKanban_estaPermitido() {
+        Pedido pedido = pedidoBase(EstadoPedido.CONTROL);
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+
+        pedidoService.actualizarEstado(1L, EstadoPedido.CANCELADO);
+
+        assertThat(pedido.getEstado()).isEqualTo(EstadoPedido.CANCELADO);
+    }
+
+    // ── eliminar ───────────────────────────────────────────────
+
+    @Test
+    void eliminarUnPedidoConDeuda_oConStockDescontado_seRechaza() {
+        Pedido conDeuda = pedidoBase(EstadoPedido.ENTREGADO);
+        conDeuda.setComprobanteGenerado(true);
+        Pedido conStock = pedidoBase(EstadoPedido.EN_PROCESO);
+        conStock.setId(2L);
+        conStock.setStockConsumido(true);
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(conDeuda));
+        when(pedidoRepository.findById(2L)).thenReturn(Optional.of(conStock));
+
+        assertThatThrownBy(() -> pedidoService.eliminar(1L)).isInstanceOf(BusinessException.class);
+        assertThatThrownBy(() -> pedidoService.eliminar(2L)).isInstanceOf(BusinessException.class);
+        verify(pedidoRepository, never()).delete(any());
+    }
+
+    @Test
+    void eliminarUnPedidoSinMovimientos_borraSusArchivosYQuedaAuditado() {
+        Pedido pedido = pedidoBase(EstadoPedido.RECIBIDO);
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+        com.gs.monolito.pedidos.model.DocumentoPedido doc = com.gs.monolito.pedidos.model.DocumentoPedido.builder()
+                .id(7L).pedidoId(1L).objectKey("pedidos/1/orden.pdf").build();
+        when(documentoRepository.findByPedidoIdOrderByFechaSubidaDesc(1L)).thenReturn(java.util.List.of(doc));
+        when(escaneosRepository.findByPedidoIdOrderByFechaSubidaDesc(1L)).thenReturn(java.util.List.of());
+
+        pedidoService.eliminar(1L);
+
+        verify(documentoRepository).delete(doc);
+        verify(pedidoRepository).delete(pedido);
+        verify(documentoStorage).eliminar("pedidos/1/orden.pdf");
+        verify(auditoria).registrar(any(), eq("ELIMINAR"), any(), any(), any());
+    }
+
+    // ── editar: la deuda sigue al odontólogo ───────────────────
+
+    @Test
+    void cambiarElOdontologoDeUnPedidoConDeudaYaPagada_seRechaza() {
+        Pedido pedido = pedidoBase(EstadoPedido.ENTREGADO);
+        pedido.setComprobanteGenerado(true);
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+        when(odontologoService.buscarPorId(20L)).thenReturn(
+                new com.gs.monolito.pedidos.dto.OdontologoResponse(20L, "Dra. Gómez", null, null, null, null, null, null,
+                        null, true, null, null, null, false));
+        when(emisionComprobanteService.reasignarOdontologoSiCorresponde(pedido, 20L, "Dra. Gómez")).thenReturn(false);
+        com.gs.monolito.pedidos.dto.PedidoRequest req = new com.gs.monolito.pedidos.dto.PedidoRequest();
+        req.setOdontologoId(20L);
+        req.setPrecioAcordado(new BigDecimal("15000"));
+
+        assertThatThrownBy(() -> pedidoService.actualizar(1L, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("pagos");
+        assertThat(pedido.getOdontologoId()).isEqualTo(10L);
     }
 
     @Test

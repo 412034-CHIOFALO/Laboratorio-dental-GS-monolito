@@ -142,21 +142,6 @@ public class FinanzasController {
         java.math.BigDecimal monto
     ) {}
 
-    @Operation(summary = "Marca un comprobante como cobrado",
-               description = "Actualiza el estado del comprobante de PENDIENTE a COBRADO y registra la fecha de cobro.")
-    @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Comprobante marcado como cobrado"),
-        @ApiResponse(responseCode = "404", description = "Comprobante no encontrado"),
-        @ApiResponse(responseCode = "409", description = "El comprobante ya estaba cobrado"),
-        @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN")
-    })
-    @PatchMapping("/comprobantes/{id}/cobrar")
-    public ResponseEntity<ComprobanteResponse> registrarCobro(
-            @Parameter(description = "ID interno del comprobante a cobrar", required = true)
-            @PathVariable @Positive Long id) {
-        return ResponseEntity.ok(service.registrarCobro(id));
-    }
-
     @Operation(summary = "Ranking de odontólogos morosos",
                description = "Retorna una fila por odontólogo con deuda pendiente, ordenados de mayor a menor deuda.")
     @ApiResponses({

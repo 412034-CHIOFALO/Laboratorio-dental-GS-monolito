@@ -27,5 +27,8 @@ public interface IStockService {
 
     MaterialResponse registrarMovimiento(MovimientoRequest request);
 
+    /** ¿Existe el material (por nombre, o por id si el nombre no matchea)? No lanza excepciones. */
+    boolean existeMaterial(String nombre, Long id);
+
     void eliminar(Long id);
 }

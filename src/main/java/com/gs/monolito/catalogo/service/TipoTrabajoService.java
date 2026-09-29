@@ -65,6 +65,11 @@ public class TipoTrabajoService implements ITipoTrabajoService {
                 .orElseThrow(() -> new ResourceNotFoundException("TipoTrabajo", id));
     }
 
+    @Override
+    public java.util.Optional<TipoTrabajoResponse> buscarOpcional(Long id) {
+        return id == null ? java.util.Optional.empty() : repository.findById(id).map(TipoTrabajoResponse::from);
+    }
+
     @Transactional
     public TipoTrabajoResponse crear(TipoTrabajoRequest request) {
         TipoTrabajo t = TipoTrabajo.builder()

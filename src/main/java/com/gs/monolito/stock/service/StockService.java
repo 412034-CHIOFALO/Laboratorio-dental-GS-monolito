@@ -8,6 +8,7 @@ import com.gs.monolito.stock.dto.MovimientoRequest;
 import com.gs.monolito.stock.exception.ResourceNotFoundException;
 import com.gs.monolito.stock.model.Material;
 import com.gs.monolito.stock.model.MovimientoStock;
+import com.gs.monolito.stock.model.TipoMovimiento;
 import com.gs.monolito.stock.repository.MaterialRepository;
 import com.gs.monolito.stock.repository.MovimientoStockRepository;
 import lombok.RequiredArgsConstructor;
@@ -74,6 +75,7 @@ public class StockService implements IStockService {
     public MaterialResponse actualizar(Long id, MaterialRequest request) {
         Material m = materialRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Material", id));
+        double stockAnterior = m.getStockActual();
         m.setNombre(request.getNombre());
         m.setDescripcion(request.getDescripcion());
         m.setCategoria(request.getCategoria());
@@ -85,7 +87,24 @@ public class StockService implements IStockService {
         if (request.getDescuentaStock() != null) {
             m.setDescuentaStock(request.getDescuentaStock());
         }
-        return MaterialResponse.from(materialRepo.save(m));
+        Material guardado = materialRepo.save(m);
+
+        // Cambiar el stock editando el material también deja su movimiento
+        // (AJUSTE): antes lo pisaba sin rastro y el historial dejaba de cuadrar.
+        if (Double.compare(stockAnterior, guardado.getStockActual()) != 0) {
+            movimientoRepo.save(MovimientoStock.builder()
+                    .material(guardado)
+                    .tipo(TipoMovimiento.AJUSTE)
+                    .cantidad(guardado.getStockActual())
+                    .stockResultante(guardado.getStockActual())
+                    .motivo("Ajuste al editar el material (antes " + stockAnterior + ")")
+                    .build());
+        }
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "EDITAR", "Material editado", "Material " + guardado.getNombre(),
+                Double.compare(stockAnterior, guardado.getStockActual()) != 0
+                        ? "Stock " + stockAnterior + " → " + guardado.getStockActual() + " " + guardado.getUnidadMedida()
+                        : "Datos del material actualizados");
+        return MaterialResponse.from(guardado);
     }
 
     @Override
@@ -129,17 +148,30 @@ public class StockService implements IStockService {
      * silencio contra un material inexistente o equivocado.
      */
     private Material resolverMaterial(MovimientoRequest request) {
-        String nombre = request.getMaterialNombre();
+        return buscarMaterial(request.getMaterialNombre(), request.getMaterialId())
+                .orElseThrow(() -> new ResourceNotFoundException("Material", request.getMaterialId()));
+    }
+
+    private Optional<Material> buscarMaterial(String nombre, Long id) {
         if (nombre != null && !nombre.isBlank()) {
             Optional<Material> porNombre = materialRepo.findByNombreIgnoreCase(nombre.trim());
             if (porNombre.isPresent()) {
-                return porNombre.get();
+                return porNombre;
             }
-            log.warn("[GS-STOCK] No hay material con nombre '{}' — se intenta resolver por id={}.",
-                nombre, request.getMaterialId());
+            log.warn("[GS-STOCK] No hay material con nombre '{}' — se intenta resolver por id={}.", nombre, id);
         }
-        return materialRepo.findById(request.getMaterialId())
-                .orElseThrow(() -> new ResourceNotFoundException("Material", request.getMaterialId()));
+        return id == null ? Optional.empty() : materialRepo.findById(id);
+    }
+
+    /**
+     * Igual que la resolución de registrarMovimiento, pero sin lanzar: el
+     * descuento por receta lo usa para validar TODA la receta antes de tocar
+     * nada. Una excepción cruzando este servicio marcaría la transacción del
+     * cambio de estado del pedido para rollback aunque se atrapara afuera.
+     */
+    @Override
+    public boolean existeMaterial(String nombre, Long id) {
+        return buscarMaterial(nombre, id).isPresent();
     }
 
     @Transactional

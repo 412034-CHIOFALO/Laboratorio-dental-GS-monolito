@@ -145,8 +145,10 @@ public class GestionSueldoService implements IGestionSueldoService {
                 req.getNota()
         );
         PagoSueldo guardado = pagoRepo.save(pago);
+        // Con la fecha del pago (puede ser anterior a hoy), no la de carga.
         registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.FISICA, req.getMonto(),
-                "Sueldo (manual) a " + c.getEmpleadoNombre(), null);
+                "Sueldo (manual) a " + c.getEmpleadoNombre(), null,
+                CurrentUser.usernameOrSistema(), req.getFecha());
         auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Pago de sueldo (manual)", "Empleado " + c.getEmpleadoNombre(),
                 "$" + req.getMonto());
         return PagoSueldoResponse.from(guardado);
@@ -493,9 +495,16 @@ public class GestionSueldoService implements IGestionSueldoService {
     }
 
     private void registrarMovimiento(TipoMovimientoCaja tipo, TipoCaja caja, BigDecimal monto, String concepto, String ref, String creadoPor) {
+        registrarMovimiento(tipo, caja, monto, concepto, ref, creadoPor, null);
+    }
+
+    /** @param fecha fecha del movimiento; null = hoy (default de CajaMovimiento). */
+    private void registrarMovimiento(TipoMovimientoCaja tipo, TipoCaja caja, BigDecimal monto, String concepto,
+                                     String ref, String creadoPor, LocalDate fecha) {
         cajaMovimientoRepo.save(CajaMovimiento.builder()
                 .tipo(tipo).tipoCaja(caja).monto(monto)
-                .concepto(concepto).referencia(ref).creadoPor(creadoPor).build());
+                .concepto(concepto).referencia(ref).creadoPor(creadoPor)
+                .fechaMovimiento(fecha).build());
     }
 
     @Override

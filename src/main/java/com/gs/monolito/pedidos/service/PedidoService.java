@@ -10,12 +10,16 @@ import com.gs.monolito.pedidos.exception.ResourceNotFoundException;
 import com.gs.monolito.pedidos.model.EstadoPedido;
 import com.gs.monolito.pedidos.model.Odontologo;
 import com.gs.monolito.pedidos.model.Pedido;
+import com.gs.monolito.pedidos.repository.DocumentoPedidoRepository;
+import com.gs.monolito.pedidos.repository.EscaneosPedidoRepository;
 import com.gs.monolito.pedidos.repository.OdontologoRepository;
 import com.gs.monolito.pedidos.repository.PedidoRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -43,6 +47,9 @@ public class PedidoService implements IPedidoService {
     private final NotificacionBotService notificacionBotService;
     private final EmisionComprobanteService emisionComprobanteService;
     private final AuditoriaService auditoria;
+    private final DocumentoPedidoRepository documentoRepository;
+    private final EscaneosPedidoRepository escaneosRepository;
+    private final PedidosDocumentoStorageService documentoStorage;
 
     @Value("${gs.pedidos.dias-limite-atraso:6}")
     private int diasLimiteAtraso;
@@ -123,9 +130,16 @@ public class PedidoService implements IPedidoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Pedido", id));
 
         EstadoPedido estadoAnterior = pedido.getEstado();
+        validarTransicion(estadoAnterior, nuevoEstado);
+        if (estadoAnterior == nuevoEstado) {
+            return toResponse(pedido);
+        }
         pedido.setEstado(nuevoEstado);
 
-        if (nuevoEstado.alcanzoProduccion() && !estadoAnterior.alcanzoProduccion()) {
+        // Idempotente (flag stockConsumido): se reintenta en cada movimiento
+        // dentro de producción, así un descuento que quedó pendiente (receta con
+        // un material que no existe) se completa apenas se corrige la receta.
+        if (nuevoEstado.alcanzoProduccion()) {
             consumoStockService.descontarSiCorresponde(pedido);
         }
 
@@ -155,6 +169,14 @@ public class PedidoService implements IPedidoService {
                 && request.getPrecioAcordado().compareTo(
                         pedido.getPrecioAcordado() != null ? pedido.getPrecioAcordado() : java.math.BigDecimal.ZERO) != 0;
 
+        boolean odontologoCambio = !java.util.Objects.equals(pedido.getOdontologoId(), odontologo.getId());
+        if (odontologoCambio
+                && !emisionComprobanteService.reasignarOdontologoSiCorresponde(pedido, odontologo.getId(), odontologo.getNombre())) {
+            throw new BusinessException("No se puede cambiar el odontólogo: la deuda de este pedido ya tiene pagos "
+                    + "imputados a " + pedido.getOdontologoNombre() + ".");
+        }
+        String odontologoAnterior = pedido.getOdontologoNombre();
+
         pedido.setOdontologoId(odontologo.getId());
         pedido.setOdontologoNombre(odontologo.getNombre());
         pedido.setPaciente(request.getPaciente());
@@ -171,7 +193,12 @@ public class PedidoService implements IPedidoService {
             emisionComprobanteService.sincronizarMontoSiCorresponde(pedido, request.getPrecioAcordado());
         }
 
-        return toResponse(pedidoRepository.save(pedido));
+        Pedido guardado = pedidoRepository.save(pedido);
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "EDITAR", "Pedido editado", "Pedido " + guardado.getNroPedido(),
+                odontologoCambio ? "Odontólogo " + odontologoAnterior + " → " + guardado.getOdontologoNombre()
+                        + (guardado.isComprobanteGenerado() ? " (deuda reasignada)" : "")
+                        : "Datos del pedido actualizados");
+        return toResponse(guardado);
     }
 
     @Override
@@ -205,13 +232,82 @@ public class PedidoService implements IPedidoService {
         return toResponse(guardado);
     }
 
+    /**
+     * Borrado definitivo, solo para pedidos que todavía no movieron nada: sin
+     * deuda generada y sin stock descontado. Antes se borraba cualquiera y
+     * quedaban huérfanos la deuda del odontólogo, los movimientos de stock y
+     * los archivos en MinIO — y el borrado ni siquiera quedaba en la auditoría.
+     * Para un pedido que ya avanzó, lo que corresponde es cancelarlo.
+     */
     @Override
     @Transactional
     public void eliminar(Long id) {
-        if (!pedidoRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Pedido", id);
+        Pedido pedido = pedidoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Pedido", id));
+        if (pedido.isComprobanteGenerado()) {
+            throw new BusinessException("El pedido " + pedido.getNroPedido()
+                    + " ya generó deuda al odontólogo: no se puede borrar.");
         }
-        pedidoRepository.deleteById(id);
+        if (pedido.isStockConsumido()) {
+            throw new BusinessException("El pedido " + pedido.getNroPedido()
+                    + " ya descontó stock: cancelalo en vez de borrarlo.");
+        }
+
+        List<String> archivos = new java.util.ArrayList<>();
+        documentoRepository.findByPedidoIdOrderByFechaSubidaDesc(id).forEach(d -> {
+            archivos.add(d.getObjectKey());
+            documentoRepository.delete(d);
+        });
+        escaneosRepository.findByPedidoIdOrderByFechaSubidaDesc(id).forEach(e -> {
+            archivos.add(e.getObjectKey());
+            escaneosRepository.delete(e);
+        });
+        pedidoRepository.delete(pedido);
+        // MinIO no es transaccional: los archivos se borran recién cuando la
+        // base confirmó. Si algo falla queda un archivo suelto, pero nunca un
+        // registro apuntando a un archivo que ya no existe.
+        Runnable borrarArchivos = () -> archivos.forEach(documentoStorage::eliminar);
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    borrarArchivos.run();
+                }
+            });
+        } else {
+            borrarArchivos.run();
+        }
+
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "ELIMINAR", "Pedido eliminado", "Pedido " + pedido.getNroPedido(),
+                "Odontólogo " + pedido.getOdontologoNombre() + " · " + pedido.getTrabajo()
+                        + (archivos.isEmpty() ? "" : " · " + archivos.size() + " archivo(s) borrados"));
+    }
+
+    /**
+     * Reglas del cambio de estado por PATCH (Kanban y botón "Cancelar"):
+     * <ul>
+     *   <li>Entre RECIBIDO, EN_PROCESO, CONTROL y LISTO: libre, hacia adelante
+     *       o hacia atrás (retrabajos).</li>
+     *   <li>A CANCELADO: desde cualquiera de esos cuatro.</li>
+     *   <li>A ENTREGADO: nunca por acá — solo con "Registrar entrega", que es
+     *       lo que genera la deuda del odontólogo. Antes, pasarlo a ENTREGADO
+     *       desde el Kanban dejaba el trabajo entregado sin deuda.</li>
+     *   <li>Desde ENTREGADO o CANCELADO: nada — son estados finales (un
+     *       entregado vuelto atrás o cancelado dejaba su deuda viva).</li>
+     * </ul>
+     */
+    static void validarTransicion(EstadoPedido actual, EstadoPedido nuevo) {
+        if (nuevo == null) {
+            throw new BusinessException("Falta el estado destino.");
+        }
+        if (actual == nuevo) return;
+        if (actual == EstadoPedido.ENTREGADO || actual == EstadoPedido.CANCELADO) {
+            throw new BusinessException("El pedido está " + actual + " y ya no puede cambiar de estado.");
+        }
+        if (nuevo == EstadoPedido.ENTREGADO) {
+            throw new BusinessException(
+                "Para entregar un pedido usá \"Registrar entrega\": es lo que genera la deuda del odontólogo.");
+        }
     }
 
     private Odontologo resolverOdontologo(PedidoRequest request) {

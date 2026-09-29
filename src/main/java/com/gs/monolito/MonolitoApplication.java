@@ -1,5 +1,6 @@
 package com.gs.monolito;
 
+import com.gs.monolito.common.config.ZonaHoraria;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +16,8 @@ import java.util.concurrent.Executor;
 public class MonolitoApplication {
 
 	public static void main(String[] args) {
+		// Antes que Spring: ver ZonaHoraria (el contenedor corre en UTC).
+		ZonaHoraria.aplicar();
 		SpringApplication.run(MonolitoApplication.class, args);
 	}
 

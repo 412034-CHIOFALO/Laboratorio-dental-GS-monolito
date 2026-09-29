@@ -28,7 +28,6 @@ public interface IFinanzasService {
 
     ComprobanteResponse emitir(ComprobanteRequest request);
 
-    ComprobanteResponse registrarCobro(Long id);
 
     /**
      * Sincroniza el monto del comprobante de un pedido cuando se corrige su
@@ -36,6 +35,9 @@ public interface IFinanzasService {
      * comprobante emitido.
      */
     void actualizarMontoPorPedido(Long pedidoId, java.math.BigDecimal nuevoMonto);
+
+    /** Pasa la deuda del pedido a otro odontólogo; false si ya tiene pagos imputados (no se toca). */
+    boolean reasignarOdontologoPorPedido(Long pedidoId, Long odontologoId, String odontologoNombre);
 
     /** Ranking de odontólogos con deuda pendiente, ordenado de mayor a menor deuda. */
     List<CuentaCorrienteOdontologoResponse> rankingMorosos();

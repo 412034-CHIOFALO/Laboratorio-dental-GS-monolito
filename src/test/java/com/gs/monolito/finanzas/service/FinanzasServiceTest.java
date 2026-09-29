@@ -126,6 +126,50 @@ class FinanzasServiceTest {
     }
 
     @Test
+    void pagoConFechaAnterior_entraALaCajaConLaFechaDelPago_noLaDeHoy() {
+        stubGuardados();
+        Comprobante c = comprobante(1L, new BigDecimal("5000"), LocalDate.now().minusDays(10), EstadoPago.PENDIENTE);
+        when(repository.findByOdontologoIdAndEstadoPagoIn(eq(1L), any())).thenReturn(List.of(c));
+        when(repository.sumMontosPendientesByOdontologo(1L)).thenReturn(BigDecimal.ZERO);
+        LocalDate lunes = LocalDate.now().minusDays(2);
+
+        finanzasService.registrarPagoCuentaCorriente(1L,
+                new PagoCuentaCorrienteRequest(new BigDecimal("5000"), MedioPago.EFECTIVO, lunes, null));
+
+        ArgumentCaptor<CajaMovimiento> cajaCaptor = ArgumentCaptor.forClass(CajaMovimiento.class);
+        verify(cajaRepo).save(cajaCaptor.capture());
+        assertThat(cajaCaptor.getValue().getFechaMovimiento()).isEqualTo(lunes);
+    }
+
+    // ── reasignarOdontologoPorPedido ─────────────────────────────
+
+    @Test
+    void reasignarDeuda_sinPagos_pasaAlNuevoOdontologo() {
+        Comprobante c = comprobante(1L, new BigDecimal("5000"), LocalDate.now(), EstadoPago.PENDIENTE);
+        when(repository.findByPedidoId(9L)).thenReturn(Optional.of(c));
+
+        boolean ok = finanzasService.reasignarOdontologoPorPedido(9L, 20L, "Dra. Gómez");
+
+        assertThat(ok).isTrue();
+        assertThat(c.getOdontologoId()).isEqualTo(20L);
+        assertThat(c.getOdontologoNombre()).isEqualTo("Dra. Gómez");
+    }
+
+    @Test
+    void reasignarDeuda_conPagosImputados_noSeToca() {
+        Comprobante c = comprobante(1L, new BigDecimal("5000"), LocalDate.now(), EstadoPago.PARCIAL);
+        c.setMontoPagado(new BigDecimal("1000"));
+        Long odontologoOriginal = c.getOdontologoId();
+        when(repository.findByPedidoId(9L)).thenReturn(Optional.of(c));
+
+        boolean ok = finanzasService.reasignarOdontologoPorPedido(9L, 20L, "Dra. Gómez");
+
+        assertThat(ok).isFalse();
+        assertThat(c.getOdontologoId()).isEqualTo(odontologoOriginal);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     void imputaFIFO_alComprobanteMasViejoPrimero_sinImportarElOrdenDelRepo() {
         stubGuardados();
         Comprobante viejo = comprobante(1L, new BigDecimal("5000"), LocalDate.now().minusDays(30), EstadoPago.PENDIENTE);
@@ -171,26 +215,4 @@ class FinanzasServiceTest {
         verify(repository, never()).save(any());
     }
 
-    // ── registrarCobro ────────────────────────────────────────────
-
-    @Test
-    void registrarCobro_siYaEstabaCobrado_rechazaConBusinessException() {
-        Comprobante c = comprobante(1L, new BigDecimal("1000"), LocalDate.now(), EstadoPago.COBRADO);
-        when(repository.findById(1L)).thenReturn(Optional.of(c));
-
-        assertThatThrownBy(() -> finanzasService.registrarCobro(1L))
-                .isInstanceOf(BusinessException.class);
-    }
-
-    @Test
-    void registrarCobro_marcaElComprobanteComoCobradoPorElMontoTotal() {
-        Comprobante c = comprobante(1L, new BigDecimal("8000"), LocalDate.now(), EstadoPago.PENDIENTE);
-        when(repository.findById(1L)).thenReturn(Optional.of(c));
-        when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-        finanzasService.registrarCobro(1L);
-
-        assertThat(c.getEstadoPago()).isEqualTo(EstadoPago.COBRADO);
-        assertThat(c.getMontoPagado()).isEqualByComparingTo("8000");
-    }
 }

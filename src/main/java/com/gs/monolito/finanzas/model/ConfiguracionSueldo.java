@@ -26,6 +26,10 @@ public class ConfiguracionSueldo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Bloqueo optimista: dos ediciones simultáneas no se pisan (ver V3__version_bloqueo_optimista.sql). */
+    @Version
+    private Long version;
+
     @Column(name = "empleado_id", nullable = false, unique = true)
     private Long empleadoId;
 

@@ -147,11 +147,13 @@ public class PedidoController {
 
     @Operation(
         summary = "Cambiar estado del pedido (kanban)",
-        description = "Transición de estado: mueve el pedido al nuevo estado indicado. Flujo normal: RECIBIDO → EN_PROCESO → CONTROL → LISTO. Al pasar a EN_PROCESO se descuenta el stock de materiales si no fue descontado previamente."
+        description = "Mueve el pedido entre RECIBIDO, EN_PROCESO, CONTROL y LISTO (hacia adelante o atrás), o lo CANCELA. " +
+                      "ENTREGADO solo con PATCH /{id}/entregar (genera la deuda); ENTREGADO y CANCELADO son finales. " +
+                      "Al entrar en producción se descuenta el stock de la receta si no fue descontado antes."
     )
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Estado actualizado correctamente"),
-        @ApiResponse(responseCode = "400", description = "Transición de estado inválida"),
+        @ApiResponse(responseCode = "422", description = "Transición de estado inválida"),
         @ApiResponse(responseCode = "404", description = "Pedido no encontrado")
     })
     @PatchMapping("/{id}/estado")
@@ -183,10 +185,12 @@ public class PedidoController {
 
     @Operation(
         summary = "Eliminar pedido",
-        description = "Elimina definitivamente un pedido. Solo disponible para el rol ADMIN. Operación irreversible."
+        description = "Elimina definitivamente un pedido junto con sus documentos y escaneos. Solo ADMIN, y solo si el " +
+                      "pedido todavía no generó deuda ni descontó stock (si ya avanzó, se cancela). Operación irreversible."
     )
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Pedido eliminado correctamente"),
+        @ApiResponse(responseCode = "422", description = "El pedido ya generó deuda o descontó stock — cancelarlo en su lugar"),
         @ApiResponse(responseCode = "404", description = "Pedido no encontrado")
     })
     @DeleteMapping("/{id}")
