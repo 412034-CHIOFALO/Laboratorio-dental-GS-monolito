@@ -17,6 +17,7 @@ import org.springframework.security.oauth2.server.resource.web.authentication.Be
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 /** Security de /api/stock/**. */
@@ -36,6 +37,10 @@ public class StockSecurityConfig {
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                // Sin esto Spring BORRA la cookie XSRF-TOKEN en cada GET que ya la trae (el filtro JWT
+                // autentica "en este request" y su CsrfAuthenticationStrategy la rota): el navegador se
+                // quedaba sin cookie y el logout daba 403. Ver CsrfCookieNoSeBorraWebTest.
+                .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy())
                 .requireCsrfProtectionMatcher(CsrfRequestMatchers.requerirSalvo())
             )
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
