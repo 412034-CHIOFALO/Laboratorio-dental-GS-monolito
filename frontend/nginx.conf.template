@@ -40,10 +40,10 @@ server {
     # HTTPS) y este template es el que usa tanto dev local como el arranque de
     # bootstrap en prod antes del primer certificado. Ver nginx.https.conf.template
     # para el resto de la explicación de la CSP.
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "DENY" always;
-    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://images.unsplash.com; media-src 'self'; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" always;
+    # Los headers viven en nginx-seguridad.conf (ahí se explica la CSP) y hay
+    # que repetir el include en cada location que use add_header: nginx no los
+    # hereda del server en esos casos.
+    include /etc/nginx/snippets/seguridad.conf;
 
     # Tamaño máximo de body para uploads (fotos de catálogo, comprobantes,
     # escaneos 3D — los STL/PLY de alta resolución pueden pesar bastante más que 10MB)
@@ -66,6 +66,7 @@ server {
 
         # No cachear el index.html para que los deploys se vean al instante
         location = /index.html {
+            include /etc/nginx/snippets/seguridad.conf;
             add_header Cache-Control "no-cache, no-store, must-revalidate";
             add_header Pragma "no-cache";
             add_header Expires "0";
@@ -76,6 +77,7 @@ server {
     location ~* \.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico)$ {
         root /usr/share/nginx/html;
         expires 1y;
+        include /etc/nginx/snippets/seguridad.conf;
         add_header Cache-Control "public, immutable";
     }
 

@@ -51,4 +51,16 @@ export class LandingPage implements OnInit {
   closeMenu() {
     this.mobileMenuOpen = false;
   }
+
+  /**
+   * Si una foto de Unsplash no carga, la cambia por su respaldo. Reemplaza al
+   * viejo onerror="..." inline, que la CSP (script-src 'self') bloquea. Solo
+   * reintenta una vez: si el respaldo también falla no queda en bucle.
+   */
+  usarRespaldo(evento: Event, urlRespaldo: string): void {
+    const img = evento.target as HTMLImageElement;
+    if (img.dataset['respaldo']) return;
+    img.dataset['respaldo'] = '1';
+    img.src = urlRespaldo;
+  }
 }
