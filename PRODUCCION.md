@@ -191,11 +191,19 @@ revisan en este orden:
    si no, el dominio te resuelve a una dirección muerta solo a vos.
 
 Si el sitio abre pero **guardar algo o cerrar sesión da 403**, es la protección
-CSRF: el navegador no está mandando la cookie `XSRF-TOKEN`. Chequeo (DevTools →
-Network → cualquier GET `/api/...` → Response Headers): tiene que aparecer un
-`set-cookie: XSRF-TOKEN=...`. El backend la entrega (hay una prueba que lo
-verifica contra las cadenas de seguridad reales, `CsrfCookieWebTest`), así que
-si falta, la causa está entre el backend y el navegador, no en el código.
+CSRF: el navegador no está mandando el header `X-XSRF-TOKEN` porque no tiene la
+cookie `XSRF-TOKEN`. Chequeo (DevTools → Application → Cookies): tiene que existir
+`XSRF-TOKEN` y seguir ahí después de navegar por el dashboard. Si aparece y
+desaparece, mirá en Network los GET `/api/...`: un `set-cookie: XSRF-TOKEN=;
+Max-Age=0` es el backend borrándola.
+
+Esto pasó de verdad (versión anterior al commit `079e0be`): el filtro de la
+cookie JWT deja la autenticación sin pasar por un repositorio de sesión, y Spring
+rotaba —borraba— la cookie XSRF en cada GET que ya la traía. Está corregido y hay
+dos pruebas: `CsrfCookieWebTest` (el backend entrega la cookie) y
+`CsrfCookieNoSeBorraWebTest` (no la borra en los GET siguientes). Si vuelve a
+pasar con esa versión o una posterior, la causa está entre el backend y el
+navegador (un proxy o extensión que filtre `Set-Cookie`).
 
 ## 8. Firewall del VPS (recomendado, fuera del repo)
 
@@ -218,3 +226,34 @@ tu compu, un túnel SSH sin abrir nada al público:
 ssh -L 9001:localhost:9001 usuario@tu-vps
 # y después abrís http://localhost:9001 en tu compu
 ```
+
+## 9. Datos de muestra para probar el flujo de punta a punta
+
+Con la base vacía no hay nada que probar. `demo/cargar_datos_demo.py` carga datos
+ficticios **por la API real** (así corren las reglas de negocio: stock por receta,
+deuda al entregar, caja con cada cobro): 10 odontólogos, 34 pedidos en todos los
+estados con documentos y escaneos 3D, comprobantes con distinta mora, caja,
+proveedores y deudas, sueldos, pagos "del bot" y reportes mensuales. Las fechas
+se reparten en los últimos ~45 días.
+
+```bash
+cd /opt/gs-monolito
+./demo/cargar-demo.sh        # después de hacer el dump de abajo
+```
+
+- **Antes de cargar**, un dump para poder volver al estado limpio:
+  ```bash
+  docker exec -e MYSQL_PWD="$(grep ^DB_ROOT_PASSWORD= .env | cut -d= -f2-)" gs-monolito-mysql-1 \
+    mysqldump -uroot --single-transaction --routines gs_auth | gzip > ~/backups/gs-pre-demo-$(date +%F).sql.gz
+  ```
+- Corre **una sola vez** (si ya hay odontólogos se frena; `--forzar` lo saltea).
+- Crea 3 usuarios de muestra (`tecnico2`, `tecnico3`, `administrativa`) con contraseñas
+  al azar en `~/demo-credenciales.txt` (chmod 600). `admin` y `tecnico1` siguen con las del `.env`.
+- Los odontólogos **no tienen teléfono** a propósito: al pasar un pedido a LISTO el sistema
+  avisa por WhatsApp si hay teléfono, y no queremos escribirle a un número real. Para probar
+  esa notificación, ponele tu propio número a uno.
+- Los pagos del bot se simulan llamando al mismo endpoint que usa el bot (no hace falta WhatsApp).
+- **Antes de usar el sistema de verdad** hay que sacar estos datos. Mientras la base no tenga
+  datos reales, lo más limpio es restaurar el dump de arriba (con el sistema parado:
+  `docker compose ... stop app`, `gunzip -c dump | docker exec -i ... mysql -uroot gs_auth`,
+  `... start app`). Y borrar o cambiar la contraseña de los 3 usuarios de muestra.
