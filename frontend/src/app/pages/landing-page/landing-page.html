@@ -278,8 +278,13 @@
         @for (item of galeria; track item.archivo) {
           <div class="gallery-item">
             @if (item.tipo === 'video') {
-              <video [src]="'instagram/' + item.archivo" [attr.aria-label]="item.alt"
-                     autoplay muted controls loop playsinline preload="metadata"></video>
+              <!-- #vid + loadedmetadata: el atributo "muted" solo fija el valor inicial; si el
+                   navegador recuerda que en esta página ya se activó el sonido, al volver a la
+                   landing el video arrancaba con audio. Se re-silencia en cada carga (el
+                   visitante igual puede activarlo después con los controles). -->
+              <video #vid [src]="'instagram/' + item.archivo" [attr.aria-label]="item.alt"
+                     autoplay muted controls loop playsinline preload="metadata"
+                     (loadedmetadata)="vid.muted = true"></video>
               <div class="gallery-caption">{{ item.caption }}</div>
             } @else {
               <img [src]="'instagram/' + item.archivo" [alt]="item.alt" loading="lazy">

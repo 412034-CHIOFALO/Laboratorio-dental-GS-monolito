@@ -1,0 +1,42 @@
+# Overlay OPCIONAL, solo para cuando el dominio es un subdominio gratis de
+# DuckDNS (algo.duckdns.org) y el servidor está en una conexión hogareña, donde
+# la IP pública CAMBIA sola (al reiniciar el módem/router, cada tanto el
+# proveedor, etc.). Si el registro de DuckDNS no se actualiza, el dominio queda
+# apuntando a una IP que ya no es tuya y el sitio deja de responder desde
+# afuera, aunque el servidor esté perfecto — es exactamente lo que pasó entre
+# septiembre y octubre de 2026 (ver PRODUCCION.md, sección 7).
+#
+# Cada 5 minutos le avisa a DuckDNS "mi IP actual es la de quien te llama" (el
+# parámetro ip= va vacío a propósito: DuckDNS toma la IP de origen de la
+# request). No expone ningún puerto y no toca al resto de los servicios.
+#
+# Uso (siempre junto a los otros overlays, nunca solo):
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml \
+#                  -f docker-compose.duckdns.yml up -d
+#
+# Requiere en .env (el token sale de https://www.duckdns.org, arriba de todo,
+# al iniciar sesión — es un secreto: no se commitea):
+#   DUCKDNS_SUBDOMAIN=gsortodoncia      (solo el nombre, sin ".duckdns.org")
+#   DUCKDNS_TOKEN=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+#
+# Ver que anda:  docker compose logs --tail 5 duckdns   → cada línea dice OK o KO
+# (KO = token o subdominio mal escritos).
+services:
+  duckdns:
+    image: curlimages/curl:8.22.0
+    restart: unless-stopped
+    environment:
+      DUCKDNS_SUBDOMAIN: ${DUCKDNS_SUBDOMAIN:?Falta DUCKDNS_SUBDOMAIN en .env}
+      DUCKDNS_TOKEN: ${DUCKDNS_TOKEN:?Falta DUCKDNS_TOKEN en .env}
+    entrypoint: ["/bin/sh", "-c"]
+    # Forma de lista + "$$": Compose se come el primer "$" y el shell recibe
+    # las variables ya con su sintaxis normal. El token nunca se imprime: solo
+    # se muestra la respuesta de DuckDNS (OK/KO), no la URL.
+    command:
+      - |
+        while true; do
+          printf '%s  ' "$$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          curl -fsS --max-time 20 "https://www.duckdns.org/update?domains=$${DUCKDNS_SUBDOMAIN}&token=$${DUCKDNS_TOKEN}&ip=" || printf 'ERROR: no se pudo contactar a DuckDNS'
+          echo
+          sleep 300
+        done

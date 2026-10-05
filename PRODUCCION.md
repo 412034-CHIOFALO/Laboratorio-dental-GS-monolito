@@ -21,6 +21,22 @@ Dos cosas a chequear antes de seguir:
 - Permisos del archivo, para que solo el usuario que despliega pueda leerlo:
   `chmod 600 .env`.
 
+**Desde la versión del 28/09/2026 el backend no arranca** si algún secreto del
+`.env` está vacío, tiene menos de 8 caracteres, es su valor por defecto o
+contiene "cambiar" (lo valida `SecretosProduccionValidator` y el error de
+`docker logs <proyecto>-app-1` dice exactamente cuáles faltan). Lo que cambió
+respecto de la primera instalación:
+- `GS_KEYSTORE_PASSWORD` **ya no puede quedar comentada**: poné una propia (8+
+  caracteres). Si el keystore del volumen se creó con la contraseña vieja por
+  defecto, no se va a poder abrir: bajá los contenedores y borrá ese volumen
+  (se regenera solo; lo único que pasa es que todos tienen que volver a loguearse):
+  ```bash
+  docker compose -f docker-compose.yml -f docker-compose.https.yml down
+  docker volume rm gs-monolito_app_keys
+  ```
+- `GS_TOKEN_TTL_HOURS` pasó a `GS_TOKEN_TTL_MINUTES` (30 por defecto).
+- `BOT_URI` ya no va en el `.env` (el compose lo fija solo).
+
 No hace falta ningún gestor de secrets (Vault y similares) para este tamaño
 de despliegue — un `.env` en el VPS (gitignoreado, con permisos acotados) es
 el patrón estándar para un solo servidor. Un gestor dedicado empieza a valer
@@ -112,7 +128,45 @@ listo para datos reales, conviene bajar un dump real y restaurarlo (contra
 una base de prueba, no la real) siguiendo el comando ya documentado en
 `backup/README.md` → "Restaurar un backup".
 
-## 7. Firewall del VPS (recomendado, fuera del repo)
+## 7. El sitio no responde desde afuera (servidor en una casa)
+
+Con el servidor en una conexión hogareña hay 4 eslabones entre el visitante y
+nginx, y cualquiera puede romperse sin que el servidor tenga nada raro. Se
+revisan en este orden:
+
+1. **¿La IP del dominio sigue siendo la tuya?** La IP pública de una casa
+   cambia (reinicio del módem, el proveedor, cambio de router). Comparar:
+   ```bash
+   curl -s https://api.ipify.org                                   # la IP pública de tu casa hoy
+   curl -s "https://dns.google/resolve?name=TU-SUBDOMINIO.duckdns.org&type=A"   # la que tiene DuckDNS (campo "data")
+   ```
+   Si son distintas, el dominio apunta a otra casa: entrá a duckdns.org y apretá
+   "update ip", o dejá el actualizador automático (`docker-compose.duckdns.yml`,
+   ver el encabezado del archivo para las 2 variables del `.env`) para que no
+   vuelva a pasar.
+2. **¿El router reenvía los puertos 80 y 443 al servidor?** Si cambiás de
+   router (o el router se resetea) las reglas se pierden. Hay que crearlas de
+   nuevo (TCP 80 y 443 → IP LAN del servidor) y, para que no se rompan solas,
+   **reservar esa IP para el servidor en el DHCP del router** (por su MAC): si
+   la IP LAN cambia, el reenvío apunta a un equipo que ya no existe.
+3. **¿El servidor está prendido y con qué IP?** Desde su terminal (o la web de
+   Server Pilot): `hostname -I` y `docker ps` (los 5-6 contenedores arriba).
+4. **¿Es un problema solo de tu compu?** Desde la misma red el router no suele
+   dejar entrar por su propia IP pública ("NAT loopback"), así que **probar
+   siempre desde afuera**: el celular con datos móviles (WiFi apagado) o
+   canyouseeme.org en los puertos 80 y 443. Si en esa compu agregaste una línea
+   `IP-LAN  tu-dominio` al archivo `hosts` de Windows (para probar sin salir a
+   internet), **actualizala o borrala cuando cambie la IP LAN del servidor**:
+   si no, el dominio te resuelve a una dirección muerta solo a vos.
+
+Si el sitio abre pero **guardar algo o cerrar sesión da 403**, es la protección
+CSRF: el navegador no está mandando la cookie `XSRF-TOKEN`. Chequeo (DevTools →
+Network → cualquier GET `/api/...` → Response Headers): tiene que aparecer un
+`set-cookie: XSRF-TOKEN=...`. El backend la entrega (hay una prueba que lo
+verifica contra las cadenas de seguridad reales, `CsrfCookieWebTest`), así que
+si falta, la causa está entre el backend y el navegador, no en el código.
+
+## 8. Firewall del VPS (recomendado, fuera del repo)
 
 Con `docker-compose.https.yml` los únicos puertos que necesitan estar abiertos
 al mundo son 80, 443 y el de SSH:
