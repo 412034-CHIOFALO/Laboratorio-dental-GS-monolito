@@ -32,7 +32,12 @@ public class Pedido {
     private Long id;
 
     /** Bloqueo optimista: dos ediciones simultáneas no se pisan (ver V3__version_bloqueo_optimista.sql). */
+    // OJO con el DEFAULT 0: las tablas reales viven en gs_auth y las crea/actualiza Hibernate
+    // (V3 solo toca los schemas viejos gs_pedidos/gs_stock/...). Sin el default, la columna se
+    // agrega a las filas YA existentes con NULL y Hibernate tira NPE en Versioning.increment
+    // al actualizarlas (500 en cada cambio de stock, pedido o pago).
     @Version
+    @Column(name = "version", nullable = false, columnDefinition = "bigint not null default 0")
     private Long version;
 
     @Column(name = "nro_pedido", unique = true, nullable = false, length = 20)
