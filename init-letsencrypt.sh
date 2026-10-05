@@ -29,9 +29,18 @@ if [ ! -f .env ]; then
     echo "Falta .env (copiá .env.example a .env y completá los valores reales primero)."
     exit 1
 fi
-set -a
-. ./.env
-set +a
+# Se leen solo las 2 variables que este script necesita, SIN ejecutar el .env
+# como shell: un valor con espacios sin comillas (ej. GRAFANA_OTLP_AUTH_HEADER=
+# Basic abc...) hacía que "source .env" intentara correr "abc..." como un
+# comando y el script abortaba. docker compose lee el .env por su cuenta.
+leer_env() {
+    local v
+    v=$(grep -E "^$1=" .env | tail -1 | cut -d= -f2- | tr -d '\r') || true
+    v="${v%\"}"; v="${v#\"}"; v="${v%\'}"; v="${v#\'}"
+    printf '%s' "$v"
+}
+DOMAIN=$(leer_env DOMAIN)
+LETSENCRYPT_EMAIL=$(leer_env LETSENCRYPT_EMAIL)
 
 if [ -z "${DOMAIN:-}" ] || [ "$DOMAIN" = "tu-dominio.com" ]; then
     echo "DOMAIN no está seteado en .env (o sigue con el valor de ejemplo)."

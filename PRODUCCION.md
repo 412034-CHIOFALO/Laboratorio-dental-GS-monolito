@@ -64,14 +64,45 @@ todo el circuito (DNS, challenge, nginx) funciona antes de pedir el real.
 
 Cada push a `master` deja una imagen nueva lista en ghcr.io (ver
 `.github/workflows/cd.yml`) — el deploy es manual a propósito (el servidor no
-está prendido 24/7). Cuando lo prendas y quieras actualizar:
+está prendido 24/7). Cuando lo prendas y quieras actualizar, en el servidor:
 
 ```bash
 cd /opt/gs-monolito
-docker compose -f docker-compose.yml -f docker-compose.https.yml pull app frontend gs-bot
-docker compose -f docker-compose.yml -f docker-compose.https.yml up -d app frontend gs-bot
-docker image prune -f
+./deploy.sh
 ```
+
+Hace, en orden: `git pull` (los `docker-compose*.yml` viven en el repo del
+servidor: sin traerlos, un servicio nuevo como `gs-bot` no existe para el
+compose viejo), **chequea el `.env` antes de tocar nada** (mismo criterio que
+el backend: sin secretos vacíos, cortos, por defecto ni con "cambiar"), baja
+las imágenes nuevas, levanta, espera a que `app` quede sana y, si no queda,
+muestra su log y qué mirar. Suma solo los overlays opcionales según el `.env`
+(DuckDNS si hay `DUCKDNS_TOKEN`; logs a Loki si `OTEL_ENABLED=true` y el plugin
+está instalado), así no hay que acordarse de ningún `-f`.
+
+- `./deploy.sh --chequeo` solo valida el `.env`, sin tocar nada. Conviene
+  correrlo antes de bajar una versión que cambia variables.
+- `./deploy.sh --sin-bot` no toca `gs-bot` (corre Chromium: si el servidor anda
+  justo de RAM, dejarlo para después).
+- **Nunca `docker compose down -v`**: la `-v` borra los volúmenes (base de
+  datos, archivos, certificados, sesión de WhatsApp). Sin `-v` es seguro.
+- `backup/` se arma en el propio servidor (no viene de ghcr.io): si cambió algo
+  ahí, `docker compose build backup && docker compose up -d backup`.
+
+### Volver atrás
+
+Cada imagen queda también con el tag del commit (`:<sha>`, visible en la sección
+Packages del repo en GitHub). Para volver a una versión anterior, en el `.env`:
+
+```
+GS_IMAGE=ghcr.io/412034-chiofalo/laboratorio-dental-gs-monolito:<sha>
+GS_FRONTEND_IMAGE=ghcr.io/412034-chiofalo/laboratorio-dental-gs-monolito-frontend:<sha>
+```
+
+y `docker compose -f docker-compose.yml -f docker-compose.https.yml up -d app frontend`.
+Las migraciones de la base no se deshacen: la versión vieja convive con las
+columnas nuevas (todas con valor por defecto), pero no sirve volver a una
+anterior a la V1.
 
 La renovación del certificado es automática (el servicio `certbot` reintenta
 cada 12h, nginx recarga solo cada 6h) — no hace falta tocar nada más.

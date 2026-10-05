@@ -9,10 +9,9 @@ name: CD
 #
 # Deploy manual, en el servidor, cuando esté prendido y quieras actualizar
 # (ver PRODUCCION.md para el setup inicial completo):
-#   cd /opt/gs-monolito
-#   docker compose -f docker-compose.yml -f docker-compose.https.yml pull app frontend gs-bot
-#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d app frontend gs-bot
-#   docker image prune -f
+#   cd /opt/gs-monolito && ./deploy.sh
+# (trae el código, chequea el .env, baja estas imágenes y levanta — ver el
+# encabezado de deploy.sh)
 #
 # El secret VPS_SSH_KEY (y VPS_HOST/VPS_USER) quedan guardados en el repo sin
 # uso por ahora — no hace falta borrarlos, no molestan estando ahí.
