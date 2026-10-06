@@ -75,7 +75,7 @@ jobs:
       # de nombre de bean entre módulos, un @Order mal puesto, un securityMatcher
       # que deja una ruta sin cubrir, etc. Solo aparecen al levantar el
       # ApplicationContext real contra una base de datos real.
-      - name: Levantar la app y verificar que bootea sin errores
+      - name: Levantar la app, verificar que bootea y correr el flujo completo (E2E)
         env:
           DB_HOST: 127.0.0.1
           DB_PORT: "3306"
@@ -106,12 +106,16 @@ jobs:
             sleep 2
           done
 
-          kill "$APP_PID" 2>/dev/null || true
-
           if [ "$ok" = true ]; then
             echo "OK: la app levantó sin colisiones de bean ni errores de arranque."
-            exit 0
+            # Flujo completo por la API real (sesión/CSRF, pedido -> stock -> entrega -> cobro, permisos
+            # por rol, bot con anti-duplicados). Ver e2e/flujo_principal.py.
+            e2e=0
+            python3 e2e/flujo_principal.py --base http://localhost:8080 || e2e=$?
+            kill "$APP_PID" 2>/dev/null || true
+            exit $e2e
           else
+            kill "$APP_PID" 2>/dev/null || true
             echo "La app no respondió a tiempo en /actuator/health — revisar logs del step anterior."
             exit 1
           fi
