@@ -10,7 +10,11 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import com.gs.monolito.pedidos.repository.PedidoRepository;
+import org.springframework.web.client.RestClientResponseException;
+
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -26,10 +30,13 @@ import java.util.Map;
 public class NotificacionBotService {
 
     private final RestClient restClient;
+    private final PedidoRepository pedidoRepository;
 
     public NotificacionBotService(
+            PedidoRepository pedidoRepository,
             @Value("${gs.bot.uri:http://localhost:3001}") String botUri,
             @Value("${gs.bot.api-key:}") String apiKey) {
+        this.pedidoRepository = pedidoRepository;
         this.restClient = RestClient.builder()
                 .baseUrl(botUri)
                 .defaultHeader("X-Bot-Api-Key", apiKey)
@@ -48,7 +55,7 @@ public class NotificacionBotService {
      * bot (hasta el timeout de 5s de más arriba) para completarse.
      */
     @Async("taskExecutor")
-    public void notificarPedidoListo(String nroPedido, String trabajo, Odontologo odontologo) {
+    public void notificarPedidoListo(Long pedidoId, String nroPedido, String trabajo, Odontologo odontologo) {
         if (odontologo == null || odontologo.getTelefono() == null || odontologo.getTelefono().isBlank()) {
             log.debug("[Bot] Odontólogo sin teléfono — no se envía notificación para {}", nroPedido);
             return;
@@ -65,7 +72,14 @@ public class NotificacionBotService {
                     ))
                     .retrieve()
                     .toBodilessEntity();
-            log.info("[Bot] Notificación WhatsApp enviada a {} ({})", odontologo.getNombre(), nroPedido);
+            // 2xx = el bot ACEPTÓ el aviso (lo encola: sale con pausas y en horario, ver bot/envios.js).
+            pedidoRepository.marcarNotificadoListo(pedidoId, LocalDateTime.now());
+            log.info("[Bot] Aviso WhatsApp aceptado por el bot para {} ({})", odontologo.getNombre(), nroPedido);
+        } catch (RestClientResponseException e) {
+            // El bot contesta 404 si el número no está en WhatsApp, 400 si el teléfono es inválido y
+            // 503 si está desconectado: en los tres casos NO se marca como avisado.
+            log.warn("[Bot] No se avisó {} ({}): el bot respondió {} {}", odontologo.getNombre(), nroPedido,
+                    e.getStatusCode().value(), e.getResponseBodyAsString());
         } catch (Exception e) {
             log.warn("[Bot] No se pudo enviar notificación WhatsApp para {}: {}", nroPedido, e.getMessage());
         }

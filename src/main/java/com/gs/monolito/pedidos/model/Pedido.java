@@ -108,6 +108,10 @@ public class Pedido {
     @Column(name = "fecha_stock_consumido")
     private LocalDateTime fechaStockConsumido;
 
+    /** Cuándo el bot de WhatsApp aceptó el aviso "pedido listo" (null = todavía no se le avisó al odontólogo). */
+    @Column(name = "notificado_listo_en")
+    private java.time.LocalDateTime notificadoListoEn;
+
     /** Flag de idempotencia: evita duplicar la deuda en finanzas al entregar. */
     @Column(name = "comprobante_generado", nullable = false)
     @Builder.Default

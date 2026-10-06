@@ -224,7 +224,18 @@ class PedidoServiceTest {
 
         pedidoService.actualizarEstado(1L, EstadoPedido.LISTO);
 
-        verify(notificacionBotService).notificarPedidoListo("PED-20260101-0001", "Corona", od);
+        verify(notificacionBotService).notificarPedidoListo(1L, "PED-20260101-0001", "Corona", od);
+    }
+
+    @Test
+    void siYaSeAvisoQueEstabaListo_noSeRepiteElWhatsapp() {
+        Pedido pedido = pedidoBase(EstadoPedido.CONTROL);
+        pedido.setNotificadoListoEn(java.time.LocalDateTime.of(2026, 1, 1, 10, 0));   // LISTO -> CONTROL -> LISTO
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+
+        pedidoService.actualizarEstado(1L, EstadoPedido.LISTO);
+
+        verify(notificacionBotService, never()).notificarPedidoListo(any(), any(), any(), any());
     }
 
     @Test

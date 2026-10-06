@@ -36,6 +36,7 @@ import java.util.List;
  * {@link EmisionComprobanteService}, ídem).</p>
  */
 @Service
+@lombok.extern.slf4j.Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PedidoService implements IPedidoService {
@@ -146,9 +147,15 @@ public class PedidoService implements IPedidoService {
         Pedido guardado = pedidoRepository.save(pedido);
 
         if (nuevoEstado == EstadoPedido.LISTO && estadoAnterior != EstadoPedido.LISTO) {
-            odontologoRepository.findById(pedido.getOdontologoId()).ifPresent(od ->
-                notificacionBotService.notificarPedidoListo(guardado.getNroPedido(), guardado.getTrabajo(), od)
-            );
+            if (guardado.getNotificadoListoEn() != null) {
+                // LISTO -> otro estado -> LISTO (un error de carga): al odontólogo ya se le avisó.
+                log.info("[Bot] Pedido {} ya se avisó como listo ({}): no se repite el WhatsApp.",
+                        guardado.getNroPedido(), guardado.getNotificadoListoEn());
+            } else {
+                odontologoRepository.findById(pedido.getOdontologoId()).ifPresent(od ->
+                    notificacionBotService.notificarPedidoListo(guardado.getId(), guardado.getNroPedido(), guardado.getTrabajo(), od)
+                );
+            }
         }
 
         auditoria.registrar(CurrentUser.usernameOrSistema(), "ESTADO", "Cambio de estado de pedido", "Pedido " + guardado.getNroPedido(),

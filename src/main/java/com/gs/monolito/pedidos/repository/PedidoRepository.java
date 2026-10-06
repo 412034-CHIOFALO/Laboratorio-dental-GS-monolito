@@ -25,6 +25,12 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 
     boolean existsByNroPedido(String nroPedido);
 
+    /** Anota que el aviso "pedido listo" fue aceptado por el bot (solo si no estaba anotado ya). */
+    @org.springframework.transaction.annotation.Transactional
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE Pedido p SET p.notificadoListoEn = :cuando WHERE p.id = :id AND p.notificadoListoEn IS NULL")
+    int marcarNotificadoListo(@Param("id") Long id, @Param("cuando") java.time.LocalDateTime cuando);
+
     /**
      * Último número de pedido emitido con un prefijo dado. Se usa para numerar
      * sin depender de count(), que se desfasa apenas se borra un pedido y

@@ -34,9 +34,24 @@ jobs:
           java-version: '17'
           cache: maven
 
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
       - name: Compilar y correr tests unitarios
         run: mvn -B clean verify
 
+      # El bot de WhatsApp: parsers, OCR de comprobantes (imágenes de prueba), cola de avisos y teléfonos.
+      # No necesita WhatsApp ni Chromium: PUPPETEER_SKIP_DOWNLOAD evita bajarlo.
+      - name: Tests del bot de WhatsApp
+        working-directory: bot
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
       - name: Crear los 5 schemas (equivalente al init-schemas.sql de producción)
         run: |
           mysql -h127.0.0.1 -uroot -proot -e "
