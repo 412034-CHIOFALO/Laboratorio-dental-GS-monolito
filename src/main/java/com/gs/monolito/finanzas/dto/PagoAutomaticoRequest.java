@@ -55,6 +55,13 @@ public class PagoAutomaticoRequest {
     @Size(max = 60)
     private String idOperacion;
 
+    /** ID del mensaje de WhatsApp del comprobante (clave de idempotencia). Opcional. */
+    @Size(max = 128)
+    private String idMensaje;
+    /** ID del mensaje con el pie "Emisor (Receptor)" si vino aparte de la foto. Opcional. */
+    @Size(max = 128)
+    private String idMensajePie;
+
     // ── Archivo del comprobante (para guardarlo en MinIO) ──
     private String comprobanteBase64;
     @Size(max = 100)

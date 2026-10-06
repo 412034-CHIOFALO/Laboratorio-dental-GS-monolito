@@ -35,4 +35,7 @@ public class PagoEfectivoRequest {
     private String cargadoPorTelefono;
     @Size(max = 100)
     private String grupoOrigen;
+    /** ID del mensaje de WhatsApp con la declaración (clave de idempotencia). Opcional. */
+    @Size(max = 128)
+    private String idMensaje;
 }

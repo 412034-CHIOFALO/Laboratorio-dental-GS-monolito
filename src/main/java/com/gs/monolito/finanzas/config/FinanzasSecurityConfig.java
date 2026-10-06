@@ -54,9 +54,10 @@ public class FinanzasSecurityConfig {
                 // autentica "en este request" y su CsrfAuthenticationStrategy la rota): el navegador se
                 // quedaba sin cookie y el logout daba 403. Ver CsrfCookieNoSeBorraWebTest.
                 .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy())
+                // Las rutas del bot (server-to-server, sin cookie ni CSRF token) son exactamente
+                // las de BotApiKeyFilter: una sola lista, para no olvidar una en un lado.
                 .requireCsrfProtectionMatcher(CsrfRequestMatchers.requerirSalvo(
-                    "/api/finanzas/sueldos/pago-automatico",
-                    "/api/finanzas/sueldos/pago-efectivo"))
+                    BotApiKeyFilter.RUTAS_BOT.toArray(String[]::new)))
             )
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .sessionManagement(session ->

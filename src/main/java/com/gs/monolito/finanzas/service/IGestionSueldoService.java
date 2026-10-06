@@ -60,6 +60,9 @@ public interface IGestionSueldoService {
 
     RegistroPagoBotResponse registrarPagoEfectivo(PagoEfectivoRequest req);
 
+    /** De los IDs de mensajes de WhatsApp dados, devuelve los que el sistema ya registró (como mensaje o como pie). */
+    java.util.List<String> mensajesConocidos(java.util.List<String> ids);
+
     RegistroPagoBotResponse confirmarEfectivo(Long registroId);
 
     RegistroPagoBotResponse rechazarEfectivo(Long registroId, String motivo);

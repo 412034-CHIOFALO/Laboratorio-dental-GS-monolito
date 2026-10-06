@@ -169,9 +169,21 @@ public class GestionSueldoService implements IGestionSueldoService {
     @Override
     @Transactional
     public RegistroPagoBotResponse registrarPagoAutomatico(PagoAutomaticoRequest req) {
+        // 0) Idempotencia por mensaje de WhatsApp: si este mensaje (o su pie) ya quedó registrado
+        // —en cualquier estado— se devuelve ese mismo registro y NO se crea nada nuevo. Es lo que
+        // evita duplicados cuando el bot reprocesa (reconciliación, reinicio, pérdida de su estado).
+        Optional<RegistroPagoBot> previo = buscarPorMensaje(req.getIdMensaje(), req.getIdMensajePie());
+        if (previo.isPresent()) {
+            log.info("[BOT] Mensaje {} ya procesado (registro {}): no se vuelve a registrar.",
+                    req.getIdMensaje(), previo.get().getId());
+            return RegistroPagoBotResponse.repetido(previo.get());
+        }
+
         RegistroPagoBot reg = RegistroPagoBot.builder()
                 .monto(req.getMonto())
                 .idOperacion(req.getIdOperacion())
+                .idMensajeWa(vacioANull(req.getIdMensaje()))
+                .idMensajePie(vacioANull(req.getIdMensajePie()))
                 .emisor(req.getEmisor())
                 .receptorNombre(req.getReceptorNombre())
                 .cargadoPorNombre(req.getCargadoPorNombre())
@@ -181,12 +193,22 @@ public class GestionSueldoService implements IGestionSueldoService {
 
         String comprobanteRef = guardarComprobante(req);
         reg.setComprobanteUrl(comprobanteRef);
+        String hash = hashDeComprobante(req);
+        reg.setHashComprobante(hash);
 
+        // Duplicado por N° de operación, o por ser exactamente el mismo archivo (cubre los
+        // comprobantes donde el OCR no logró leer el N° de operación).
+        String motivoDuplicado = null;
         if (req.getIdOperacion() != null && !req.getIdOperacion().isBlank()
                 && registroRepo.existsByIdOperacionAndEstado(req.getIdOperacion(), EstadoRegistroBot.REGISTRADO)) {
+            motivoDuplicado = "El comprobante (operación " + req.getIdOperacion() + ") ya fue registrado antes.";
+        } else if (hash != null && registroRepo.existsByHashComprobanteAndEstado(hash, EstadoRegistroBot.REGISTRADO)) {
+            motivoDuplicado = "Ese mismo archivo ya fue registrado antes (aunque no se pudo leer el N° de operación).";
+        }
+        if (motivoDuplicado != null) {
             reg.setEstado(EstadoRegistroBot.DUPLICADO);
             reg.setTipoReceptor(TipoReceptorBot.DESCONOCIDO);
-            reg.setMensaje("El comprobante (operación " + req.getIdOperacion() + ") ya fue registrado antes.");
+            reg.setMensaje(motivoDuplicado);
             return RegistroPagoBotResponse.from(registroRepo.save(reg));
         }
 
@@ -352,6 +374,40 @@ public class GestionSueldoService implements IGestionSueldoService {
             throw new BusinessException("No tiene comprobante guardado");
         }
         return objectName;
+    }
+
+    private Optional<RegistroPagoBot> buscarPorMensaje(String... ids) {
+        for (String id : ids) {
+            if (id == null || id.isBlank()) continue;
+            Optional<RegistroPagoBot> r = registroRepo.findFirstByIdMensajeWaOrIdMensajePie(id, id);
+            if (r.isPresent()) return r;
+        }
+        return Optional.empty();
+    }
+
+    private static String vacioANull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
+    }
+
+    /** SHA-256 (hex) del archivo del comprobante, o null si no vino archivo / no se pudo decodificar. */
+    private static String hashDeComprobante(PagoAutomaticoRequest req) {
+        if (req.getComprobanteBase64() == null || req.getComprobanteBase64().isBlank()) return null;
+        try {
+            byte[] datos = java.util.Base64.getDecoder().decode(req.getComprobanteBase64());
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(datos));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> mensajesConocidos(List<String> ids) {
+        List<String> limpios = ids.stream().filter(s -> s != null && !s.isBlank()).distinct().toList();
+        if (limpios.isEmpty()) return List.of();
+        java.util.Set<String> conocidos = new java.util.LinkedHashSet<>(registroRepo.idsMensajeWaConocidos(limpios));
+        conocidos.addAll(registroRepo.idsMensajePieConocidos(limpios));
+        return List.copyOf(conocidos);
     }
 
     private String guardarComprobante(PagoAutomaticoRequest req) {
@@ -596,7 +652,16 @@ public class GestionSueldoService implements IGestionSueldoService {
     @Override
     @Transactional
     public RegistroPagoBotResponse registrarPagoEfectivo(PagoEfectivoRequest req) {
+        // Idempotencia por mensaje de WhatsApp (el efectivo no tiene N° de operación ni archivo
+        // para detectar un duplicado: el ID del mensaje es la única clave confiable).
+        Optional<RegistroPagoBot> previo = buscarPorMensaje(req.getIdMensaje());
+        if (previo.isPresent()) {
+            log.info("[BOT-EFECTIVO] Mensaje {} ya procesado (registro {}): no se vuelve a crear.",
+                    req.getIdMensaje(), previo.get().getId());
+            return RegistroPagoBotResponse.repetido(previo.get());
+        }
         RegistroPagoBot reg = RegistroPagoBot.builder()
+                .idMensajeWa(vacioANull(req.getIdMensaje()))
                 .monto(req.getMonto())
                 .emisor(req.getEmisor())
                 .receptorNombre(req.getReceptorNombre())

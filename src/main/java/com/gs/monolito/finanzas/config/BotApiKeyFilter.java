@@ -31,7 +31,8 @@ public class BotApiKeyFilter extends OncePerRequestFilter {
     private static final String HEADER = "X-Bot-Api-Key";
     static final Set<String> RUTAS_BOT = Set.of(
             "/api/finanzas/sueldos/pago-automatico",
-            "/api/finanzas/sueldos/pago-efectivo");
+            "/api/finanzas/sueldos/pago-efectivo",
+            "/api/finanzas/sueldos/registros-bot/conocidos");
 
     @Value("${gs.bot.api-key:}")
     private String botApiKey;

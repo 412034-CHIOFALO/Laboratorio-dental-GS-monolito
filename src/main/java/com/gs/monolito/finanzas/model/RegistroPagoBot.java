@@ -42,6 +42,18 @@ public class RegistroPagoBot {
     @Column(name = "id_operacion", length = 60)
     private String idOperacion;
 
+    /** ID del mensaje de WhatsApp (comprobante o comando de efectivo): clave de idempotencia. */
+    @Column(name = "id_mensaje_wa", length = 128)
+    private String idMensajeWa;
+
+    /** ID del mensaje con el pie "Emisor (Receptor)" cuando llegó separado de la foto. */
+    @Column(name = "id_mensaje_pie", length = 128)
+    private String idMensajePie;
+
+    /** SHA-256 (hex) del archivo del comprobante, para detectar el mismo archivo subido dos veces. */
+    @Column(name = "hash_comprobante", length = 64, columnDefinition = "char(64)")
+    private String hashComprobante;
+
     @Column(length = 200)
     private String emisor;
 

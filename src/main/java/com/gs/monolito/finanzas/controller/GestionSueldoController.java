@@ -292,6 +292,14 @@ public class GestionSueldoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.registrarPagoEfectivo(req));
     }
 
+    @Operation(summary = "¿Cuáles de estos mensajes de WhatsApp ya procesó el sistema?",
+               description = "Lo usa el bot (API key) antes de reconciliar: recibe una lista de IDs de mensajes y devuelve " +
+                             "los que ya están registrados (en cualquier estado), para no volver a hacer OCR ni a registrarlos.")
+    @PostMapping("/registros-bot/conocidos")
+    public ResponseEntity<List<String>> mensajesConocidos(@Valid @RequestBody MensajesConocidosRequest req) {
+        return ResponseEntity.ok(service.mensajesConocidos(req.ids()));
+    }
+
     @Operation(summary = "Lista los pagos en efectivo pendientes de confirmación",
                description = "Devuelve todos los registros del bot con estado=PENDIENTE y fuente=EFECTIVO.")
     @GetMapping("/pendientes-efectivo")
