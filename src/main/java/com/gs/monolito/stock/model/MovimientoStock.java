@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
  * Persiste en {@code gs_stock.movimientos_stock}.
  */
 @Entity
-@Table(name = "movimientos_stock", schema = "gs_stock")
+@Table(name = "movimientos_stock")
 @Getter
 @Setter
 @NoArgsConstructor

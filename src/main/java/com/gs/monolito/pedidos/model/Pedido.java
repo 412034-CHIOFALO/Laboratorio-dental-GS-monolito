@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
  * módulo stock (antes vía Feign).</p>
  */
 @Entity
-@Table(name = "pedidos", schema = "gs_pedidos")
+@Table(name = "pedidos")
 @Getter
 @Setter
 @NoArgsConstructor

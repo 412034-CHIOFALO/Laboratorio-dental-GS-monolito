@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * {@code gs_pedidos.odontologos}.
  */
 @Entity
-@Table(name = "odontologos", schema = "gs_pedidos", indexes = {
+@Table(name = "odontologos", indexes = {
     @Index(name = "idx_odontologo_nombre",    columnList = "nombre"),
     @Index(name = "idx_odontologo_dni",       columnList = "dni"),
     @Index(name = "idx_odontologo_cuit",      columnList = "cuit"),

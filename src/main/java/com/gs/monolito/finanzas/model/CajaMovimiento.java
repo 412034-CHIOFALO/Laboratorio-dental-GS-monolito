@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * BANCARIA, COMPENSACION). Persiste en {@code gs_finanzas.caja_movimientos}.
  */
 @Entity
-@Table(name = "caja_movimientos", schema = "gs_finanzas")
+@Table(name = "caja_movimientos")
 @Getter
 @Setter
 @NoArgsConstructor

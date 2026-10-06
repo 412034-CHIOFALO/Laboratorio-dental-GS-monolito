@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * Persiste en {@code gs_pedidos.documentos_pedido}.
  */
 @Entity
-@Table(name = "documentos_pedido", schema = "gs_pedidos")
+@Table(name = "documentos_pedido")
 @Getter
 @Setter
 @NoArgsConstructor

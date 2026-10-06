@@ -14,7 +14,7 @@ import java.util.List;
  * (campo {@code activo}) para no romper referencias en pedidos históricos.
  */
 @Entity
-@Table(name = "tipos_trabajo", schema = "gs_catalogo")
+@Table(name = "tipos_trabajo")
 @Getter
 @Setter
 @NoArgsConstructor

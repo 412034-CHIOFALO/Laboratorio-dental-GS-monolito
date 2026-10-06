@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * {@code gs_finanzas.configuracion_sueldo}. Una sola fila por empleado.
  */
 @Entity
-@Table(name = "configuracion_sueldo", schema = "gs_finanzas",
+@Table(name = "configuracion_sueldo",
        uniqueConstraints = @UniqueConstraint(columnNames = "empleado_id"))
 @Getter
 @Setter

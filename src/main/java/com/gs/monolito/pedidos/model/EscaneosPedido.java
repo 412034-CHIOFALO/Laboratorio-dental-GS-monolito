@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * prefijo {@code escaneos/}). Persiste en {@code gs_pedidos.escaneos_pedido}.
  */
 @Entity
-@Table(name = "escaneos_pedido", schema = "gs_pedidos")
+@Table(name = "escaneos_pedido")
 @Getter
 @Setter
 @NoArgsConstructor

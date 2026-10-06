@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * ({@code objectName}). Persiste en {@code gs_finanzas.reporte_mensual}.
  */
 @Entity
-@Table(name = "reporte_mensual", schema = "gs_finanzas", uniqueConstraints = @UniqueConstraint(columnNames = {"anio", "mes"}))
+@Table(name = "reporte_mensual", uniqueConstraints = @UniqueConstraint(columnNames = {"anio", "mes"}))
 @Getter
 @Setter
 @NoArgsConstructor

@@ -15,7 +15,7 @@ import java.time.Instant;
  * para el porqué de mantener los schemas separados en vez de fusionarlos).
  */
 @Entity
-@Table(name = "usuarios", schema = "gs_auth")
+@Table(name = "usuarios")
 @Data
 @Builder
 @NoArgsConstructor

@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * pedido que consume este material según la receta del catálogo.
  */
 @Entity
-@Table(name = "materiales", schema = "gs_stock")
+@Table(name = "materiales")
 @Getter
 @Setter
 @NoArgsConstructor

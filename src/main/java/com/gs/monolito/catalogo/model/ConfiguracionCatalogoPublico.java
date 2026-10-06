@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * para la lógica de "crear la fila si no existe".
  */
 @Entity
-@Table(name = "configuracion_catalogo_publico", schema = "gs_catalogo")
+@Table(name = "configuracion_catalogo_publico")
 @Getter
 @Setter
 @NoArgsConstructor

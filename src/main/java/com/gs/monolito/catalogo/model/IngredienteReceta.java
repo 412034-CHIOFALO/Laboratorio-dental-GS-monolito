@@ -13,7 +13,7 @@ import java.math.BigDecimal;
  * nunca un @ManyToOne cruzando módulos).
  */
 @Entity
-@Table(name = "ingredientes_receta", schema = "gs_catalogo")
+@Table(name = "ingredientes_receta")
 @Getter
 @Setter
 @NoArgsConstructor

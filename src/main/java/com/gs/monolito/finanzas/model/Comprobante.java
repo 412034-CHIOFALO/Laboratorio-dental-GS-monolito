@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * pedido del módulo pedidos (referencia por id, cross-módulo).
  */
 @Entity
-@Table(name = "comprobantes", schema = "gs_finanzas")
+@Table(name = "comprobantes")
 @Getter
 @Setter
 @NoArgsConstructor

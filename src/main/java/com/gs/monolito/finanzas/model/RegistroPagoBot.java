@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * {@code gs_finanzas.registros_pago_bot}.
  */
 @Entity
-@Table(name = "registros_pago_bot", schema = "gs_finanzas")
+@Table(name = "registros_pago_bot")
 @Getter
 @Setter
 @NoArgsConstructor

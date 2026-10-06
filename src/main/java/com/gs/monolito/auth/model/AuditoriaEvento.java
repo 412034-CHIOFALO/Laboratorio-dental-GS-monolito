@@ -13,7 +13,7 @@ import java.time.Instant;
  * (antes viajaba por HTTP entre microservicios vía {@code AuditoriaClient}).
  */
 @Entity
-@Table(name = "auditoria_eventos", schema = "gs_auth")
+@Table(name = "auditoria_eventos")
 @Data
 @NoArgsConstructor
 public class AuditoriaEvento {
