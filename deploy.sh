@@ -97,7 +97,14 @@ if [ "$(leer_env OTEL_ENABLED)" = "true" ]; then
 fi
 
 echo "[1/4] Trayendo el código..."
+ANTES=$(git rev-parse HEAD)
 git pull --ff-only
+# Si el pull cambió el código, este mismo script pudo haber cambiado: se vuelve a ejecutar la versión
+# nueva en vez de seguir con la vieja (una vez, para no entrar en un bucle).
+if [ "$(git rev-parse HEAD)" != "$ANTES" ] && [ -z "${DEPLOY_REEXEC:-}" ]; then
+    echo "El código cambió: sigo con la versión nueva de deploy.sh."
+    DEPLOY_REEXEC=1 exec "$(readlink -f "$0")" "$@"
+fi
 
 echo "[2/4] Imágenes que estaban corriendo (por si hay que volver atrás):"
 "${COMPOSE[@]}" images "${SERVICIOS[@]}" 2>/dev/null || true
