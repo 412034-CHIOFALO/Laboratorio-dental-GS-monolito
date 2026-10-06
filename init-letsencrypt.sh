@@ -23,7 +23,7 @@
 #                                     # límite real de 5 certs/semana/dominio.
 
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$(readlink -f "$0")")"
 
 if [ ! -f .env ]; then
     echo "Falta .env (copiá .env.example a .env y completá los valores reales primero)."

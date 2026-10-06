@@ -363,7 +363,7 @@ def main():
     ap.add_argument("--base", default="https://127.0.0.1")
     ap.add_argument("--host", default="", help="Host header (el dominio) si --base es una IP")
     ap.add_argument("--mysql-container", default="", help="para el ajuste de fechas por SQL")
-    ap.add_argument("--credenciales", default=os.path.expanduser("~/demo-credenciales.txt"))
+    ap.add_argument("--credenciales", default=os.path.expanduser("~/claude/demo/credenciales.txt"))
     ap.add_argument("--forzar", action="store_true", help="correr aunque ya haya odontólogos")
     args = ap.parse_args()
 
@@ -393,6 +393,7 @@ def main():
                 raise
             print(f"   = {user} ya existía")
     if creds:
+        os.makedirs(os.path.dirname(args.credenciales), mode=0o700, exist_ok=True)
         fd = os.open(args.credenciales, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w") as f:
             f.write("# Usuarios de muestra de G&S: borralos o cambiales la contraseña antes del uso real.\n")

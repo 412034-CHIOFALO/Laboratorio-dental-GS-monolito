@@ -15,7 +15,7 @@
 # NUNCA "docker compose down -v": la -v borra los volúmenes (base de datos,
 # archivos, certificados, sesión de WhatsApp). Sin -v, "down" es seguro.
 set -euo pipefail
-cd "$(dirname "$0")"
+cd "$(dirname "$(readlink -f "$0")")"   # ruta real aunque se entre por un acceso directo
 
 MODO="deploy"; CON_BOT=1
 for a in "$@"; do

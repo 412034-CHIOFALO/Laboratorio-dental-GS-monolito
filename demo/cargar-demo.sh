@@ -7,7 +7,7 @@
 # Los secretos se leen del .env y viajan solo por el entorno del proceso Python
 # (no se imprimen ni quedan en el historial de la shell).
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$(readlink -f "$0")")/.."
 [ -f .env ] || { echo "Falta .env en $(pwd)"; exit 1; }
 
 leer_env() {

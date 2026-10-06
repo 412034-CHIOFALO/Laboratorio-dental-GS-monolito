@@ -71,6 +71,12 @@ cd /opt/gs-monolito
 ./deploy.sh
 ```
 
+La carpeta real es `/opt/gs-monolito` (no aparece con `ls` desde tu carpeta personal
+porque `/opt` cuelga de la raíz del sistema). Para encontrarla fácil existe el acceso
+directo `~/gs-monolito`; los scripts resuelven la ruta real, así que andan igual por
+cualquiera de las dos. Todo lo que arma Claude por SSH (logs de deploy, dumps previos,
+datos y contraseñas de muestra) va a `~/claude/{logs,backups,demo}`, no suelto en `~`.
+
 Hace, en orden: `git pull` (los `docker-compose*.yml` viven en el repo del
 servidor: sin traerlos, un servicio nuevo como `gs-bot` no existe para el
 compose viejo), **chequea el `.env` antes de tocar nada** (mismo criterio que
@@ -244,11 +250,11 @@ cd /opt/gs-monolito
 - **Antes de cargar**, un dump para poder volver al estado limpio:
   ```bash
   docker exec -e MYSQL_PWD="$(grep ^DB_ROOT_PASSWORD= .env | cut -d= -f2-)" gs-monolito-mysql-1 \
-    mysqldump -uroot --single-transaction --routines gs_auth | gzip > ~/backups/gs-pre-demo-$(date +%F).sql.gz
+    mysqldump -uroot --single-transaction --routines gs_auth | gzip > ~/claude/backups/gs-pre-demo-$(date +%F).sql.gz
   ```
 - Corre **una sola vez** (si ya hay odontólogos se frena; `--forzar` lo saltea).
 - Crea 3 usuarios de muestra (`tecnico2`, `tecnico3`, `administrativa`) con contraseñas
-  al azar en `~/demo-credenciales.txt` (chmod 600). `admin` y `tecnico1` siguen con las del `.env`.
+  al azar en `~/claude/demo/credenciales.txt` (chmod 600). `admin` y `tecnico1` siguen con las del `.env`.
 - Los odontólogos **no tienen teléfono** a propósito: al pasar un pedido a LISTO el sistema
   avisa por WhatsApp si hay teléfono, y no queremos escribirle a un número real. Para probar
   esa notificación, ponele tu propio número a uno.
