@@ -78,7 +78,7 @@ const pendientesPie = new Map();
 const TIMEOUT_PENDIENTE = 5 * 60 * 1000;   // 5 minutos
 
 // ─── Reconciliación (recuperar comprobantes mandados con el bot caído) ───────
-// IDs de mensajes de WhatsApp ya revisados por la reconciliación, persistidos
+// IDs de mensajes de WhatsApp ya procesados (en vivo O por la reconciliación), persistidos
 // en el mismo volumen que la sesión para no repetir OCR/Gemini tras un reinicio
 // del contenedor. Guarda solo IDs (livianos), no el contenido de los mensajes.
 const RUTA_PROCESADOS = path.join(path.resolve('./.wwebjs_auth/'), 'mensajes-procesados.json');
@@ -486,13 +486,18 @@ setInterval(() => {
 // que mantenerla dos veces. La única diferencia es `opciones.reconciliacion`.
 async function manejarMensaje(msg, opciones = {}) {
   const { reconciliacion = false } = opciones;
+  // Los mensajes propios (las respuestas del bot, o lo que se escribe desde el celular vinculado)
+  // no son comprobantes. En vivo el evento 'message' ya no los emite, pero fetchMessages() de la
+  // reconciliación SÍ los trae: sin este filtro el aviso del bot ("Ej: Dr. García (Carlos López)")
+  // se leía como un "Emisor (Receptor)" real y podía emparejarse con un comprobante.
+  if (msg.fromMe) return;
   try {
     const chat = await resolverChat(msg);
     if (!chat) return; // no se pudo resolver el grupo — se reintenta solo en la próxima reconciliación
     if (!chat.isGroup) return;
     if (GRUPOS.length && !GRUPOS.includes(chat.name.toLowerCase())) return;
 
-    // En reconciliación, si ya vimos este mensaje en una pasada anterior, no
+    // En reconciliación, si este mensaje ya se procesó (en vivo o en una pasada anterior), no
     // repetimos OCR/Gemini ni volvemos a registrarlo (evita duplicados y gasto).
     if (reconciliacion && mensajesProcesados.has(msg.id._serialized)) return;
 
@@ -507,7 +512,7 @@ async function manejarMensaje(msg, opciones = {}) {
       if (pie.receptor) {
         // Comprobante + pie en el mismo mensaje → procesar directo
         await procesarPago(msg, chat, contacto, pie, lectura, undefined, { reconciliacion });
-        if (reconciliacion) marcarProcesado(msg.id._serialized);
+        marcarProcesado(msg.id._serialized);
         return;
       }
 
@@ -518,10 +523,8 @@ async function manejarMensaje(msg, opciones = {}) {
       if (pendPie && (Date.now() - pendPie.ts) < TIMEOUT_PENDIENTE) {
         pendientesPie.delete(clave);
         await procesarPago(msg, chat, contacto, pendPie.pie, lectura, pendPie.msgPie, { reconciliacion });
-        if (reconciliacion) {
-          marcarProcesado(msg.id._serialized);
-          marcarProcesado(pendPie.msgPie.id._serialized);
-        }
+        marcarProcesado(msg.id._serialized);
+        marcarProcesado(pendPie.msgPie.id._serialized);
         return;
       }
 
@@ -531,7 +534,7 @@ async function manejarMensaje(msg, opciones = {}) {
         console.log(`\n📎 [${chat.name}] Comprobante de ${contacto.pushname || contacto.number} — esperando "Emisor (Receptor)"...`);
         await msg.reply('📎 Recibí el comprobante. Ahora mandá quién a quién: *Emisor (Receptor)*\nEj: Dr. García (Carlos López)');
       }
-      // En reconciliación no lo marcamos procesado todavía: si el pie viene
+      // Un comprobante que espera su pie no se marca procesado todavía: si el pie viene
       // en un mensaje posterior DENTRO del mismo lote revisado, se empareja
       // más abajo igual que en vivo.
 
@@ -544,14 +547,14 @@ async function manejarMensaje(msg, opciones = {}) {
           await registrarEfectivo(msg, chat, contacto,
             { monto: pieEfectivo.montoManual, receptor: pieEfectivo.receptor, emisor: pieEfectivo.emisor },
             { reconciliacion });
-          if (reconciliacion) marcarProcesado(msg.id._serialized);
+          marcarProcesado(msg.id._serialized);
           return;
         }
         if (pieEfectivo.receptor && !pieEfectivo.montoManual) {
           if (!reconciliacion) {
             await msg.reply('💵 Anotado el receptor, pero me falta el monto. Mandá: *Emisor (Receptor) monto*\nEj: Dr. García (Proveedor X) 85000');
           }
-          if (reconciliacion) marcarProcesado(msg.id._serialized);
+          marcarProcesado(msg.id._serialized);
           return;
         }
       }
@@ -561,14 +564,14 @@ async function manejarMensaje(msg, opciones = {}) {
       const efectivo = parsearEfectivo(msg.body);
       if (efectivo) {
         await registrarEfectivo(msg, chat, contacto, { ...efectivo, emisor: null }, { reconciliacion });
-        if (reconciliacion) marcarProcesado(msg.id._serialized);
+        marcarProcesado(msg.id._serialized);
         return;
       }
 
       // ── Llegó texto: ¿es el pie de un comprobante pendiente? ──
       const pie = parsearPie(msg.body);
       if (!pie.receptor) {
-        if (reconciliacion) marcarProcesado(msg.id._serialized);
+        marcarProcesado(msg.id._serialized);
         return;
       }
 
@@ -577,10 +580,8 @@ async function manejarMensaje(msg, opciones = {}) {
         // Ya teníamos el comprobante esperando este pie → emparejar
         pendientes.delete(clave);
         await procesarPago(pend.msg, pend.chat, pend.contacto, pie, pend.lectura, msg, { reconciliacion });
-        if (reconciliacion) {
-          marcarProcesado(pend.msg.id._serialized);
-          marcarProcesado(msg.id._serialized);
-        }
+        marcarProcesado(pend.msg.id._serialized);
+        marcarProcesado(msg.id._serialized);
       } else {
         // El pie llegó primero (sin comprobante todavía) → lo guardamos para
         // cuando llegue la foto, en vez de perderlo en silencio.
@@ -589,7 +590,7 @@ async function manejarMensaje(msg, opciones = {}) {
           console.log(`\n📝 [${chat.name}] "Emisor (Receptor)" de ${contacto.pushname || contacto.number} — esperando el comprobante...`);
           await msg.reply('📝 Anotado. Mandame ahora la foto o el PDF del comprobante.');
         }
-        if (reconciliacion) marcarProcesado(msg.id._serialized);
+        marcarProcesado(msg.id._serialized);
       }
     }
   } catch (err) {
