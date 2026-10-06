@@ -136,6 +136,21 @@ El código ya manda logs/métricas/trazas, solo falta activarlo:
    cada vez que actualices — no hay ningún pipeline automático que lo tenga
    que saber.
 
+### Si los logs no llegan (token de Loki inválido)
+
+Las métricas y trazas (OTLP) y los logs (Loki) usan **credenciales distintas**: pueden andar unas y
+otras no. El driver de Docker nunca frena la app (va en modo no bloqueante), así que un token malo
+pasa desapercibido. Para verlo en el servidor:
+```bash
+journalctl -u docker --since '10 min ago' | grep 'caller=client.go' | tail -3
+```
+Un `status=401 ... invalid token` significa que `LOKI_URL` tiene un token inválido (mal copiado, vencido
+o sin el permiso `logs:write`). Se arregla creando uno nuevo en Grafana Cloud → **Administration →
+Access policies** (scope `logs:write`), poniéndolo en `LOKI_URL=https://<usuario>:<token>@logs-prod-XXX.grafana.net/loki/api/v1/push`
+y recreando los contenedores con `./deploy.sh`. Las métricas se pueden probar aparte: un POST vacío a
+`$OTEL_EXPORTER_OTLP_ENDPOINT/v1/metrics` con el header de `GRAFANA_OTLP_AUTH_HEADER` debe dar `200`.
+
+
 ### Verificar que llegó
 
 - `curl -I https://tu-dominio.com/actuator/health` → tiene que dar `200`.
@@ -263,3 +278,22 @@ cd /opt/gs-monolito
   datos reales, lo más limpio es restaurar el dump de arriba (con el sistema parado:
   `docker compose ... stop app`, `gunzip -c dump | docker exec -i ... mysql -uroot gs_auth`,
   `... start app`). Y borrar o cambiar la contraseña de los 3 usuarios de muestra.
+
+## 10. Pruebas automáticas (qué corre la CI y cómo correrlas a mano)
+
+En cada push a una rama (`.github/workflows/ci.yml`):
+- tests unitarios del backend (`mvn verify`);
+- tests del bot (`cd bot && npm test`): parsers de comprobantes, OCR sobre imágenes de prueba, cola de
+  avisos y normalización de teléfonos argentinos;
+- la app arranca contra una base MySQL **vacía** (Flyway V1-V6 + Hibernate en `validate`) y corre el flujo
+  completo por la API (`e2e/flujo_principal.py`): sesión/CSRF, pedido → stock → entrega → cobro, permisos por
+  rol y el bot con anti-duplicados.
+
+Contra un servidor de ensayo o el real (deja datos con prefijo `E2E`):
+```bash
+GS_ADMIN_PASSWORD=... GS_TECNICO_PASSWORD=... GS_BOT_API_KEY=... python3 e2e/flujo_principal.py --base https://tu-dominio
+```
+
+**Esquema de la base:** Flyway es el dueño (las tablas reales viven en `gs_auth`); Hibernate solo valida. Todo
+cambio de esquema es una migración nueva `V<n>__descripcion.sql` en `src/main/resources/db/migration/`, nunca
+un cambio de entidad a secas (la app no arrancaría: `ddl-auto=validate`).

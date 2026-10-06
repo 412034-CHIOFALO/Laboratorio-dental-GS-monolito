@@ -125,6 +125,8 @@ services:
       # "device or resource busy" si el archivo está bind-mounteado solo.
       - ./backup/rclone-config:/root/.config/rclone
       - backup_tmp:/backups/tmp
+      # Copias locales de los backups (se ven en el servidor como ./backups, aunque no haya Google Drive)
+      - ./backups:/backups/local
     depends_on:
       mysql:
         condition: service_healthy

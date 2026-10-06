@@ -106,7 +106,9 @@ echo "[3/4] Bajando las imágenes nuevas..."
 "${COMPOSE[@]}" pull "${SERVICIOS[@]}"
 
 echo "[4/4] Levantando..."
-"${COMPOSE[@]}" up -d "${SERVICIOS[@]}"
+# backup se arma en el propio servidor (no viene de ghcr.io): sin esto un cambio en backup/ no se aplicaría.
+"${COMPOSE[@]}" build backup
+"${COMPOSE[@]}" up -d "${SERVICIOS[@]}" backup
 
 echo "Esperando a que app quede sana (con migraciones nuevas puede tardar un par de minutos)..."
 cid=$("${COMPOSE[@]}" ps -q app)
