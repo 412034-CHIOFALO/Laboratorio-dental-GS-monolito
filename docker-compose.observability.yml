@@ -40,3 +40,12 @@ services:
         loki-url: "${LOKI_URL}"
         mode: non-blocking
         max-buffer-size: 4m
+  # El bot de WhatsApp: sus logs dicen si se desconectó, qué comprobantes leyó y qué rechazó
+  # el backend. Hay que poder verlos sin entrar al servidor.
+  gs-bot:
+    logging:
+      driver: loki
+      options:
+        loki-url: "${LOKI_URL}"
+        mode: non-blocking
+        max-buffer-size: 4m
