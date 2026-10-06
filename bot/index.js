@@ -19,7 +19,9 @@ require('dotenv').config();
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const axios = require('axios');
-const { createWorker } = require('tesseract.js');
+const { crearOcr } = require('./ocr');
+const { crearEnvios } = require('./envios');
+const { normalizarTelefonoAR } = require('./telefono');
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const http = require('http');
@@ -349,7 +351,7 @@ client.on('ready', async () => {
   console.log(`   Backend: ${BACKEND_ENABLED ? BACKEND_URL + ' (ACTIVO)' : 'desactivado (solo logueo)'}`);
   console.log(`   Lectura: ${GEMINI_ENABLED ? '✨ IA Gemini (cualquier billetera + fotos)' : 'reglas locales'}`);
   console.log('   Preparando OCR...');
-  ocrWorker = await createWorker('spa');
+  ocrWorker = await crearOcr({ cachePath: __dirname });
   console.log('   ✅ OCR listo.\n');
 
   // Por si quedaron comprobantes sin procesar mientras el bot estuvo caído
@@ -438,8 +440,17 @@ async function reconciliarChats(limitePorGrupo) {
           continue;
         }
 
-        const mensajes = await chat.fetchMessages({ limit: limitePorGrupo });
+        const mensajes = (await chat.fetchMessages({ limit: limitePorGrupo })).filter(m => !m.fromMe);
         mensajes.sort((a, b) => a.timestamp - b.timestamp); // más viejo primero, igual que en vivo
+
+        // Lo que el sistema ya registró no se vuelve a leer ni a procesar (sin gastar OCR/Gemini). Es la
+        // memoria que manda: sobrevive aunque se pierda el volumen del bot. Si el backend no responde,
+        // se sigue con lo que recuerda este bot (mensajesProcesados) y con el backend como red de seguridad.
+        const sinVer = mensajes.filter(m => !mensajesProcesados.has(m.id._serialized));
+        const conocidos = await consultarMensajesConocidos(sinVer.map(m => m.id._serialized));
+        for (const id of conocidos) marcarProcesado(id);
+        if (conocidos.size) console.log(`   ↩ ${conocidos.size} mensaje(s) de "${chat.name}" ya estaban registrados en el sistema — se saltean.`);
+
         for (const msg of mensajes) {
           await manejarMensaje(msg, { reconciliacion: true });
           mensajesRevisados++;
@@ -670,6 +681,8 @@ async function procesarPago(msgComprobante, chat, contacto, pie, lectura, msgPie
       comprobanteBase64: lectura.comprobanteBase64,
       comprobanteMime: lectura.comprobanteMime,
       comprobanteNombre: lectura.comprobanteNombre,
+      idMensaje: msgComprobante.id._serialized,
+      idMensajePie: msgPie && msgPie !== msgComprobante ? msgPie.id._serialized : undefined,
     });
   } catch (e) {
     const msgErr = e.response?.data?.mensaje || e.message;
@@ -683,8 +696,19 @@ async function procesarPago(msgComprobante, chat, contacto, pie, lectura, msgPie
   console.log(`   Resultado:    ${estado} — ${resultado?.mensaje || ''}`);
   console.log('   ───────────────────────────────────────────────\n');
 
+  // El sistema ya tenía este mensaje (el bot lo reprocesó: reconciliación, reinicio...): no se crea nada
+  // y no se vuelve a contestar en el grupo — ya se contestó la primera vez.
+  if (resultado?.repetido) {
+    console.log('   ↩ Mensaje ya procesado por el sistema — se ignora (sin respuesta).');
+    return;
+  }
   if (estado === 'DUPLICADO') {
-    await responder(`ℹ️ Ese comprobante ya estaba registrado (operación ${lectura.idOperacion || '—'}).`);
+    // En una reconciliación no se avisa: el comprobante ya estaba cargado y nadie lo está reenviando.
+    if (reconciliacion) {
+      console.log('   ↩ Duplicado detectado en la reconciliación — se ignora (sin respuesta).');
+      return;
+    }
+    await responder(`ℹ️ Ese comprobante ya estaba registrado (${resultado?.mensaje || 'operación ' + (lectura.idOperacion || '—')}).`);
     return;
   }
   if (estado !== 'REGISTRADO') {
@@ -848,7 +872,7 @@ async function leerComprobante(msg) {
     // 1) Reglas locales primero (gratis, sin gastar cuota de Gemini — resuelven
     // bien MP/Personal Pay, que son los que llegan en la práctica)
     if (esImg && !texto && ocrWorker) {
-      texto = (await ocrWorker.recognize(buffer)).data.text || '';
+      texto = await ocrWorker.leerTexto(buffer);
       console.log('   (imagen — OCR local)');
     }
     logTexto(texto);
@@ -927,238 +951,10 @@ async function leerConGemini(media, textoPdf) {
 }
 
 // ─── Parsers ─────────────────────────────────────────────────────────────────
-
-/**
- * Detecta una declaración de efectivo en el grupo.
- * Formato: "efectivo 50000 (Receptor)" o "efectivo $50.000 (Receptor)"
- * Devuelve { monto, receptor } o null si no coincide.
- */
-function parsearEfectivo(texto) {
-  if (!texto) return null;
-  const m = texto.trim().match(/^efectivo\s+\$?\s*([\d.,]+)\s*\(([^)]+)\)/i);
-  if (!m) return null;
-  const montoStr = m[1].replace(/\./g, '').replace(',', '.');
-  const monto = parseFloat(montoStr);
-  if (!monto || monto < 100) return null;
-  return { monto: Math.round(monto), receptor: m[2].trim() };
-}
-
-/**
- * Pie: "EMISOR (RECEPTOR)" → { emisor, receptor, montoManual }.
- * El monto es OPCIONAL: si lo ponés (antes o después del paréntesis), se usa
- * como respaldo cuando el comprobante es una foto que el OCR no pudo leer.
- *   "Dr García (Carlos López)"        → sin monto (se lee del comprobante)
- *   "Dr García (Carlos López) 10000"  → con monto manual
- */
-function parsearPie(texto) {
-  const r = { emisor: null, receptor: null, montoManual: null };
-  if (!texto) return r;
-  const m = texto.match(/^(.*?)\(([^)]+)\)(.*)$/s);
-  if (!m) return r;
-  r.emisor = m[1].trim() || null;
-  r.receptor = m[2].trim();
-
-  // Monto opcional: buscar un número en lo que rodea al paréntesis
-  const resto = `${m[1]} ${m[3]}`;
-  const mm = resto.match(/\$?\s*(\d{1,3}(?:\.\d{3})+(?:,\d{2})?|\d{3,}(?:,\d{2})?)/);
-  if (mm) {
-    const v = Math.round(parseFloat(mm[1].replace(/\./g, '').replace(',', '.')));
-    if (v >= 100) r.montoManual = v;
-  }
-  return r;
-}
-
-/**
- * Monto: solo números con formato de dinero ($60.000 / $60.000,00). Descarta IDs.
- * Maneja el caso de Personal Pay donde el monto viene partido en líneas
- * ("$" / "60.000" / "00") uniendo el texto antes de buscar.
- */
-function extraerMonto(texto) {
-  const claves = /(monto|importe|total|transferiste|enviaste|enviaron|pagaste|recibiste|enviado|recibido)/i;
-
-  // Unimos líneas para tolerar montos partidos: "$\n60.000\n00" → "$ 60.000 00"
-  // y también el caso normal. Trabajamos sobre el texto "aplanado" por bloques.
-  const lineas = texto.split('\n');
-  const candidatos = [];
-
-  for (let i = 0; i < lineas.length; i++) {
-    // Bloque: la línea + las 2 siguientes (por si el monto está partido)
-    const bloque = (lineas[i] + ' ' + (lineas[i + 1] || '') + ' ' + (lineas[i + 2] || '')).trim();
-    const enClave = claves.test(lineas[i]) || claves.test(lineas[Math.max(0, i - 1)] || '');
-
-    // $ opcional, miles obligatorio (60.000), centavos opcionales separados o con coma
-    const regex = /(\$\s*)?(\d{1,3}(?:\.\d{3})+)(?:[,\s](\d{2})\b)?/g;
-    let m;
-    while ((m = regex.exec(bloque)) !== null) {
-      const simbolo = !!m[1];
-      const entero = parseInt(m[2].replace(/\./g, ''), 10);
-      if (entero < 100 || entero > 99_000_000) continue;
-      candidatos.push({ valor: entero, simbolo, enClave });
-    }
-  }
-
-  if (!candidatos.length) return { monto: null, confianza: 'baja' };
-
-  // Dedup por valor (el bloque solapa líneas y puede repetir)
-  const unicos = [];
-  const vistos = new Set();
-  for (const c of candidatos) {
-    const k = c.valor + (c.simbolo ? 'S' : '') + (c.enClave ? 'C' : '');
-    if (!vistos.has(k)) { vistos.add(k); unicos.push(c); }
-  }
-
-  unicos.sort((a, b) =>
-    (a.simbolo !== b.simbolo) ? (a.simbolo ? -1 : 1)
-    : (a.enClave !== b.enClave) ? (a.enClave ? -1 : 1)
-    : (b.valor - a.valor));
-  const mejor = unicos[0];
-  return { monto: mejor.valor, confianza: (mejor.simbolo || mejor.enClave) ? 'alta' : 'media' };
-}
-
-/** N° de operación / código del comprobante. */
-function extraerIdOperacion(texto) {
-  const patrones = [
-    /n[uú]mero\s+de\s+operaci[oó]n[^\d]*([0-9]{6,})/i,
-    /(?:n[º°o]?\.?\s*de\s*)?operaci[oó]n[:\s#nro.]*([A-Z0-9-]{6,})/i,
-    /c[oó]digo\s+de\s+identificaci[oó]n[:\s]*([A-Z0-9-]{6,})/i,
-    /(?:n[º°o]?\.?\s*)?transacci[oó]n[:\s#nro.]*([A-Z0-9-]{6,})/i,
-  ];
-  for (const p of patrones) {
-    const m = texto.match(p);
-    if (m) return m[1].trim();
-  }
-  return null;
-}
-
-/**
- * Extrae emisor y receptor del comprobante. Soporta muchas billeteras
- * reconociendo varias etiquetas, en tres formas:
- *   - etiqueta sola, nombre en la línea siguiente  (Mercado Pago: "De"\n"Nombre")
- *   - etiqueta + nombre en la misma línea          ("Origen: Juan")
- *   - etiqueta pegada al nombre                     (Personal Pay: "OrigenJuan")
- */
-const ETIQ_EMISOR   = ['de', 'origen', 'remitente', 'ordenante', 'enviado por', 'titular origen'];
-const ETIQ_RECEPTOR = ['para', 'destino', 'destinatario', 'beneficiario', 'enviado a', 'acreditado en', 'titular destino'];
-
-function extraerDePara(texto) {
-  const lineas = texto.split('\n').map(l => l.trim()).filter(Boolean);
-  let de = null, para = null;
-  for (let i = 0; i < lineas.length; i++) {
-    if (!de)   { const v = matchEtiqueta(lineas[i], lineas[i + 1], ETIQ_EMISOR);   if (v) de = v; }
-    if (!para) { const v = matchEtiqueta(lineas[i], lineas[i + 1], ETIQ_RECEPTOR); if (v) para = v; }
-  }
-  return { de, para };
-}
-
-/** Intenta extraer el nombre que sigue a alguna de las etiquetas dadas. */
-function matchEtiqueta(linea, siguiente, etiquetas) {
-  const low = linea.toLowerCase();
-  for (const e of etiquetas) {
-    // etiqueta sola en su línea → nombre en la siguiente (MP)
-    if (low === e || low === e + ':') return (siguiente || '').trim() || null;
-    // etiqueta + nombre en la misma línea, con separador
-    if (low.startsWith(e + ' ') || low.startsWith(e + ':')) {
-      return linea.slice(e.length).replace(/^[:\s]+/, '').trim() || null;
-    }
-    // etiqueta pegada al nombre (Personal Pay), solo etiquetas de una palabra,
-    // y validando que lo que sigue empiece con mayúscula (un nombre real)
-    if (!e.includes(' ') && low.startsWith(e) && linea.length > e.length) {
-      const resto = linea.slice(e.length);
-      if (/^[A-ZÁÉÍÓÚÑ]/.test(resto)) return resto.trim();
-    }
-  }
-  return null;
-}
-
-/**
- * Compara dos nombres de forma flexible. Tolera:
- *  - acentos (normaliza)
- *  - palabras partidas por mala extracción de PDF ("Nicolás" → "Nicol S")
- *  - prefijos ("nicol" ↔ "nicolas")
- *  - títulos (Dr, Dra) que se ignoran
- *
- * Coincide si comparten una palabra (exacta o por prefijo de 4+ letras), o si
- * los nombres completos son muy similares (tolerancia a 1-2 caracteres).
- */
-function nombresCoinciden(a, b) {
-  if (!a || !b) return { ok: false, comun: null };
-  const norm = s => s.toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')          // quitar acentos
-    .replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  const TITULOS = new Set(['dr', 'dra', 'dro', 'sr', 'sra', 'lic']);
-
-  const na = norm(a), nb = norm(b);
-  const pa = na.split(' ').filter(w => w.length >= 3 && !TITULOS.has(w));
-  const pb = nb.split(' ').filter(w => w.length >= 3 && !TITULOS.has(w));
-
-  // 1) Palabra exacta o por prefijo (4+ letras) → tolera "nicol" vs "nicolas"
-  for (const wa of pa) {
-    for (const wb of pb) {
-      if (wa === wb) return { ok: true, comun: wa };
-      if (wa.length >= 4 && wb.length >= 4 && (wa.startsWith(wb) || wb.startsWith(wa))) {
-        return { ok: true, comun: wa.length <= wb.length ? wa : wb };
-      }
-    }
-  }
-
-  // 2) Nombres completos sin espacios, muy similares (Levenshtein ≤ 20%)
-  //    Cubre "nicolas" vs "nicol s" → "nicolas" vs "nicols" (distancia 1)
-  const ca = na.replace(/\s/g, ''), cb = nb.replace(/\s/g, '');
-  if (ca.length >= 5 && cb.length >= 5) {
-    const d = distanciaLevenshtein(ca, cb);
-    if (d / Math.max(ca.length, cb.length) <= 0.2) return { ok: true, comun: '~similar' };
-  }
-
-  return { ok: false, comun: null };
-}
-
-/** Distancia de edición (cuántos cambios para pasar de a a b). */
-function distanciaLevenshtein(a, b) {
-  const m = a.length, n = b.length;
-  const dp = Array.from({ length: m + 1 }, (_, i) => {
-    const row = new Array(n + 1).fill(0);
-    row[0] = i;
-    return row;
-  });
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,
-        dp[i][j - 1] + 1,
-        dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
-      );
-    }
-  }
-  return dp[m][n];
-}
-
-/**
- * Valida el pie contra el comprobante. Compara:
- *   - emisor del pie  vs  "De"/"Origen" del comprobante
- *   - receptor del pie vs  "Para"/"Destino" del comprobante
- *
- * Pasa SOLO si TODOS los campos presentes en el comprobante coinciden.
- * Si el comprobante tiene De y Para, ambos deben coincidir (no alcanza con uno).
- * Así se detecta si alguien pone un emisor o receptor falso.
- */
-function validarPersonas(pie, lectura) {
-  const checks = [];
-  if (lectura.de)   checks.push({ campo: 'emisor',   pieVal: pie.emisor,   compVal: lectura.de,   ...nombresCoinciden(pie.emisor, lectura.de) });
-  if (lectura.para) checks.push({ campo: 'receptor', pieVal: pie.receptor, compVal: lectura.para, ...nombresCoinciden(pie.receptor, lectura.para) });
-
-  if (!checks.length) return { ok: true, detalle: 'comprobante sin datos para validar' };
-
-  const fallidos = checks.filter(c => !c.ok);
-  if (fallidos.length === 0) {
-    const det = checks.map(c => `${c.campo} por "${c.comun}"`).join(', ');
-    return { ok: true, detalle: `coinciden ${det}` };
-  }
-
-  // Al menos un campo NO coincide → la validación falla
-  const det = fallidos.map(c => `${c.campo} "${c.pieVal}" ≠ comprobante "${c.compVal}"`).join('; ');
-  return { ok: false, detalle: det };
-}
+// Viven en parsers.js (puros, con tests en test/parsers.test.js).
+const {
+  parsearEfectivo, parsearPie, extraerMonto, extraerIdOperacion, extraerDePara, validarPersonas,
+} = require('./parsers');
 
 // ─── Backend ─────────────────────────────────────────────────────────────────
 /**
@@ -1178,6 +974,27 @@ function mensajeErrorBackend(e) {
   return e.response?.data?.mensaje || e.message;
 }
 
+/**
+ * Pregunta al backend cuáles de estos IDs de mensaje de WhatsApp ya están registrados. Devuelve un Set
+ * (vacío si el backend está desactivado o no responde: la reconciliación sigue igual, sin esta ayuda).
+ */
+async function consultarMensajesConocidos(ids) {
+  const conocidos = new Set();
+  if (!BACKEND_ENABLED || !ids.length) return conocidos;
+  const headers = { 'Content-Type': 'application/json' };
+  if (BOT_API_KEY) headers['X-Bot-Api-Key'] = BOT_API_KEY;
+  try {
+    for (let i = 0; i < ids.length; i += 400) {            // el backend acepta hasta 500 por consulta
+      const res = await axios.post(`${BACKEND_URL}/api/finanzas/sueldos/registros-bot/conocidos`,
+        { ids: ids.slice(i, i + 400) }, { headers, timeout: 15000 });
+      for (const id of res.data || []) conocidos.add(id);
+    }
+  } catch (e) {
+    console.warn('[Reconciliación] No pude consultar al sistema qué mensajes ya registró:', mensajeErrorBackend(e));
+  }
+  return conocidos;
+}
+
 // Reintenta hasta 3 veces con 3 s de pausa si el backend no responde.
 async function registrarPago(datos) {
   const headers = { 'Content-Type': 'application/json' };
@@ -1193,6 +1010,10 @@ async function registrarPago(datos) {
     comprobanteBase64: datos.comprobanteBase64,
     comprobanteMime:   datos.comprobanteMime,
     comprobanteNombre: datos.comprobanteNombre,
+    // El backend recuerda estos IDs: un mensaje ya registrado no se vuelve a registrar aunque
+    // este bot haya perdido su archivo de estado (ver /registros-bot/conocidos más abajo).
+    idMensaje:         datos.idMensaje,
+    idMensajePie:      datos.idMensajePie,
   };
 
   const MAX_INTENTOS = 3;
@@ -1236,9 +1057,14 @@ async function registrarEfectivo(msg, chat, contacto, efectivo, opciones = {}) {
     if (BOT_API_KEY) headers['X-Bot-Api-Key'] = BOT_API_KEY;
     const res = await axios.post(
       `${BACKEND_URL}/api/finanzas/sueldos/pago-efectivo`,
-      { receptorNombre: efectivo.receptor, monto: efectivo.monto, emisor: efectivo.emisor || null, cargadoPorNombre, cargadoPorTelefono, grupoOrigen: chat.name },
+      { receptorNombre: efectivo.receptor, monto: efectivo.monto, emisor: efectivo.emisor || null, cargadoPorNombre, cargadoPorTelefono, grupoOrigen: chat.name,
+        idMensaje: msg.id._serialized },
       { headers, timeout: 10000 }
     );
+    if (res.data?.repetido) {
+      console.log(`[BOT-EFECTIVO] Mensaje ya procesado por el sistema (borrador id=${res.data.id}) — se ignora (sin respuesta).`);
+      return;
+    }
     console.log(`[BOT-EFECTIVO] Borrador id=${res.data?.id} creado para "${efectivo.receptor}"${efectivo.emisor ? ` (pagó: ${efectivo.emisor})` : ''}`);
     await responder(
       `💵 Efectivo anotado como *pendiente de confirmación*\n` +
@@ -1263,6 +1089,31 @@ setInterval(() => {
     if (ahora - v.ts > TIMEOUT_PENDIENTE) pendientesPie.delete(k);
   }
 }, 60 * 1000);
+
+// ─── Avisos "pedido listo": cola con pausas, tope por hora y horario (ver envios.js) ─────────────────
+// Código de área que se asume para números locales sin área ("6588576", "15 6588576").
+const AREA_POR_DEFECTO = process.env.AREA_POR_DEFECTO || '351';
+const RUTA_COLA_ENVIOS = path.join(path.resolve('./.wwebjs_auth/'), 'cola-envios.json');
+const envios = crearEnvios({
+  enviar: async (chatId, texto) => { await client.sendMessage(chatId, texto); console.log(`📲 Aviso WhatsApp enviado a ${chatId}`); },
+  cargar: () => { try { return JSON.parse(fs.readFileSync(RUTA_COLA_ENVIOS, 'utf8')); } catch { return {}; } },
+  guardar: (estado) => {
+    try { fs.mkdirSync(path.dirname(RUTA_COLA_ENVIOS), { recursive: true }); fs.writeFileSync(RUTA_COLA_ENVIOS, JSON.stringify(estado)); }
+    catch (e) { console.warn('[Bot] No se pudo guardar cola-envios.json:', e.message); }
+  },
+  opciones: {
+    ...(process.env.ENVIO_TOPE_POR_HORA ? { topePorHora: parseInt(process.env.ENVIO_TOPE_POR_HORA, 10) } : {}),
+    ...(process.env.ENVIO_HORA_DESDE ? { horaDesde: parseInt(process.env.ENVIO_HORA_DESDE, 10) } : {}),
+    ...(process.env.ENVIO_HORA_HASTA ? { horaHasta: parseInt(process.env.ENVIO_HORA_HASTA, 10) } : {}),
+  },
+});
+// Solo envía con la sesión conectada; si no, los avisos esperan en la cola (que está en disco).
+setInterval(() => {
+  if (!estadoBot.conectado) return;
+  envios.procesar().then(r => {
+    if (['reintentar', 'descartado'].includes(r.hizo)) console.warn(`[Bot] Aviso a ${r.chatId}: ${r.hizo} (${r.error})`);
+  }).catch(e => console.error('[Bot] Error procesando la cola de avisos:', e.message));
+}, 10 * 1000);
 
 // ─── API HTTP interna ─────────────────────────────────────────────────────────
 // Usada por la UI (estado + QR) y por ms-pedidos (notificaciones proactivas).
@@ -1336,35 +1187,12 @@ http.createServer((req, res) => {
         return;
       }
 
-      // ── POST /api/bot/mensaje ─────────────────────────────────────────────
-      // Body: { telefono: string, texto: string }
-      // Endpoint genérico para alertas de cualquier microservicio (ej: stock bajo).
-      if (req.url === '/api/bot/mensaje') {
-        const { telefono, texto } = body;
-        if (!telefono || !texto) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: 'Faltan campos: telefono, texto' }));
-        }
-        if (!estadoBot.conectado) {
-          res.writeHead(503, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: 'Bot no conectado' }));
-        }
-        try {
-          const chatId = normalizarTelefono(telefono);
-          await client.sendMessage(chatId, texto);
-          console.log(`📲 Mensaje genérico enviado a ${chatId}`);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true, chatId }));
-        } catch (e) {
-          console.error('Error enviando mensaje:', e.message);
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: e.message }));
-        }
-        return;
-      }
-
       // ── POST /api/bot/notificar ───────────────────────────────────────────
-      // Body: { telefono: string, nombre: string, nroPedido: string, trabajo: string }
+      // Body: { telefono, nombre, nroPedido, trabajo }. NO manda en el acto: valida el número, comprueba
+      // que esté en WhatsApp y lo encola (se junta con otros avisos del mismo odontólogo, sale con pausas
+      // y en horario). Responde 202 = "aceptado"; 404 = el número no está en WhatsApp; 400 = teléfono inválido.
+      // (/api/bot/mensaje —texto libre a cualquier número— se sacó: nadie lo usaba y, con la API key
+      // filtrada, habría sido un cañón de spam.)
       if (req.url === '/api/bot/notificar') {
         const { telefono, nombre, nroPedido, trabajo } = body;
         if (!telefono || !nroPedido) {
@@ -1375,19 +1203,24 @@ http.createServer((req, res) => {
           res.writeHead(503, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ error: 'Bot no conectado — no se puede enviar mensaje' }));
         }
+        const numero = normalizarTelefonoAR(telefono, AREA_POR_DEFECTO);
+        if (!numero) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ error: 'Teléfono inválido', codigo: 'telefono_invalido' }));
+        }
         try {
-          const chatId = normalizarTelefono(telefono);
-          const texto =
-            `*Laboratorio GS*\n` +
-            `Hola ${nombre || 'Dr./Dra.'}, su trabajo *${trabajo || 'trabajo solicitado'}* ` +
-            `(pedido *${nroPedido}*) ya está listo para retirar.\n` +
-            `_Por favor coordine el retiro con el laboratorio._`;
-          await client.sendMessage(chatId, texto);
-          console.log(`📲 Notificación WhatsApp enviada a ${chatId} — pedido ${nroPedido}`);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: true, chatId }));
+          const registrado = await client.getNumberId(numero.numero);
+          if (!registrado) {
+            console.warn(`[Bot] ${numero.numero} no está en WhatsApp — no se avisa del pedido ${nroPedido}.`);
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: 'El número no está en WhatsApp', codigo: 'sin_whatsapp' }));
+          }
+          const r = envios.encolar({ chatId: registrado._serialized, nombre, nroPedido, trabajo });
+          console.log(`📥 Aviso del pedido ${nroPedido} ${r.estado} para ${registrado._serialized} (sale ~${new Date(r.enviarEn).toLocaleTimeString('es-AR')})`);
+          res.writeHead(202, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, encolado: true, estado: r.estado, enviarEn: new Date(r.enviarEn).toISOString() }));
         } catch (e) {
-          console.error('Error enviando notificación WhatsApp:', e.message);
+          console.error('Error encolando el aviso de WhatsApp:', e.message);
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: e.message }));
         }
@@ -1402,18 +1235,6 @@ http.createServer((req, res) => {
   res.writeHead(404); res.end();
 }).listen(BOT_HTTP_PORT, () =>
   console.log(`🌐 Bot HTTP: http://localhost:${BOT_HTTP_PORT}/api/bot/estado`));
-
-/** Normaliza el teléfono a formato WhatsApp {countryCode}{number}@c.us.
- *  Soporta formatos argentinos: 011-XXXX-XXXX, +54 9 11 XXXX, 15XXXXXXXX, etc. */
-function normalizarTelefono(telefono) {
-  const digitos = telefono.replace(/\D/g, '');
-  // Si ya tiene código de país Argentina (54) y 12+ dígitos: usar directo
-  if (digitos.length >= 12 && digitos.startsWith('54')) return digitos + '@c.us';
-  // Si empieza con 0 (formato local): reemplazar 0 inicial por 54
-  if (digitos.startsWith('0')) return '54' + digitos.slice(1) + '@c.us';
-  // Si empieza con 9 y 11 dígitos (formato sin 0): agregar 54
-  return '54' + digitos + '@c.us';
-}
 
 // OJO: hubo acá manejadores globales de uncaughtException/unhandledRejection
 // que mataban el proceso entero (process.exit) ante CUALQUIER excepción no

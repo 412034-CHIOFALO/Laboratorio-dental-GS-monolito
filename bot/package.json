@@ -4,7 +4,8 @@
   "description": "Bot de WhatsApp del Laboratorio GS — registra comprobantes triangulados desde los grupos",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --test test/parsers.test.js test/envios.test.js test/ocr.test.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
