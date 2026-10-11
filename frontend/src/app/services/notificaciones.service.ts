@@ -33,6 +33,7 @@ export interface Notificacion {
  *   - entregas pendientes (LISTO)-> GET /api/pedidos/estado/LISTO
  *   - materiales con stock bajo  -> GET /api/stock/bajo-stock
  *   - efectivo por confirmar     -> GET /api/finanzas/sueldos/pendientes-efectivo
+ *   - transferencias a revisar   -> GET /api/finanzas/sueldos/pendientes-revision
  *
  * Un fallo de una fuente no tumba al resto (catchError -> []).
  */
@@ -68,12 +69,16 @@ export class NotificacionesService {
     const efectivo$ = this.auth.puedeVerFinanzas()
       ? this.sueldos.pendientesEfectivo().pipe(catchError(() => of([])))
       : of([]);
+    const revision$ = this.auth.puedeVerFinanzas()
+      ? this.sueldos.pendientesRevision().pipe(catchError(() => of([])))
+      : of([]);
     forkJoin({
       atrasados: this.pedidos.listarAtrasados().pipe(catchError(() => of([]))),
       listos:    this.pedidos.listarPorEstado('LISTO').pipe(catchError(() => of([]))),
       stockBajo: this.stock.listarBajoStock().pipe(catchError(() => of([]))),
       efectivo:  efectivo$,
-    }).subscribe(({ atrasados, listos, stockBajo, efectivo }) => {
+      revision:  revision$,
+    }).subscribe(({ atrasados, listos, stockBajo, efectivo, revision }) => {
       const notis: Notificacion[] = [];
 
       if (atrasados.length) {
@@ -112,6 +117,21 @@ export class NotificacionesService {
           icono: 'efectivo',
           titulo: n === 1 ? 'Efectivo pendiente de confirmar' : `${n} efectivos pendientes de confirmar`,
           detalle: r.receptorNombre ? `Declarado para ${r.receptorNombre}${monto} por el bot` : `Declarado${monto} por el bot`,
+          ruta: '/dashboard/finanzas',
+          queryParams: { seccion: 'cajas' },
+        });
+      }
+
+      if (revision.length) {
+        const n = revision.length;
+        const r = revision[0];
+        const monto = r.monto != null ? ` ($${r.monto.toLocaleString('es-AR')})` : '';
+        notis.push({
+          id: 'transferencias-revision',
+          tipo: 'warning',
+          icono: 'alerta',
+          titulo: n === 1 ? '1 transferencia para revisar' : `${n} transferencias para revisar`,
+          detalle: r.receptorNombre ? `Para ${r.receptorNombre}${monto}: el sistema no la dio por buena` : `El sistema no la dio por buena${monto}`,
           ruta: '/dashboard/finanzas',
           queryParams: { seccion: 'cajas' },
         });

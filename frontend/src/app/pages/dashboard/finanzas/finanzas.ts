@@ -205,6 +205,10 @@ export class FinanzasComponent implements OnInit {
   filtroOrigen: 'TODOS' | 'BOT_WHATSAPP' | 'MANUAL' = 'TODOS';
 
   // ── Efectivo pendiente ───────────────────────────────────────────
+  // Transferencias para revisar: el semáforo del bot (RevisionPago) no las dio por buenas
+  pendientesRevision: RegistroBot[] = [];
+  loadingRevision = false;
+
   pendientesEfectivo: RegistroBot[] = [];
   loadingPendientes = false;
   rechazandoId: number | null = null;
@@ -333,6 +337,7 @@ export class FinanzasComponent implements OnInit {
     this.cargarEmpleados();
     this.cargarComprobantes();
     this.cargarPendientesEfectivo();
+    this.cargarPendientesRevision();
     iniciarPolling(() => this.refrescarSilencioso(), this.destroyRef);
   }
 
@@ -343,7 +348,10 @@ export class FinanzasComponent implements OnInit {
     this.cargarCuentasCorrientes(true);
     this.cargarComprobantes(true);
     if (!this.hayModalSueldosAbierto) this.cargarEmpleados(true);
-    if (this.rechazandoId == null) this.cargarPendientesEfectivo(true);
+    if (this.rechazandoId == null) {
+      this.cargarPendientesEfectivo(true);
+      this.cargarPendientesRevision(true);
+    }
   }
 
   private get hayModalSueldosAbierto(): boolean {
@@ -1093,6 +1101,63 @@ export class FinanzasComponent implements OnInit {
   }
 
   // ═════════════════════════ EFECTIVO PENDIENTE ═══════════════════════════════
+
+  // ═════════════════════════ TRANSFERENCIAS PARA REVISAR ═════════════════════════
+
+  cargarPendientesRevision(silencioso = false): void {
+    if (!silencioso) this.loadingRevision = true;
+    this.sueldosService.pendientesRevision().subscribe({
+      next: data => { this.pendientesRevision = data; if (!silencioso) this.loadingRevision = false; },
+      error: err => {
+        if (!silencioso) {
+          this.loadingRevision = false;
+          this.notif.errorHttp(err, 'No se pudieron cargar las transferencias a revisar');
+        }
+      },
+    });
+  }
+
+  /** Los motivos vienen en un solo texto separado por " | ". */
+  motivosDe(r: RegistroBot): string[] {
+    return (r.motivosRevision ?? '').split(' | ').map(m => m.trim()).filter(Boolean);
+  }
+
+  verComprobanteRegistro(r: RegistroBot): void {
+    if (!r.tieneComprobante) return;
+    this.sueldosService.descargarComprobanteRegistro(r.id).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 15000);
+      },
+      error: err => this.notif.errorHttp(err, 'No se pudo abrir el comprobante'),
+    });
+  }
+
+  aprobarRevision(id: number): void {
+    this.sueldosService.confirmarEfectivo(id).subscribe({
+      next: reg => {
+        this.pendientesRevision = this.pendientesRevision.filter(r => r.id !== id);
+        this.notif.exito(`Transferencia aprobada → ${reg.estado === 'REGISTRADO' ? reg.receptorResuelto ?? reg.receptorNombre : '(no resuelto)'}`);
+        this.cargarResumen(true);
+        this.cargarMovimientos(true);
+      },
+      error: err => this.notif.errorHttp(err, 'No se pudo aprobar'),
+    });
+  }
+
+  rechazarRevision(): void {
+    if (this.rechazandoId == null) return;
+    const id = this.rechazandoId;
+    this.sueldosService.rechazarEfectivo(id, this.motivoRechazo || undefined).subscribe({
+      next: () => {
+        this.pendientesRevision = this.pendientesRevision.filter(r => r.id !== id);
+        this.rechazandoId = null;
+        this.notif.alerta('Transferencia rechazada');
+      },
+      error: err => this.notif.errorHttp(err, 'No se pudo rechazar'),
+    });
+  }
 
   cargarPendientesEfectivo(silencioso = false): void {
     if (!silencioso) this.loadingPendientes = true;

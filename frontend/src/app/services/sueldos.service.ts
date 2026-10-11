@@ -130,6 +130,8 @@ export interface RegistroBot {
   grupoOrigen: string | null;
   tieneComprobante: boolean;
   fuente: FuentePago;
+  /** Por qué una transferencia quedó pendiente de revisión (motivos separados por " | "), o null. */
+  motivosRevision?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -239,6 +241,14 @@ export class SueldosService {
       return of([]).pipe(delay(150));
     }
     return this.http.get<RegistroBot[]>(`${this.base}/pendientes-efectivo`);
+  }
+
+  /** Transferencias que el semáforo no dio por buenas: esperan que alguien las apruebe o rechace. */
+  pendientesRevision(): Observable<RegistroBot[]> {
+    if (environment.useMocks) {
+      return of([]).pipe(delay(150));
+    }
+    return this.http.get<RegistroBot[]>(`${this.base}/pendientes-revision`);
   }
 
   /** Confirma un pago en efectivo pendiente: aplica el sueldo/deuda y egresa de caja física. */

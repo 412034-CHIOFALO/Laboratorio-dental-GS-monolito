@@ -255,6 +255,63 @@
           </div>
         }
 
+        <!-- ── Transferencias para revisar: el semáforo del bot (RevisionPago) no las dio por buenas ──
+             No se registró nada todavía; se aprueban o rechazan viendo el comprobante. Se muestran
+             en cualquier caja porque, al aprobarse, el pago puede mover la Bancaria o la Compensación. -->
+        @if (pendientesRevision.length > 0 || loadingRevision) {
+          <div class="efectivo-section revision-section">
+            <div class="efectivo-header">
+              <h3>Transferencias para revisar</h3>
+              <span class="badge-pendiente">{{ pendientesRevision.length }}</span>
+            </div>
+            <p class="efectivo-hint">El bot recibió estos comprobantes pero hay algo que el sistema no pudo comprobar. Abrí el comprobante y aprobá o rechazá cada uno: hasta entonces no se registró ningún pago.</p>
+
+            @if (loadingRevision) {
+              <div class="loading">Cargando transferencias a revisar...</div>
+            } @else {
+              <div class="efectivo-lista">
+                @for (r of pendientesRevision; track r.id) {
+                  <div class="efectivo-item">
+                    <div class="efectivo-info">
+                      <div class="efectivo-receptor">
+                        <strong>{{ r.receptorNombre }}</strong>
+                        <span class="efectivo-monto">{{ formatMoney(r.monto ?? 0) }}</span>
+                      </div>
+                      @if (r.emisor) { <div class="muted">Pagó: {{ r.emisor }}</div> }
+                      <ul class="revision-motivos">
+                        @for (m of motivosDe(r); track m) { <li>{{ m }}</li> }
+                      </ul>
+                      <div class="efectivo-meta">
+                        <span class="muted">{{ r.cargadoPorNombre ?? '—' }}</span>
+                        <span class="muted"> · {{ r.grupoOrigen ?? '' }}</span>
+                        <span class="muted"> · {{ formatHora(r.fechaHora) }}</span>
+                        @if (r.idOperacion) { <span class="muted"> · Op. {{ r.idOperacion }}</span> }
+                      </div>
+                    </div>
+
+                    <div class="efectivo-acciones">
+                      @if (rechazandoId === r.id) {
+                        <div class="rechazo-form">
+                          <input class="rechazo-input" type="text" [(ngModel)]="motivoRechazo"
+                                 placeholder="Motivo del rechazo (opcional)">
+                          <button class="btn-pagar btn-sm" (click)="rechazarRevision()">Confirmar rechazo</button>
+                          <button class="btn-config btn-sm" (click)="rechazandoId = null">Cancelar</button>
+                        </div>
+                      } @else {
+                        @if (r.tieneComprobante) {
+                          <button class="btn-config btn-sm" (click)="verComprobanteRegistro(r)">Ver comprobante</button>
+                        }
+                        <button class="btn-pagar btn-sm" (click)="aprobarRevision(r.id)">✓ Aprobar</button>
+                        <button class="btn-config btn-sm" (click)="abrirRechazo(r.id)">✗ Rechazar</button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+
         <section class="movimientos-section">
           <div class="movimientos-header">
             <div>

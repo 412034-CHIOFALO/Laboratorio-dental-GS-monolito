@@ -1637,3 +1637,17 @@
   min-width: 160px;
 }
 .btn-sm { padding: 0.3rem 0.65rem !important; font-size: 0.75rem !important; flex: initial !important; }
+
+/* Transferencias para revisar: mismo bloque que el efectivo pendiente, con los motivos a la vista */
+.revision-section { border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.04); }
+.revision-section .efectivo-header h3 { color: #b91c1c; }
+.revision-motivos {
+  margin: 0.25rem 0 0.15rem;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+.revision-motivos li::marker { color: #dc2626; }
