@@ -127,3 +127,17 @@ El bot identifica **quién cargó** el comprobante por su número de WhatsApp.
 - Recuperación automática de mensajes perdidos al reconectar
 - Comando `/atrasados` para consultar pedidos atrasados desde el grupo
 - Migrar a `RemoteAuth` (sesión en base de datos) para sobrevivir cambios de PC
+
+## whatsapp-web.js: por qué se instala desde un commit
+
+`package.json` apunta a un commit de la rama principal de `wwebjs/whatsapp-web.js` (`064a3d5a`) en vez de la
+versión publicada. La última publicada (1.34.7, abril de 2026) **no funciona con el WhatsApp Web actual**:
+WhatsApp renombró por dentro `id._serialized` a `id.$1` y `getChats()` / `getChatById()` fallan con
+`r: r`, así que el bot recibe los mensajes pero no puede saber de qué grupo son y los ignora. El arreglo
+(#201832) está en la rama principal desde el 26/09/2026 pero no se publicó.
+
+**Volver a la versión publicada** apenas salga una posterior a 1.34.7 que lo incluya (`npm view whatsapp-web.js
+versions`): cambiar la dependencia a `^1.35.0` (o la que corresponda), `npm install`, `npm test` y probar con
+un mensaje real en el grupo. Si WhatsApp vuelve a cambiar algo y el bot deja de recibir, ver `npm view`, los
+issues de `wwebjs/whatsapp-web.js` y probar con la rama principal; el bot tiene `GRUPOS_JIDS` como salida
+de emergencia para no depender de la resolución en vivo del nombre del grupo.
