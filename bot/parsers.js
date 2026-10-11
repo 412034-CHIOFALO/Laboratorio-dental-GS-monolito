@@ -238,7 +238,41 @@ function validarPersonas(pie, lectura) {
   return { ok: false, detalle: det };
 }
 
+/**
+ * Fecha del comprobante (primera fecha válida del texto), en formato AAAA-MM-DD, o null.
+ * Reconoce "12 de septiembre de 2026" (Mercado Pago), "15/09/2026", "15-09-26", "15.09.2026" y "2026-09-15".
+ * Un día imposible (el OCR lee "42 de septiembre") se descarta en vez de adivinarlo: sin fecha, el pago
+ * pasa a revisión humana, que es lo correcto.
+ */
+const MESES = { enero: 1, febrero: 2, marzo: 3, abril: 4, mayo: 5, junio: 6, julio: 7, agosto: 8,
+  septiembre: 9, setiembre: 9, octubre: 10, noviembre: 11, diciembre: 12 };
+
+function fechaValida(d, m, a) {
+  if (a < 100) a += 2000;
+  if (a < 2020 || a > 2100 || m < 1 || m > 12 || d < 1) return null;
+  const f = new Date(Date.UTC(a, m - 1, d));
+  if (f.getUTCFullYear() !== a || f.getUTCMonth() !== m - 1 || f.getUTCDate() !== d) return null;
+  return `${a}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function extraerFecha(texto) {
+  if (!texto) return null;
+  const candidatos = [];
+  for (const m of texto.matchAll(/(\d{1,2})\s+de\s+([a-záéíóú]+)\s+(?:de\s+)?(\d{4})/gi)) {
+    const mes = MESES[m[2].toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')];
+    if (mes) candidatos.push({ i: m.index, f: fechaValida(+m[1], mes, +m[3]) });
+  }
+  for (const m of texto.matchAll(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4}|\d{2})(?!\d)/g)) {
+    candidatos.push({ i: m.index, f: fechaValida(+m[1], +m[2], +m[3]) });
+  }
+  for (const m of texto.matchAll(/(\d{4})-(\d{2})-(\d{2})/g)) {
+    candidatos.push({ i: m.index, f: fechaValida(+m[3], +m[2], +m[1]) });
+  }
+  const validos = candidatos.filter(c => c.f).sort((a, b) => a.i - b.i);
+  return validos.length ? validos[0].f : null;
+}
+
 module.exports = {
-  parsearEfectivo, parsearPie, extraerMonto, extraerIdOperacion, extraerDePara,
+  parsearEfectivo, parsearPie, extraerMonto, extraerIdOperacion, extraerDePara, extraerFecha,
   nombresCoinciden, validarPersonas, ETIQ_EMISOR, ETIQ_RECEPTOR,
 };

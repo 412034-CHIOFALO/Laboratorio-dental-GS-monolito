@@ -21,6 +21,7 @@ const qrcode = require('qrcode-terminal');
 const axios = require('axios');
 const { crearOcr } = require('./ocr');
 const { crearEnvios } = require('./envios');
+const { senalesDeEdicion } = require('./forense');
 const { normalizarTelefonoAR } = require('./telefono');
 const pdfParse = require('pdf-parse/lib/pdf-parse.js');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -683,6 +684,13 @@ async function procesarPago(msgComprobante, chat, contacto, pie, lectura, msgPie
       comprobanteNombre: lectura.comprobanteNombre,
       idMensaje: msgComprobante.id._serialized,
       idMensajePie: msgPie && msgPie !== msgComprobante ? msgPie.id._serialized : undefined,
+      // De dónde salió el monto (solo un monto leído del comprobante con confianza alta se da por bueno)
+      montoOrigen: lectura.monto ? `COMPROBANTE_${String(lectura.confianza).toUpperCase()}` : (pie.montoManual ? 'MANUAL' : undefined),
+      fechaComprobante: lectura.fecha || undefined,
+      // null = el comprobante no traía De/Para y no hubo con qué comparar los nombres
+      nombresCoinciden: (lectura.de || lectura.para) ? validacion.ok : null,
+      detalleNombres: validacion.ok ? undefined : validacion.detalle,
+      senalesArchivo: (lectura.senales || []).join('; ') || undefined,
     });
   } catch (e) {
     const msgErr = e.response?.data?.mensaje || e.message;
@@ -709,6 +717,19 @@ async function procesarPago(msgComprobante, chat, contacto, pie, lectura, msgPie
       return;
     }
     await responder(`ℹ️ Ese comprobante ya estaba registrado (${resultado?.mensaje || 'operación ' + (lectura.idOperacion || '—')}).`);
+    return;
+  }
+  if (estado === 'PENDIENTE') {
+    // El semáforo del backend no lo dio por bueno: no se aplicó nada, lo revisa una persona en el panel.
+    const motivos = (resultado.motivosRevision || '').split(' | ').filter(Boolean).map(m => `• ${m}`).join('\n');
+    await responder(
+      `⏳ *Recibí el comprobante, pero queda pendiente de revisión* (todavía no se registró)\n` +
+      `• Monto: $${montoFmt}\n` +
+      `• Pagó: ${pie.emisor || '—'}\n` +
+      `• Recibió: ${pie.receptor}\n` +
+      (motivos ? `Motivo:\n${motivos}\n` : '') +
+      `_Un administrativo lo aprueba o rechaza desde el sistema._`
+    );
     return;
   }
   if (estado !== 'REGISTRADO') {
@@ -846,7 +867,7 @@ async function descargarMediaConReintentos(msg, intentos = 3) {
 }
 
 async function leerComprobante(msg) {
-  const vacio = { monto: null, confianza: 'baja', idOperacion: null, de: null, para: null, texto: '' };
+  const vacio = { monto: null, confianza: 'baja', idOperacion: null, de: null, para: null, texto: '', fecha: null, senales: [] };
   try {
     const media = await descargarMediaConReintentos(msg);
     if (!media || !media.data) return vacio;
@@ -862,12 +883,19 @@ async function leerComprobante(msg) {
       comprobanteNombre: media.filename || ('comprobante' + (esPdf ? '.pdf' : '.jpg')),
     };
 
-    // Texto del PDF (para reglas y para Gemini-texto)
+    // Texto del PDF (para reglas y para Gemini-texto) y sus metadatos (para detectar ediciones)
     let texto = '';
+    let pdfInfo = null;
     if (esPdf) {
-      texto = (await pdfParse(buffer)).text || '';
+      const pdf = await pdfParse(buffer);
+      texto = pdf.text || '';
+      pdfInfo = pdf.info || null;
       console.log('   (PDF — texto extraído)');
     }
+    // Rastros de que el archivo se editó (programa de edición, PDF modificado): no prueban nada, pero mandan
+    // el pago a revisión de una persona (ver el semáforo del backend, RevisionPago).
+    const senales = senalesDeEdicion(buffer, media.mimetype, pdfInfo);
+    if (senales.length) console.log('   ⚠ Señales de edición:', senales.join('; '));
 
     // 1) Reglas locales primero (gratis, sin gastar cuota de Gemini — resuelven
     // bien MP/Personal Pay, que son los que llegan en la práctica)
@@ -891,11 +919,11 @@ async function leerComprobante(msg) {
       const g = await leerConGemini(media, texto);
       if (g && g.monto) {
         console.log('   ✨ Leído con IA (Gemini)');
-        return { monto: g.monto, confianza: 'alta', idOperacion: g.idOperacion, de: g.de, para: g.para, texto, ...archivo };
+        return { monto: g.monto, confianza: 'alta', idOperacion: g.idOperacion, de: g.de, para: g.para, texto, fecha: extraerFecha(texto), senales, ...archivo };
       }
     }
 
-    return { ...local, texto, ...archivo };
+    return { ...local, texto, fecha: extraerFecha(texto), senales, ...archivo };
   } catch (e) {
     console.log('   (error leyendo comprobante:', e.message, ')');
     return vacio;
@@ -953,7 +981,7 @@ async function leerConGemini(media, textoPdf) {
 // ─── Parsers ─────────────────────────────────────────────────────────────────
 // Viven en parsers.js (puros, con tests en test/parsers.test.js).
 const {
-  parsearEfectivo, parsearPie, extraerMonto, extraerIdOperacion, extraerDePara, validarPersonas,
+  parsearEfectivo, parsearPie, extraerMonto, extraerIdOperacion, extraerDePara, extraerFecha, validarPersonas,
 } = require('./parsers');
 
 // ─── Backend ─────────────────────────────────────────────────────────────────
@@ -1014,6 +1042,12 @@ async function registrarPago(datos) {
     // este bot haya perdido su archivo de estado (ver /registros-bot/conocidos más abajo).
     idMensaje:         datos.idMensaje,
     idMensajePie:      datos.idMensajePie,
+    // Señales para el semáforo del backend: qué tan confiable es lo que se leyó
+    montoOrigen:       datos.montoOrigen,
+    fechaComprobante:  datos.fechaComprobante,
+    nombresCoinciden:  datos.nombresCoinciden,
+    detalleNombres:    datos.detalleNombres,
+    senalesArchivo:    datos.senalesArchivo,
   };
 
   const MAX_INTENTOS = 3;
