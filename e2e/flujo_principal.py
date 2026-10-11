@@ -7,7 +7,8 @@ Qué cubre (cada bloque es independiente: si uno falla, los demás siguen y se i
   2. pedido completo: odontólogo -> trabajo con receta -> pedido -> producción (descuenta stock) ->
      estados y transiciones inválidas -> entrega (nace la deuda) -> cobro parcial -> cobro total
   3. permisos por rol: el técnico ve pedidos pero no finanzas ni puede crear pedidos
-  4. bot de WhatsApp: pago por transferencia y efectivo con anti-duplicados (mismo mensaje, mismo
+  4. bot de WhatsApp: el semáforo (lo dudoso queda pendiente y se aprueba/rechaza), pago por transferencia
+     y efectivo con anti-duplicados (mismo mensaje, mismo
      N° de operación, mismo archivo, consulta de mensajes conocidos, clave del bot inválida)
 
 Uso (lo corre la CI después del smoke test; también sirve contra el servidor real o uno de ensayo):
@@ -169,7 +170,9 @@ def bot_transferencia(base, clave_bot, ctx):
     h = {"X-Bot-Api-Key": clave_bot}
     archivo = base64.b64encode(f"%PDF-E2E {SUFIJO}".encode()).decode()
     base_req = {"receptorNombre": nombre, "emisor": odo["nombre"], "monto": 15000, "fecha": fecha(0),
-                "comprobanteBase64": archivo, "comprobanteMime": "application/pdf", "comprobanteNombre": "e2e.pdf"}
+                "comprobanteBase64": archivo, "comprobanteMime": "application/pdf", "comprobanteNombre": "e2e.pdf",
+                # señales de un comprobante "limpio" para el semáforo (ver RevisionPago)
+                "montoOrigen": "COMPROBANTE_ALTA", "fechaComprobante": fecha(0), "nombresCoinciden": True}
 
     r1 = bot.call("POST", "/api/finanzas/sueldos/pago-automatico", dict(base_req, idOperacion=f"E2E-OP-{SUFIJO}",
                                                                         idMensaje=f"E2E-MSG-{SUFIJO}-1"), headers=h)
@@ -193,6 +196,57 @@ def bot_transferencia(base, clave_bot, ctx):
 
     assert codigo(bot, "POST", "/api/finanzas/sueldos/pago-automatico", dict(base_req), headers={"X-Bot-Api-Key": "clave-incorrecta"}) in (401, 403)
     assert codigo(bot, "POST", "/api/finanzas/sueldos/registros-bot/conocidos", {"ids": []}) in (401, 403), "sin clave del bot"
+
+
+@bloque("semáforo: lo dudoso queda pendiente sin aplicarse y un administrativo lo aprueba o rechaza")
+def bot_semaforo(base, clave_bot, ctx):
+    api, nombre, odo = ctx["api"], ctx["empleado"], ctx["odo"]
+    bot = Api(base, "")
+    h = {"X-Bot-Api-Key": clave_bot}
+    limpia = {"receptorNombre": nombre, "emisor": odo["nombre"], "monto": 20000, "montoOrigen": "COMPROBANTE_ALTA",
+              "fechaComprobante": fecha(0), "nombresCoinciden": True, "idOperacion": f"E2E-SEM-{SUFIJO}-0"}
+
+    def enviar(sufijo, **cambios):
+        req = dict(limpia, idOperacion=f"E2E-SEM-{SUFIJO}-{sufijo}", idMensaje=f"E2E-SEM-MSG-{SUFIJO}-{sufijo}",
+                   comprobanteBase64=base64.b64encode(f"%PDF-SEM {SUFIJO} {sufijo}".encode()).decode(),
+                   comprobanteMime="application/pdf", comprobanteNombre="sem.pdf")
+        req.update(cambios)
+        return bot.call("POST", "/api/finanzas/sueldos/pago-automatico", req, headers=h)
+
+    def n_pagos():
+        return len(lista(api.call("GET", "/api/finanzas/sueldos/pagos")))
+
+    antes = n_pagos()
+    # (a) nombres que no coinciden -> pendiente, con el motivo a la vista, SIN aplicar el pago
+    a = enviar("a", nombresCoinciden=False, detalleNombres="receptor falso")
+    assert a["estado"] == "PENDIENTE" and "no coinciden" in (a.get("motivosRevision") or ""), a
+    assert n_pagos() == antes, "una transferencia pendiente no debe aplicar ningún pago"
+    en_lista = [x["id"] for x in lista(api.call("GET", "/api/finanzas/sueldos/pendientes-revision"))]
+    assert a["id"] in en_lista, "debe aparecer en la lista de transferencias para revisar"
+    assert a["id"] not in [x["id"] for x in lista(api.call("GET", "/api/finanzas/sueldos/pendientes-efectivo"))],         "no debe mezclarse con el efectivo pendiente"
+    # (b) aprobada por un administrativo -> se aplica
+    ok = api.call("POST", f"/api/finanzas/sueldos/registros-bot/{a['id']}/confirmar")
+    assert ok["estado"] == "REGISTRADO", ok
+    assert n_pagos() == antes + 1, "al aprobar, el pago se aplica una sola vez"
+    # (c) varios motivos juntos + rechazo -> no se aplica
+    c = enviar("c", monto=500000, fechaComprobante=fecha(-30), idOperacion=None)
+    assert c["estado"] == "PENDIENTE" and c["motivosRevision"].count(" | ") >= 2, c
+    rech = api.call("POST", f"/api/finanzas/sueldos/registros-bot/{c['id']}/rechazar", {"motivo": "E2E: comprobante dudoso"})
+    assert rech["estado"] == "RECHAZADO"
+    assert n_pagos() == antes + 1, "un pago rechazado no se aplica"
+    # (d) sin ninguna señal (un bot viejo o un cliente que no informa nada) -> también a revisión
+    d = bot.call("POST", "/api/finanzas/sueldos/pago-automatico", {
+        "receptorNombre": nombre, "emisor": odo["nombre"], "monto": 1000, "idOperacion": f"E2E-SEM-{SUFIJO}-d",
+        "idMensaje": f"E2E-SEM-MSG-{SUFIJO}-d"}, headers=h)
+    assert d["estado"] == "PENDIENTE", d
+    api.call("POST", f"/api/finanzas/sueldos/registros-bot/{d['id']}/rechazar", {"motivo": "E2E"})
+    # (e) receptor desconocido: se rechaza igual, no hay nada que revisar
+    e = enviar("e", receptorNombre="Persona Que No Existe E2E", nombresCoinciden=False)
+    assert e["estado"] == "RECHAZADO", e
+    # (f) la transferencia limpia sigue entrando sola
+    f = enviar("f")
+    assert f["estado"] == "REGISTRADO" and not f.get("motivosRevision"), f
+    assert n_pagos() == antes + 2
 
 
 @bloque("bot: efectivo con anti-duplicados y confirmación desde el panel")
@@ -238,6 +292,7 @@ def main():
     if "odo" in ctx:
         bot_transferencia(args.base, clave_bot, ctx)
         if "empleado" in ctx:
+            bot_semaforo(args.base, clave_bot, ctx)
             bot_efectivo(args.base, clave_bot, ctx)
     else:
         print("  (se saltean los bloques del bot: el pedido completo no llegó a crear el odontólogo)")
