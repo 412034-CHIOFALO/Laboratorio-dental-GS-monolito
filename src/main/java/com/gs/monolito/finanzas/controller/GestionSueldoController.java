@@ -300,6 +300,15 @@ public class GestionSueldoController {
         return ResponseEntity.ok(service.mensajesConocidos(req.ids()));
     }
 
+    @Operation(summary = "Lista las transferencias pendientes de revisión",
+               description = "Comprobantes que el semáforo no dio por buenos (nombres que no coinciden, sin N° de operación, fecha vieja, " +
+                             "monto alto, rastros de edición...). Cada uno trae sus motivos; se aprueban o rechazan con los mismos " +
+                             "endpoints de confirmar/rechazar del efectivo.")
+    @GetMapping("/pendientes-revision")
+    public ResponseEntity<List<RegistroPagoBotResponse>> listarPendientesRevision() {
+        return ResponseEntity.ok(service.listarPendientesRevision());
+    }
+
     @Operation(summary = "Lista los pagos en efectivo pendientes de confirmación",
                description = "Devuelve todos los registros del bot con estado=PENDIENTE y fuente=EFECTIVO.")
     @GetMapping("/pendientes-efectivo")

@@ -36,6 +36,7 @@ import static org.mockito.Mockito.when;
 class GestionSueldoDedupeTest {
 
     @Mock private RegistroPagoBotRepository registroRepo;
+    @Mock private RevisionPago revision;   // sin stub: devuelve lista vacía = transferencia limpia
     @InjectMocks private GestionSueldoService service;
 
     private static final String ID_MSG = "true_120363000000000000@g.us_3EB0ABCDEF_5491100000000@c.us";

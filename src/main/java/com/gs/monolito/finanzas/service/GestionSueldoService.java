@@ -58,6 +58,7 @@ public class GestionSueldoService implements IGestionSueldoService {
     private final DeudaProveedorRepository deudaProveedorRepo;
     private final CajaMovimientoRepository cajaMovimientoRepo;
     private final AuditoriaService auditoria;
+    private final RevisionPago revision;
 
     @Override
     public List<EmpleadoSueldoResponse> listarEmpleados() {
@@ -212,6 +213,36 @@ public class GestionSueldoService implements IGestionSueldoService {
             return RegistroPagoBotResponse.from(registroRepo.save(reg));
         }
 
+        // Semáforo: si algo del comprobante no se puede dar por bueno, NO se aplica el pago: queda pendiente
+        // de revisión y un administrativo lo aprueba o rechaza viendo la imagen. Solo se frena si el receptor
+        // es conocido (si no lo es, se rechaza igual más abajo, no hay nada que revisar).
+        List<String> motivos = revision.motivos(req);
+        if (!motivos.isEmpty()
+                && (resolverEmpleadoOpt(req).isPresent() || resolverProveedorOpt(req.getReceptorNombre()).isPresent())) {
+            reg.setEstado(EstadoRegistroBot.PENDIENTE);
+            reg.setFuente(FuentePago.TRANSFERENCIA);
+            reg.setTipoReceptor(TipoReceptorBot.DESCONOCIDO);
+            reg.setMotivosRevision(recortar(String.join(" | ", motivos), 600));
+            reg.setMensaje("Pendiente de revisión: " + String.join("; ", motivos));
+            log.info("[BOT] Transferencia a {} por ${} queda pendiente de revisión: {}", req.getReceptorNombre(), req.getMonto(), motivos);
+            auditoria.registrar(CurrentUser.usernameOrSistema(), "REVISION", "Comprobante pendiente de revisión", "Receptor " + req.getReceptorNombre(),
+                    "$" + req.getMonto() + " — " + String.join("; ", motivos));
+            return RegistroPagoBotResponse.from(registroRepo.save(reg));
+        }
+
+        return aplicarTransferencia(reg, req, comprobanteRef);
+    }
+
+    private static String recortar(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
+    }
+
+    /**
+     * Aplica una transferencia ya aceptada (directo, o después de que un administrativo la aprobó): sueldo de un
+     * empleado o pago a un proveedor, triangulado si el emisor es un odontólogo con deuda. Si el receptor no es ni
+     * empleado ni proveedor, queda RECHAZADA.
+     */
+    private RegistroPagoBotResponse aplicarTransferencia(RegistroPagoBot reg, PagoAutomaticoRequest req, String comprobanteRef) {
         // 1) ¿Es un empleado? → pago de sueldo
         Optional<ConfiguracionSueldo> empleado = resolverEmpleadoOpt(req);
         if (empleado.isPresent()) {
@@ -682,8 +713,11 @@ public class GestionSueldoService implements IGestionSueldoService {
     public RegistroPagoBotResponse confirmarEfectivo(Long registroId) {
         RegistroPagoBot reg = registroRepo.findById(registroId)
                 .orElseThrow(() -> new ResourceNotFoundException("Registro", registroId));
-        if (reg.getEstado() != EstadoRegistroBot.PENDIENTE || reg.getFuente() != FuentePago.EFECTIVO) {
-            throw new BusinessException("Solo se pueden confirmar registros de efectivo en estado PENDIENTE");
+        if (reg.getEstado() != EstadoRegistroBot.PENDIENTE) {
+            throw new BusinessException("Solo se pueden confirmar registros en estado PENDIENTE");
+        }
+        if (reg.getFuente() == FuentePago.TRANSFERENCIA) {
+            return confirmarTransferencia(reg);
         }
 
         // 1) Empleado
@@ -795,9 +829,32 @@ public class GestionSueldoService implements IGestionSueldoService {
 
     @Override
     public List<RegistroPagoBotResponse> listarPendientesEfectivo() {
-        return registroRepo.findByEstadoOrderByFechaHoraDesc(EstadoRegistroBot.PENDIENTE).stream()
+        return registroRepo.findByEstadoAndFuenteOrderByFechaHoraDesc(EstadoRegistroBot.PENDIENTE, FuentePago.EFECTIVO).stream()
                 .map(RegistroPagoBotResponse::from)
                 .toList();
+    }
+
+    @Override
+    public List<RegistroPagoBotResponse> listarPendientesRevision() {
+        return registroRepo.findByEstadoAndFuenteOrderByFechaHoraDesc(EstadoRegistroBot.PENDIENTE, FuentePago.TRANSFERENCIA).stream()
+                .map(RegistroPagoBotResponse::from)
+                .toList();
+    }
+
+    /** Un administrativo aprobó una transferencia que el semáforo había frenado: se aplica como si hubiera entrado limpia. */
+    private RegistroPagoBotResponse confirmarTransferencia(RegistroPagoBot reg) {
+        PagoAutomaticoRequest req = new PagoAutomaticoRequest();
+        req.setReceptorNombre(reg.getReceptorNombre());
+        req.setMonto(reg.getMonto());
+        req.setEmisor(reg.getEmisor());
+        req.setIdOperacion(reg.getIdOperacion());
+        req.setCargadoPorNombre(reg.getCargadoPorNombre());
+        req.setCargadoPorTelefono(reg.getCargadoPorTelefono());
+        req.setGrupoOrigen(reg.getGrupoOrigen());
+        req.setNota("Aprobado tras revisión");
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "REVISION", "Comprobante aprobado", "Receptor " + reg.getReceptorNombre(),
+                "$" + reg.getMonto() + " — motivos de revisión: " + reg.getMotivosRevision());
+        return aplicarTransferencia(reg, req, reg.getComprobanteUrl());
     }
 
     @Override

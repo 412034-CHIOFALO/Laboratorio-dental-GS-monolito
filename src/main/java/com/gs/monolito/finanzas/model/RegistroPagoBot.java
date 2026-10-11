@@ -50,6 +50,10 @@ public class RegistroPagoBot {
     @Column(name = "id_mensaje_pie", length = 128)
     private String idMensajePie;
 
+    /** Por qué quedó pendiente de revisión (motivos separados por " | "); null si se registró sola. */
+    @Column(name = "motivos_revision", length = 600)
+    private String motivosRevision;
+
     /** SHA-256 (hex) del archivo del comprobante, para detectar el mismo archivo subido dos veces. */
     @Column(name = "hash_comprobante", length = 64, columnDefinition = "char(64)")
     private String hashComprobante;

@@ -55,6 +55,21 @@ public class PagoAutomaticoRequest {
     @Size(max = 60)
     private String idOperacion;
 
+    // ── Señales para el semáforo (qué tan confiable es lo que el bot leyó). Opcionales: lo que no
+    //    se informa cuenta como "no se pudo verificar" y manda el pago a revisión. ──
+    /** De dónde salió el monto: COMPROBANTE_ALTA, COMPROBANTE_MEDIA, COMPROBANTE_BAJA o MANUAL. */
+    @Size(max = 30)
+    private String montoOrigen;
+    /** Fecha que figura en el comprobante. */
+    private LocalDate fechaComprobante;
+    /** ¿Los nombres del mensaje coinciden con los del comprobante? null = el comprobante no traía De/Para. */
+    private Boolean nombresCoinciden;
+    @Size(max = 300)
+    private String detalleNombres;
+    /** Rastros de edición del archivo (programa de edición, PDF modificado...), separados por "; ". */
+    @Size(max = 300)
+    private String senalesArchivo;
+
     /** ID del mensaje de WhatsApp del comprobante (clave de idempotencia). Opcional. */
     @Size(max = 128)
     private String idMensaje;

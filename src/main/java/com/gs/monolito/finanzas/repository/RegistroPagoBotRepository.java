@@ -27,4 +27,6 @@ public interface RegistroPagoBotRepository extends JpaRepository<RegistroPagoBot
     List<String> idsMensajePieConocidos(@org.springframework.data.repository.query.Param("ids") java.util.Collection<String> ids);
 
     List<RegistroPagoBot> findByEstadoOrderByFechaHoraDesc(EstadoRegistroBot estado);
+
+    List<RegistroPagoBot> findByEstadoAndFuenteOrderByFechaHoraDesc(EstadoRegistroBot estado, com.gs.monolito.finanzas.model.FuentePago fuente);
 }

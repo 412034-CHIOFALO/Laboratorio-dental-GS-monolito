@@ -69,6 +69,9 @@ public interface IGestionSueldoService {
 
     List<RegistroPagoBotResponse> listarPendientesEfectivo();
 
+    /** Transferencias que el semáforo no dio por buenas y esperan que un administrativo las apruebe o rechace. */
+    List<RegistroPagoBotResponse> listarPendientesRevision();
+
     DistribucionCascadaResponse sugerirCascada(BigDecimal monto, TipoCaja cajaRemanente);
 
     void devengarDiario();

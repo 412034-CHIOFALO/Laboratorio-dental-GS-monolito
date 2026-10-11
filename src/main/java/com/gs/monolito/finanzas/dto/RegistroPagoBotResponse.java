@@ -25,6 +25,8 @@ public record RegistroPagoBotResponse(
         String grupoOrigen,
         boolean tieneComprobante,
         FuentePago fuente,
+        /** Motivos por los que quedó pendiente de revisión (separados por " | "), o null. */
+        String motivosRevision,
         /** true si el bot reenvió un mensaje que el sistema ya había procesado: no se creó nada nuevo. */
         boolean repetido
 ) {
@@ -45,6 +47,7 @@ public record RegistroPagoBotResponse(
                 r.getGrupoOrigen(),
                 r.getComprobanteUrl() != null && !r.getComprobanteUrl().isBlank(),
                 r.getFuente(),
+                r.getMotivosRevision(),
                 false
         );
     }
@@ -54,6 +57,6 @@ public record RegistroPagoBotResponse(
         RegistroPagoBotResponse base = from(r);
         return new RegistroPagoBotResponse(base.id(), base.fechaHora(), base.monto(), base.idOperacion(), base.emisor(),
                 base.receptorNombre(), base.tipoReceptor(), base.receptorId(), base.receptorResuelto(), base.estado(),
-                base.mensaje(), base.cargadoPorNombre(), base.grupoOrigen(), base.tieneComprobante(), base.fuente(), true);
+                base.mensaje(), base.cargadoPorNombre(), base.grupoOrigen(), base.tieneComprobante(), base.fuente(), base.motivosRevision(), true);
     }
 }
