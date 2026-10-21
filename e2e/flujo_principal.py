@@ -37,6 +37,7 @@ spec.loader.exec_module(demo)          # reutiliza el cliente HTTP (cookies, XSR
 Api, ApiError, lista, fecha = demo.Api, demo.ApiError, demo.lista, demo.fecha
 
 SUFIJO = str(int(time.time()))
+VARIACION = int(SUFIJO) % 997   # centésimas de peso aparte: montos distintos en cada corrida
 RESULTADOS = []
 
 
@@ -265,7 +266,7 @@ def bot_transferencia(base, clave_bot, ctx):
     bot = Api(base, "")
     h = {"X-Bot-Api-Key": clave_bot}
     archivo = base64.b64encode(f"%PDF-E2E {SUFIJO}".encode()).decode()
-    base_req = {"receptorNombre": nombre, "emisor": odo["nombre"], "monto": 15000, "fecha": fecha(0),
+    base_req = {"receptorNombre": nombre, "emisor": odo["nombre"], "monto": 15000 + VARIACION, "fecha": fecha(0),
                 "comprobanteBase64": archivo, "comprobanteMime": "application/pdf", "comprobanteNombre": "e2e.pdf",
                 # señales de un comprobante "limpio" para el semáforo (ver RevisionPago)
                 "montoOrigen": "COMPROBANTE_ALTA", "fechaComprobante": fecha(0), "nombresCoinciden": True}
@@ -340,9 +341,29 @@ def bot_semaforo(base, clave_bot, ctx):
     e = enviar("e", receptorNombre="Persona Que No Existe E2E", nombresCoinciden=False)
     assert e["estado"] == "RECHAZADO", e
     # (f) la transferencia limpia sigue entrando sola
-    f = enviar("f")
+    f = enviar("f", monto=21000 + VARIACION)
     assert f["estado"] == "REGISTRADO" and not f.get("motivosRevision"), f
     assert n_pagos() == antes + 2
+
+    # (g) un comprobante igual a uno que ESPERA revisión es repetido: no queda también pendiente
+    mg = 22000 + VARIACION
+    g1 = enviar("g1", monto=mg, nombresCoinciden=False, detalleNombres="E2E repetidos", idOperacion=f"E2E-SEM-{SUFIJO}-G")
+    assert g1["estado"] == "PENDIENTE", g1
+    g2 = enviar("g2", monto=mg, nombresCoinciden=False, detalleNombres="E2E repetidos", idOperacion=f"E2E-SEM-{SUFIJO}-G")
+    assert g2["estado"] == "DUPLICADO" and "pendiente" in (g2.get("mensaje") or ""), f"debía ser repetido del pendiente: {g2}"
+    pendientes = [x["id"] for x in lista(api.call("GET", "/api/finanzas/sueldos/pendientes-revision"))]
+    assert g1["id"] in pendientes and g2["id"] not in pendientes, "el repetido no debe aparecer para revisar"
+    # el mismo N° de operación escrito distinto (espacios, minúsculas) también es repetido
+    g3 = enviar("g3", monto=mg, nombresCoinciden=False, detalleNombres="E2E repetidos", idOperacion=f"e2e-sem {SUFIJO}-g")
+    assert g3["estado"] == "DUPLICADO", f"la operación debe compararse normalizada: {g3}"
+    api.call("POST", f"/api/finanzas/sueldos/registros-bot/{g1['id']}/confirmar")
+    assert n_pagos() == antes + 3, "al aprobar el pendiente se paga una sola vez"
+
+    # (h) mismo monto y receptor que uno ya registrado, aunque la operación sea otra: lo revisa una persona
+    h_ = enviar("h", monto=mg, idOperacion=f"E2E-SEM-{SUFIJO}-H")
+    assert h_["estado"] == "PENDIENTE" and "Se parece" in (h_.get("motivosRevision") or ""), f"debía ir a revisión por parecido: {h_}"
+    api.call("POST", f"/api/finanzas/sueldos/registros-bot/{h_['id']}/rechazar", {"motivo": "E2E"})
+    assert n_pagos() == antes + 3, "rechazar el parecido no paga"
 
 
 @bloque("bot: efectivo con anti-duplicados y confirmación desde el panel")
