@@ -5,7 +5,7 @@ import { EscaneosService, EscaneoResponse } from '../../../../services/escaneos.
 import { NotificationService } from '../../../../services/notification.service';
 import { Visor3dComponent } from '../../escaneos/visor3d.component';
 
-const VISUALIZABLES_3D = ['.stl', '.obj'];
+const VISUALIZABLES_3D = ['.stl', '.obj', '.ply'];
 
 /**
  * Modal de detalle "grande" de un pedido: toda su info + los escaneos 3D

@@ -13,6 +13,16 @@ export interface EscaneoResponse {
   descripcion: string | null;
   subidoPor: string | null;
   fechaSubida: string;
+  /** Formato real según el contenido: STL_BINARIO, STL_ASCII, OBJ, PLY_ASCII, PLY_BINARIO (null en escaneos viejos). */
+  formato?: string | null;
+  triangulos?: number | null;
+  vertices?: number | null;
+  /** Medidas del modelo (mm) */
+  dimXMm?: number | null;
+  dimYMm?: number | null;
+  dimZMm?: number | null;
+  /** Avisos de la inspección que no bloquearon la subida (unidades raras, triángulos degenerados...). */
+  advertencias?: string[];
 }
 
 @Injectable({ providedIn: 'root' })

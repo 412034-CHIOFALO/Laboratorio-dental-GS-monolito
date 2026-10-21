@@ -10,7 +10,7 @@ import { iniciarPolling } from '../../../shared/poll.util';
 
 const EXTENSIONES_3D = ['.stl', '.obj', '.ply', '.3ds', '.step', '.stp', '.iges', '.igs'];
 // Formatos que el visor 3D embebido sabe renderizar.
-const VISUALIZABLES_3D = ['.stl', '.obj'];
+const VISUALIZABLES_3D = ['.stl', '.obj', '.ply'];
 
 @Component({
   selector: 'app-escaneos',
@@ -176,6 +176,19 @@ export class EscaneosComponent implements OnInit {
   }
 
   /** ¿El formato se puede abrir en el visor 3D embebido? */
+  /** "STL binario · 12.340 triángulos · 62 × 48 × 31 mm" — lo que el backend midió al subir; vacío en escaneos viejos. */
+  detalleMalla(e: EscaneoResponse): string {
+    if (!e.formato) return '';
+    const formato = e.formato.replace('_', ' ').replace('BINARIO', 'binario').replace('ASCII', 'ASCII');
+    const partes = [formato];
+    if (e.triangulos != null) partes.push(`${e.triangulos.toLocaleString('es-AR')} triángulos`);
+    if (e.dimXMm != null && e.dimYMm != null && e.dimZMm != null) {
+      const m = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 1 });
+      partes.push(`${m(e.dimXMm)} × ${m(e.dimYMm)} × ${m(e.dimZMm)} mm`);
+    }
+    return partes.join(' · ');
+  }
+
   esVisualizable3d(fileName: string): boolean {
     return VISUALIZABLES_3D.includes(this.extension(fileName));
   }

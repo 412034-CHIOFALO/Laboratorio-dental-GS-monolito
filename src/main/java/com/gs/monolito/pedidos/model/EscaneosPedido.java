@@ -3,6 +3,7 @@ package com.gs.monolito.pedidos.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -43,6 +44,34 @@ public class EscaneosPedido {
 
     @Column(name = "subido_por", length = 150)
     private String subidoPor;
+
+    /** Formato real, según lo que se encontró adentro: STL_BINARIO, STL_ASCII, OBJ, PLY_ASCII o PLY_BINARIO. Null en los escaneos anteriores a la inspección. */
+    @Column(name = "formato", length = 20)
+    private String formato;
+
+    @Column(name = "triangulos")
+    private Long triangulos;
+
+    @Column(name = "vertices")
+    private Long vertices;
+
+    /** Medidas del modelo en las unidades del archivo (los escáneres dentales exportan milímetros). */
+    @Column(name = "dim_x_mm", precision = 14, scale = 3)
+    private BigDecimal dimXMm;
+
+    @Column(name = "dim_y_mm", precision = 14, scale = 3)
+    private BigDecimal dimYMm;
+
+    @Column(name = "dim_z_mm", precision = 14, scale = 3)
+    private BigDecimal dimZMm;
+
+    /** SHA-256 del archivo: el mismo escaneo no se carga dos veces en un pedido. */
+    @Column(name = "sha256", length = 64, columnDefinition = "char(64)")
+    private String sha256;
+
+    /** Avisos de la inspección (separados por " | "): no bloquearon la subida pero conviene mirarlos. */
+    @Column(name = "advertencias", length = 600)
+    private String advertencias;
 
     @Column(name = "fecha_subida", nullable = false, updatable = false)
     private LocalDateTime fechaSubida;

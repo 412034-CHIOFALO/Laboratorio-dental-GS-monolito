@@ -132,6 +132,8 @@
                       {{ formatSize(e.tamanioBytes) }} · {{ e.fechaSubida | date:'dd/MM/yy HH:mm' }}
                       @if (e.subidoPor) { · {{ e.subidoPor }} }
                     </span>
+                    @if (detalleMalla(e)) { <span class="escaneo-meta">{{ detalleMalla(e) }}</span> }
+                    @for (a of e.advertencias ?? []; track a) { <span class="escaneo-aviso" role="note">⚠ {{ a }}</span> }
                   </div>
 
                   <!-- Acciones -->

@@ -7,8 +7,9 @@ Qué cubre (cada bloque es independiente: si uno falla, los demás siguen y se i
   2. pedido completo: odontólogo -> trabajo con receta -> pedido -> producción (descuenta stock) ->
      estados y transiciones inválidas -> entrega (nace la deuda) -> cobro parcial -> cobro total
   3. permisos por rol: el técnico ve pedidos pero no finanzas ni puede crear pedidos
-  4. sueldos por mes calendario: devengo exacto, asistencia que corrige el saldo, libro, baja y reactivación
-  5. bot de WhatsApp: el semáforo (lo dudoso queda pendiente y se aprueba/rechaza), pago por transferencia
+  4. escaneos 3D: se inspeccionan por dentro al subirse (medidas, hash), un archivo roto o repetido se rechaza
+  5. sueldos por mes calendario: devengo exacto, asistencia que corrige el saldo, libro, baja y reactivación
+  6. bot de WhatsApp: el semáforo (lo dudoso queda pendiente y se aprueba/rechaza), pago por transferencia
      y efectivo con anti-duplicados (mismo mensaje, mismo
      N° de operación, mismo archivo, consulta de mensajes conocidos, clave del bot inválida)
 
@@ -157,7 +158,62 @@ def permisos(base, clave_tecnico):
     assert codigo(Api(base, ""), "GET", "/api/pedidos") in (401, 403), "sin sesión no se debe poder leer pedidos"
 
 
-# ───────────────────────────── 4. sueldos por mes calendario ─────────────────────────────
+# ───────────────────────────── 4. escaneos 3D ─────────────────────────────
+def _stl_binario(n_triangulos=12):
+    """Un STL binario con n triángulos dentro de una caja de 10 x 20 x 30."""
+    import struct
+    cuerpo = b""
+    for i in range(n_triangulos):
+        cuerpo += struct.pack("<12fH", 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 20, 0 if i else 30, 0)
+    return b"E2E binario".ljust(80, b"\0") + struct.pack("<I", n_triangulos) + cuerpo
+
+
+@bloque("escaneos 3D: se miden al subirse; un archivo roto o repetido se rechaza")
+def escaneos_3d(base, clave, ctx):
+    api, pedido = ctx["api"], ctx["pedido"]
+    ruta = f"/api/pedidos/{pedido['id']}/escaneos"
+    stl = _stl_binario()
+    d, ct = demo.multipart({"descripcion": "E2E arcada"}, "file", f"e2e-{SUFIJO}.stl", stl, "application/octet-stream")
+    sin_minio = False
+    try:
+        r = api.call("POST", ruta, datos=d, ctype=ct)
+        assert r["formato"] == "STL_BINARIO" and r["triangulos"] == 12, r
+        assert float(r["dimXMm"]) == 10 and float(r["dimYMm"]) == 20 and float(r["dimZMm"]) == 30, r
+        assert r["fileName"] == f"e2e-{SUFIJO}.stl"
+    except ApiError as e:
+        # La CI corre sin MinIO: la revisión del archivo anda igual (pasa antes de guardar), pero no se puede
+        # guardar. En ese caso solo se prueban los rechazos; contra un servidor real se prueba todo.
+        if "MinIO no disponible" not in str(e):
+            raise
+        sin_minio = True
+
+    if not sin_minio:
+        # el mismo contenido no se carga dos veces en el pedido (aunque cambie el nombre)
+        d, ct = demo.multipart({}, "file", f"otro-nombre-{SUFIJO}.stl", stl, "application/octet-stream")
+        assert codigo(api, "POST", ruta, datos=d, ctype=ct) in (400, 409, 422), "el mismo archivo no debía cargarse dos veces"
+
+    # un STL cortado a la mitad se rechaza al subir (y no queda registrado)
+    roto = _stl_binario()[:-100]
+    d, ct = demo.multipart({}, "file", f"roto-{SUFIJO}.stl", roto, "application/octet-stream")
+    assert codigo(api, "POST", ruta, datos=d, ctype=ct) in (400, 409, 422), "un STL cortado debía rechazarse"
+    # un texto cualquiera renombrado como STL también
+    d, ct = demo.multipart({}, "file", f"nota-{SUFIJO}.stl", b"esto no es un modelo 3D " * 20, "application/octet-stream")
+    assert codigo(api, "POST", ruta, datos=d, ctype=ct) in (400, 409, 422), "un texto renombrado debía rechazarse"
+
+    if sin_minio:
+        return
+    lista_escaneos = lista(api.call("GET", ruta))
+    mios = [e for e in lista_escaneos if str(SUFIJO) in e["fileName"]]
+    assert len(mios) == 1, f"debía quedar un solo escaneo de esta prueba: {[e['fileName'] for e in mios]}"
+    assert mios[0]["triangulos"] == 12 and mios[0]["formato"] == "STL_BINARIO"
+
+    # se descarga con su tamaño exacto
+    assert codigo(api, "GET", f"{ruta}/{mios[0]['id']}/archivo") == 200
+    api.call("DELETE", f"{ruta}/{mios[0]['id']}")
+    assert not [e for e in lista(api.call("GET", ruta)) if str(SUFIJO) in e["fileName"]], "el escaneo borrado no debía listarse"
+
+
+# ───────────────────────────── 5. sueldos por mes calendario ─────────────────────────────
 def _tarifa(monto, dia):
     """Lo que vale un día de un sueldo mensual: monto / días REALES de ese mes (igual que el backend)."""
     return (Decimal(monto) / Decimal(calendar.monthrange(dia.year, dia.month)[1])).quantize(Decimal("1E-10"), ROUND_HALF_UP)
@@ -406,6 +462,8 @@ def main():
     sesion(args.base, clave)
     pedido_completo(args.base, clave, ctx)
     permisos(args.base, clave_t)
+    if "pedido" in ctx:
+        escaneos_3d(args.base, clave, ctx)
     sueldos_calendario(args.base, clave)
     if "odo" in ctx:
         bot_transferencia(args.base, clave_bot, ctx)

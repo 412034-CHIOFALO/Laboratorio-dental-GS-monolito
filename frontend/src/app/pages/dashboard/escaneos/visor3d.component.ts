@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 
 /**
  * Visor 3D embebido (three.js) para previsualizar escaneos STL/OBJ dentro del
@@ -24,7 +25,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
         <div class="v3d-canvas" #host>
           @if (cargando()) {
-            <div class="v3d-state"><span class="v3d-spinner"></span> Cargando modelo 3D…</div>
+            <div class="v3d-state"><span class="v3d-spinner"></span> Cargando modelo 3D…@if (progreso() > 0) { {{ progreso() }}% }</div>
           }
           @if (error()) {
             <div class="v3d-state v3d-err">{{ error() }}</div>
@@ -45,6 +46,8 @@ export class Visor3dComponent implements AfterViewInit, OnDestroy {
 
   readonly cargando = signal(true);
   readonly error = signal('');
+  /** Avance de la carga, 0-100 (0 si el navegador no informa el tamaño total). */
+  readonly progreso = signal(0);
 
   private renderer?: THREE.WebGLRenderer;
   private scene?: THREE.Scene;
@@ -99,13 +102,22 @@ export class Visor3dComponent implements AfterViewInit, OnDestroy {
   private loadModel(): void {
     const ext = (this.fileName.split('.').pop() || '').toLowerCase();
     const onError = () => { this.error.set('No se pudo cargar el modelo 3D.'); this.cargando.set(false); };
+    const onProgress = (e: ProgressEvent) => { if (e.lengthComputable && e.total > 0) this.progreso.set(Math.min(100, Math.round(e.loaded * 100 / e.total))); };
 
     if (ext === 'stl') {
       new STLLoader().load(this.url, (geo) => {
         geo.computeVertexNormals();
         const mat = new THREE.MeshStandardMaterial({ color: 0x2dd4a7, metalness: 0.15, roughness: 0.55 });
         this.addAndFit(new THREE.Mesh(geo, mat));
-      }, undefined, onError);
+      }, onProgress, onError);
+    } else if (ext === 'ply') {
+      // Los escáneres intraorales exportan PLY con color por vértice: se respeta si lo trae.
+      new PLYLoader().load(this.url, (geo) => {
+        geo.computeVertexNormals();
+        const conColor = !!geo.getAttribute('color');
+        const mat = new THREE.MeshStandardMaterial({ color: conColor ? 0xffffff : 0x2dd4a7, vertexColors: conColor, metalness: 0.1, roughness: 0.6 });
+        this.addAndFit(new THREE.Mesh(geo, mat));
+      }, onProgress, onError);
     } else if (ext === 'obj') {
       new OBJLoader().load(this.url, (obj) => {
         obj.traverse((c) => {
@@ -114,9 +126,9 @@ export class Visor3dComponent implements AfterViewInit, OnDestroy {
           }
         });
         this.addAndFit(obj);
-      }, undefined, onError);
+      }, onProgress, onError);
     } else {
-      this.error.set('El visor solo soporta STL y OBJ. Descargá el archivo para abrirlo en tu programa.');
+      this.error.set('El visor soporta STL, OBJ y PLY. Descargá el archivo para abrirlo en tu programa.');
       this.cargando.set(false);
     }
   }
