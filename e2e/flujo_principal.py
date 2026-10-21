@@ -70,16 +70,26 @@ def codigo(api, metodo, ruta, cuerpo=None, **kw):
         return e.status
 
 
-def login(base, usuario, clave):
+_SESIONES = {}
+
+
+def login(base, usuario, clave, nueva=False):
+    """Inicia sesión y la reutiliza en los demás bloques: el login tiene un límite de 5 intentos por minuto por IP
+    (a propósito), así que un bloque por sesión nueva se queda sin cupo. `nueva=True` fuerza una sesión propia, para
+    lo que la rompe (el logout)."""
+    if not nueva and (base, usuario) in _SESIONES:
+        return _SESIONES[(base, usuario)]
     api = Api(base, "")
     api.call("POST", "/api/auth/login", {"username": usuario, "password": clave})
+    if not nueva:
+        _SESIONES[(base, usuario)] = api
     return api
 
 
 # ───────────────────────────── 1. sesión ─────────────────────────────
 @bloque("sesión: la cookie XSRF no se pierde entre GETs y el logout funciona")
 def sesion(base, clave):
-    api = login(base, "admin", clave)
+    api = login(base, "admin", clave, nueva=True)
     assert "XSRF-TOKEN" in api.cookies, "el login no entregó la cookie XSRF-TOKEN"
     for ruta in ["/api/odontologos", "/api/pedidos", "/api/stock", "/api/catalogo", "/api/finanzas/proveedores",
                  "/api/auth/me", "/api/odontologos", "/api/stock"]:
@@ -87,7 +97,7 @@ def sesion(base, clave):
         assert "XSRF-TOKEN" in api.cookies, f"tras GET {ruta} el servidor borró la cookie XSRF-TOKEN"
     assert codigo(api, "POST", "/api/auth/logout") == 200, "logout con el header CSRF debería dar 200"
     assert codigo(api, "GET", "/api/auth/me") == 401, "después del logout /me debería dar 401"
-    sin = login(base, "admin", clave)
+    sin = login(base, "admin", clave, nueva=True)
     sin.cookies.pop("XSRF-TOKEN", None)
     assert codigo(sin, "POST", "/api/auth/logout") == 403, "sin el header CSRF el logout debería dar 403"
 
