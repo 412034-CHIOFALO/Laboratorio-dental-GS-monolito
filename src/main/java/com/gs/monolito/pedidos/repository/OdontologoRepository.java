@@ -20,6 +20,9 @@ public interface OdontologoRepository extends JpaRepository<Odontologo, Long> {
 
     Optional<Odontologo> findByActivoTrueAndDni(String dni);
     Optional<Odontologo> findByActivoTrueAndCuit(String cuit);
+
+    /** Los odontólogos activos que escriben desde ese email (puede haber más de uno si comparten la casilla de la clínica). */
+    List<Odontologo> findByActivoTrueAndEmailIgnoreCase(String email);
     Optional<Odontologo> findByActivoTrueAndMatriculaIgnoreCase(String matricula);
 
     boolean existsByDni(String dni);

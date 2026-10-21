@@ -297,3 +297,30 @@ GS_ADMIN_PASSWORD=... GS_TECNICO_PASSWORD=... GS_BOT_API_KEY=... python3 e2e/flu
 **Esquema de la base:** Flyway es el dueño (las tablas reales viven en `gs_auth`); Hibernate solo valida. Todo
 cambio de esquema es una migración nueva `V<n>__descripcion.sql` en `src/main/resources/db/migration/`, nunca
 un cambio de entidad a secas (la app no arrancaría: `ddl-auto=validate`).
+
+## 11. Pedidos por mail (solicitudes entrantes)
+
+El sistema puede leer una casilla de correo y convertir cada mail de un odontólogo en una **solicitud**. No crea el
+pedido solo: queda en el menú **Solicitudes** con lo que se pudo leer del texto (paciente, trabajo, fecha de entrega,
+urgencia, precio) y sus adjuntos, y una persona la **convierte en pedido** o la **descarta**. Está apagado hasta que se
+completan las variables.
+
+**Qué hace por su cuenta**
+- Reconoce al odontólogo por el email desde el que escribe (el campo *email* de Odontólogos). La primera vez que se
+  convierte una solicitud de alguien sin email cargado, el sistema aprende el email para la próxima.
+- Los adjuntos STL, OBJ y PLY pasan por la misma revisión que los escaneos subidos a mano (se rechazan los cortados o
+  corruptos); los PDF y las fotos se guardan como documentos. Al convertir en pedido pasan al pedido.
+- Ignora notificaciones automáticas, rebotes y listas de difusión sin guardarlas.
+- Un mail no se carga dos veces (se identifica por su Message-ID) y no queda marcado como leído hasta que la solicitud
+  se guardó. Un mail que falla 5 veces seguidas se da por leído para no trabar a los demás y queda en el log.
+
+**Activarlo**
+1. Usar una casilla **dedicada** a pedidos (no la personal). En Gmail: activar la verificación en dos pasos y crear una
+   *contraseña de aplicación*; IMAP viene habilitado.
+2. En el `.env` del servidor: `GS_CORREO_HABILITADO=true`, `GS_CORREO_HOST=imap.gmail.com`, `GS_CORREO_USUARIO=...` y
+   `GS_CORREO_CLAVE=...` (la contraseña de aplicación). Opcional: `GS_CORREO_CONFIRMAR=true` y `GS_CORREO_SMTP_HOST=smtp.gmail.com`
+   para que el odontólogo reconocido reciba un acuse de recibo.
+3. `./deploy.sh --sin-bot` (o reiniciar `app`). En el menú **Solicitudes** se ve el estado de la casilla: cuándo se leyó por
+   última vez y si hubo un error (clave vencida, casilla inaccesible).
+
+**Si no llegan solicitudes**: mirar el estado en la pantalla (último error), y los logs: `docker compose logs app | grep CORREO`.

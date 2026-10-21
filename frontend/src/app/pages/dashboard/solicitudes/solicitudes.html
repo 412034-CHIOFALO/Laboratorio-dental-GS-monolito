@@ -1,0 +1,177 @@
+<div class="sol-page">
+  <header class="sol-head">
+    <div>
+      <h1>Solicitudes <span>por mail</span></h1>
+      <p class="sol-sub">Pedidos que llegaron a la casilla del laboratorio. Revisá los datos, corregí lo que haga falta y creá el pedido.</p>
+    </div>
+    <nav class="sol-tabs" aria-label="Estado de las solicitudes">
+      @for (e of estados; track e.valor) {
+        <button type="button" [class.activa]="estado() === e.valor" (click)="cambiarEstado(e.valor)">{{ e.etiqueta }}</button>
+      }
+    </nav>
+  </header>
+
+  @if (correo(); as c) {
+    @if (!c.habilitado) {
+      <div class="sol-aviso info" role="status">La lectura de la casilla de correo está <strong>apagada</strong>: las solicitudes no llegan solas. Se activa en la configuración del servidor (ver la guía de producción).</div>
+    } @else if (c.ultimoError) {
+      <div class="sol-aviso error" role="alert">
+        <strong>No se pudo leer la casilla.</strong> {{ c.ultimoError }}
+        @if (c.ultimoExito) { · Última lectura correcta: {{ c.ultimoExito | date:'dd/MM HH:mm' }} } @else { · Todavía no se pudo leer nunca. }
+      </div>
+    } @else if (c.ultimoExito) {
+      <p class="sol-estado">Casilla leída {{ c.ultimoExito | date:'dd/MM HH:mm' }} · {{ c.recibidas }} recibidas, {{ c.ignoradas }} ignoradas (automáticas)@if (c.fallidas > 0) { , <strong>{{ c.fallidas }} con error</strong> }</p>
+    }
+  }
+
+  @if (cargando() && lista().length === 0) {
+    <div class="sol-vacio">Cargando solicitudes…</div>
+  } @else if (lista().length === 0) {
+    <div class="sol-vacio">
+      @if (estado() === 'NUEVA') { No hay solicitudes por revisar. } @else { No hay solicitudes en este estado. }
+    </div>
+  } @else {
+    <div class="sol-cuerpo">
+      <ul class="sol-lista" aria-label="Solicitudes">
+        @for (s of lista(); track s.id) {
+          <li>
+            <button type="button" class="sol-item" [class.activa]="seleccionada()?.id === s.id" (click)="seleccionar(s)">
+              <span class="sol-item-top">
+                <strong>{{ s.odontologoNombre ?? s.remitenteNombre ?? s.remitenteEmail }}</strong>
+                <time>{{ s.fechaRecepcion | date:'dd/MM HH:mm' }}</time>
+              </span>
+              <span class="sol-item-asunto">{{ s.asunto || '(sin asunto)' }}</span>
+              <span class="sol-item-resumen">{{ resumen(s) }}</span>
+              <span class="sol-item-marcas">
+                @if (!s.identificado) { <span class="marca aviso">Remitente sin reconocer</span> }
+                @if (s.sugerencia.prioridad === 'URGENTE') { <span class="marca urgente">Urgente</span> }
+                @if (s.adjuntos.length > 0) { <span class="marca">{{ s.adjuntos.length }} adjunto{{ s.adjuntos.length === 1 ? '' : 's' }}</span> }
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+
+      @if (seleccionada(); as s) {
+        <article class="sol-detalle">
+          <section class="sol-mail">
+            <div class="sol-mail-cab">
+              <div>
+                <h2>{{ s.asunto || '(sin asunto)' }}</h2>
+                <p>De <strong>{{ s.remitenteNombre || s.remitenteEmail }}</strong> &lt;{{ s.remitenteEmail }}&gt; · {{ s.fechaMensaje | date:'dd/MM/yyyy HH:mm' }}</p>
+              </div>
+              @if (s.identificado) { <span class="marca ok">Odontólogo reconocido</span> } @else { <span class="marca aviso">Remitente sin reconocer</span> }
+            </div>
+            <pre class="sol-texto">{{ s.cuerpo }}</pre>
+
+            @if (s.adjuntos.length > 0) {
+              <ul class="sol-adjuntos" aria-label="Adjuntos">
+                @for (a of s.adjuntos; track a.id) {
+                  <li>
+                    <button type="button" class="adj" (click)="descargar(s, a)">
+                      <span class="adj-tipo" [class.escaneo]="a.tipo === 'ESCANEO'">{{ a.tipo === 'ESCANEO' ? '3D' : 'DOC' }}</span>
+                      <span class="adj-nombre">{{ a.fileName }}</span>
+                      <span class="adj-meta">{{ tamanio(a.tamanioBytes) }}@if (detalleMalla(a)) { · {{ detalleMalla(a) }} }</span>
+                    </button>
+                    @for (adv of a.advertencias; track adv) { <span class="adj-aviso" role="note">⚠ {{ adv }}</span> }
+                  </li>
+                }
+              </ul>
+            }
+            @if (s.notaAdjuntos) {
+              <p class="sol-aviso info" role="note"><strong>Adjuntos que no se guardaron:</strong> {{ s.notaAdjuntos }}</p>
+            }
+          </section>
+
+          @if (s.estado === 'NUEVA') {
+            <form class="sol-form" [formGroup]="form" (ngSubmit)="crearPedido()">
+              <h3>Pedido a crear</h3>
+              <p class="sol-ayuda">Lo que el sistema pudo leer del mail ya está cargado. <strong>Revisalo antes de confirmar</strong>: es una sugerencia, no un dato verificado.</p>
+
+              <div class="campo">
+                <label for="odontologo">Odontólogo</label>
+                <select id="odontologo" formControlName="odontologoId" (change)="alElegirOdontologo()">
+                  <option [ngValue]="null">— Otro / nuevo (escribir el nombre) —</option>
+                  @for (o of odontologos(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}{{ o.clinica ? ' · ' + o.clinica : '' }}</option> }
+                </select>
+                @if (form.controls.odontologoId.value == null) {
+                  <input type="text" formControlName="odontologoNombre" placeholder="Nombre del odontólogo" aria-label="Nombre del odontólogo">
+                } @else if (!s.identificado && s.remitenteEmail) {
+                  <span class="ayuda">Se va a guardar {{ s.remitenteEmail }} como su email para reconocerlo la próxima vez.</span>
+                }
+              </div>
+
+              <div class="campo">
+                <label for="paciente">Paciente <span class="req">*</span></label>
+                <input id="paciente" type="text" formControlName="paciente" maxlength="150">
+              </div>
+
+              <div class="campo">
+                <label for="trabajo-cat">Trabajo <span class="req">*</span></label>
+                <select id="trabajo-cat" formControlName="catalogoTrabajoId" (change)="alElegirTrabajo()">
+                  <option [ngValue]="null">— Elegir del catálogo —</option>
+                  @for (t of trabajos(); track t.id) { <option [ngValue]="t.id">{{ t.nombre }}</option> }
+                </select>
+                <input type="text" formControlName="trabajo" maxlength="200" placeholder="O escribí el trabajo" aria-label="Trabajo">
+              </div>
+
+              <div class="fila">
+                <div class="campo">
+                  <label for="entrega">Entrega <span class="req">*</span></label>
+                  <input id="entrega" type="date" formControlName="fechaEntrega" [min]="minimaEntrega">
+                </div>
+                <div class="campo">
+                  <label for="prioridad">Prioridad</label>
+                  <select id="prioridad" formControlName="prioridad">
+                    <option value="NORMAL">Normal</option>
+                    <option value="URGENTE">Urgente</option>
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="precio">Precio acordado</label>
+                  <input id="precio" type="number" formControlName="precio" min="0" placeholder="$">
+                </div>
+              </div>
+
+              <div class="campo">
+                <label for="obs">Observaciones</label>
+                <textarea id="obs" formControlName="observaciones" rows="4" maxlength="900"></textarea>
+              </div>
+
+              @if (puedeResolver()) {
+                <div class="sol-acciones">
+                  <button type="submit" class="btn-primario" [disabled]="!formularioValido || guardando()">
+                    {{ guardando() ? 'Creando…' : 'Crear pedido' }}
+                  </button>
+                  @if (!confirmandoDescarte()) {
+                    <button type="button" class="btn-secundario" (click)="confirmandoDescarte.set(true)">Descartar</button>
+                  }
+                </div>
+                @if (confirmandoDescarte()) {
+                  <div class="sol-descartar">
+                    <label for="motivo">Motivo (opcional)</label>
+                    <input id="motivo" type="text" [formControl]="motivoDescarte" maxlength="255" placeholder="Era una consulta, spam, ya lo cargamos…">
+                    <div class="sol-acciones">
+                      <button type="button" class="btn-peligro" [disabled]="descartando()" (click)="descartar()">{{ descartando() ? 'Descartando…' : 'Confirmar descarte' }}</button>
+                      <button type="button" class="btn-secundario" (click)="confirmandoDescarte.set(false)">No descartar</button>
+                    </div>
+                  </div>
+                }
+              } @else {
+                <p class="sol-ayuda">Solo Administración puede crear el pedido o descartar la solicitud.</p>
+              }
+            </form>
+          } @else {
+            <section class="sol-resuelta">
+              @if (s.estado === 'CONVERTIDA') {
+                <p><strong>Convertida en pedido</strong> el {{ s.fechaResolucion | date:'dd/MM/yyyy HH:mm' }} por {{ s.resueltoPor }}.</p>
+              } @else {
+                <p><strong>Descartada</strong> el {{ s.fechaResolucion | date:'dd/MM/yyyy HH:mm' }} por {{ s.resueltoPor }}. Motivo: {{ s.motivoDescarte }}</p>
+              }
+            </section>
+          }
+        </article>
+      }
+    </div>
+  }
+</div>

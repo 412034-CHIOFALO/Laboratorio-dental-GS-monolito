@@ -4,6 +4,7 @@ import { catchError } from 'rxjs/operators';
 import { PedidosService } from './pedidos.service';
 import { StockService } from './stock.service';
 import { SueldosService } from './sueldos.service';
+import { SolicitudesService } from './solicitudes.service';
 import { AuthService } from './auth';
 
 export type TipoNoti = 'danger' | 'warning' | 'success' | 'info' | 'neutral';
@@ -34,6 +35,7 @@ export interface Notificacion {
  *   - materiales con stock bajo  -> GET /api/stock/bajo-stock
  *   - efectivo por confirmar     -> GET /api/finanzas/sueldos/pendientes-efectivo
  *   - transferencias a revisar   -> GET /api/finanzas/sueldos/pendientes-revision
+ *   - solicitudes por mail       -> GET /api/pedidos/solicitudes/cantidad
  *
  * Un fallo de una fuente no tumba al resto (catchError -> []).
  */
@@ -43,6 +45,7 @@ export class NotificacionesService {
   private readonly pedidos  = inject(PedidosService);
   private readonly stock    = inject(StockService);
   private readonly sueldos  = inject(SueldosService);
+  private readonly solicitudes = inject(SolicitudesService);
   private readonly auth     = inject(AuthService);
 
   private readonly _items     = signal<Notificacion[]>([]);
@@ -72,13 +75,15 @@ export class NotificacionesService {
     const revision$ = this.auth.puedeVerFinanzas()
       ? this.sueldos.pendientesRevision().pipe(catchError(() => of([])))
       : of([]);
+    const nuevas$ = this.solicitudes.cantidadNuevas().pipe(catchError(() => of(0)));
     forkJoin({
       atrasados: this.pedidos.listarAtrasados().pipe(catchError(() => of([]))),
       listos:    this.pedidos.listarPorEstado('LISTO').pipe(catchError(() => of([]))),
       stockBajo: this.stock.listarBajoStock().pipe(catchError(() => of([]))),
       efectivo:  efectivo$,
       revision:  revision$,
-    }).subscribe(({ atrasados, listos, stockBajo, efectivo, revision }) => {
+      nuevas:    nuevas$,
+    }).subscribe(({ atrasados, listos, stockBajo, efectivo, revision, nuevas }) => {
       const notis: Notificacion[] = [];
 
       if (atrasados.length) {
@@ -119,6 +124,17 @@ export class NotificacionesService {
           detalle: r.receptorNombre ? `Declarado para ${r.receptorNombre}${monto} por el bot` : `Declarado${monto} por el bot`,
           ruta: '/dashboard/finanzas',
           queryParams: { seccion: 'cajas' },
+        });
+      }
+
+      if (nuevas > 0) {
+        notis.push({
+          id: 'solicitudes-nuevas',
+          tipo: 'info',
+          icono: 'alerta',
+          titulo: nuevas === 1 ? '1 solicitud por mail para revisar' : `${nuevas} solicitudes por mail para revisar`,
+          detalle: 'Un odontólogo escribió a la casilla del laboratorio: revisala y creá el pedido',
+          ruta: '/dashboard/solicitudes',
         });
       }
 

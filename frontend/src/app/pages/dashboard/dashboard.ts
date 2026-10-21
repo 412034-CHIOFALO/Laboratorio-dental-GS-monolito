@@ -43,6 +43,7 @@ export class DashboardComponent implements OnInit {
     { type: 'group', label: 'Operativo' },
     { type: 'item', label: 'Inicio',       icon: 'home',      route: '/dashboard',              tourId: 'nav-inicio' },
     { type: 'item', label: 'Pedidos',      icon: 'package',   route: '/dashboard/pedidos',      tourId: 'nav-pedidos' },
+    { type: 'item', label: 'Solicitudes',  icon: 'inbox',     route: '/dashboard/solicitudes' },
     { type: 'item', label: 'Producción',   icon: 'layers',    route: '/dashboard/produccion',   tourId: 'nav-produccion' },
     { type: 'item', label: 'Entregas',     icon: 'truck',     route: '/dashboard/entregas',     tourId: 'nav-entregas' },
 

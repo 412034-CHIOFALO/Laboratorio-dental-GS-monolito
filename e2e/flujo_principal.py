@@ -8,8 +8,9 @@ Qué cubre (cada bloque es independiente: si uno falla, los demás siguen y se i
      estados y transiciones inválidas -> entrega (nace la deuda) -> cobro parcial -> cobro total
   3. permisos por rol: el técnico ve pedidos pero no finanzas ni puede crear pedidos
   4. escaneos 3D: se inspeccionan por dentro al subirse (medidas, hash), un archivo roto o repetido se rechaza
-  5. sueldos por mes calendario: devengo exacto, asistencia que corrige el saldo, libro, baja y reactivación
-  6. bot de WhatsApp: el semáforo (lo dudoso queda pendiente y se aprueba/rechaza), pago por transferencia
+  5. solicitudes por mail: la API responde, exige sesión y rechaza lo inexistente (sin casilla real en la CI)
+  6. sueldos por mes calendario: devengo exacto, asistencia que corrige el saldo, libro, baja y reactivación
+  7. bot de WhatsApp: el semáforo (lo dudoso queda pendiente y se aprueba/rechaza), pago por transferencia
      y efectivo con anti-duplicados (mismo mensaje, mismo
      N° de operación, mismo archivo, consulta de mensajes conocidos, clave del bot inválida)
 
@@ -213,7 +214,27 @@ def escaneos_3d(base, clave, ctx):
     assert not [e for e in lista(api.call("GET", ruta)) if str(SUFIJO) in e["fileName"]], "el escaneo borrado no debía listarse"
 
 
-# ───────────────────────────── 5. sueldos por mes calendario ─────────────────────────────
+# ───────────────────────────── 5. solicitudes por mail ─────────────────────────────
+@bloque("solicitudes por mail: la API responde, exige sesión y rechaza lo inexistente")
+def solicitudes(base, clave, clave_tecnico):
+    api = login(base, "admin", clave)
+    ruta = "/api/pedidos/solicitudes"
+    assert lista(api.call("GET", ruta)) is not None, "el listado de solicitudes nuevas debe responder"
+    assert api.call("GET", f"{ruta}/cantidad")["nuevas"] >= 0
+    estado = api.call("GET", f"{ruta}/estado-correo")
+    assert estado["habilitado"] is False, "en la CI la casilla de correo está apagada"
+    assert estado["ultimoError"] is None, estado
+    assert codigo(api, "GET", f"{ruta}/999999") == 404, "una solicitud inexistente da 404"
+    assert codigo(api, "POST", f"{ruta}/999999/descartar", {"motivo": "E2E"}) == 404
+    assert codigo(Api(base, ""), "GET", ruta) in (401, 403), "sin sesión no se pueden leer las solicitudes"
+    # el técnico puede mirar, pero no resolver
+    t = login(base, "tecnico1", clave_tecnico)
+    assert codigo(t, "GET", ruta) == 200
+    assert codigo(t, "POST", f"{ruta}/1/descartar", {"motivo": "x"}) == 403, "el técnico no debe poder descartar"
+    assert codigo(t, "POST", f"{ruta}/1/convertir", {}) == 403, "el técnico no debe poder convertir en pedido"
+
+
+# ───────────────────────────── 6. sueldos por mes calendario ─────────────────────────────
 def _tarifa(monto, dia):
     """Lo que vale un día de un sueldo mensual: monto / días REALES de ese mes (igual que el backend)."""
     return (Decimal(monto) / Decimal(calendar.monthrange(dia.year, dia.month)[1])).quantize(Decimal("1E-10"), ROUND_HALF_UP)
@@ -464,6 +485,7 @@ def main():
     permisos(args.base, clave_t)
     if "pedido" in ctx:
         escaneos_3d(args.base, clave, ctx)
+    solicitudes(args.base, clave, clave_t)
     sueldos_calendario(args.base, clave)
     if "odo" in ctx:
         bot_transferencia(args.base, clave_bot, ctx)

@@ -17,6 +17,7 @@ import { AuditoriaComponent } from './pages/dashboard/auditoria/auditoria';
 import { OdontologosComponent } from './pages/dashboard/odontologos/odontologos';
 import { OdontologoHistorialComponent } from './pages/dashboard/odontologos/historial/odontologo-historial';
 import { BotRegistrosComponent } from './pages/dashboard/bot-registros/bot-registros';
+import { SolicitudesComponent } from './pages/dashboard/solicitudes/solicitudes';
 import { ProveedoresComponent } from './pages/dashboard/proveedores/proveedores';
 import { ManualComponent } from './pages/dashboard/manual/manual';
 import { FaqComponent } from './pages/dashboard/faq/faq';
@@ -40,26 +41,27 @@ export const routes: Routes = [
     canActivate: [termsGuard],
     canActivateChild: [forcePasswordChangeGuard],
     children: [
-      { path: '',            component: DashboardHomeComponent },
-      { path: 'pedidos',     component: PedidosComponent },
-      { path: 'odontologos', component: OdontologosComponent },
-      { path: 'odontologos/:id/historial', component: OdontologoHistorialComponent },
-      { path: 'produccion',  component: ProduccionComponent },
-      { path: 'entregas',    component: EntregasComponent },
-      { path: 'catalogo',    component: CatalogoComponent },
-      { path: 'stock',       component: StockComponent },
-      { path: 'finanzas',    component: FinanzasComponent },
-      { path: 'proveedores', component: ProveedoresComponent },
-      { path: 'bot-registros', component: BotRegistrosComponent },
-      { path: 'reportes',    component: ReportesComponent },
-      { path: 'documentos',  component: DocumentosComponent },
-      { path: 'escaneos',    component: EscaneosComponent },
-      { path: 'auditoria',      component: AuditoriaComponent },
-      { path: 'usuarios',       component: UsuariosComponent },
-      { path: 'mi-perfil',      component: MiPerfilComponent },
-      { path: 'configuracion',  component: ConfiguracionComponent },
-      { path: 'manual',         component: ManualComponent },
-      { path: 'faq',            component: FaqComponent },
+      { path: '',            loadComponent: () => import('./pages/dashboard/home/dashboard-home').then(m => m.DashboardHomeComponent) },
+      { path: 'pedidos',     loadComponent: () => import('./pages/dashboard/pedidos/pedidos').then(m => m.PedidosComponent) },
+      { path: 'odontologos', loadComponent: () => import('./pages/dashboard/odontologos/odontologos').then(m => m.OdontologosComponent) },
+      { path: 'odontologos/:id/historial', loadComponent: () => import('./pages/dashboard/odontologos/historial/odontologo-historial').then(m => m.OdontologoHistorialComponent) },
+      { path: 'produccion',  loadComponent: () => import('./pages/dashboard/produccion/produccion').then(m => m.ProduccionComponent) },
+      { path: 'entregas',    loadComponent: () => import('./pages/dashboard/entregas/entregas').then(m => m.EntregasComponent) },
+      { path: 'catalogo',    loadComponent: () => import('./pages/dashboard/catalogo/catalogo').then(m => m.CatalogoComponent) },
+      { path: 'stock',       loadComponent: () => import('./pages/dashboard/stock/stock').then(m => m.StockComponent) },
+      { path: 'finanzas',    loadComponent: () => import('./pages/dashboard/finanzas/finanzas').then(m => m.FinanzasComponent) },
+      { path: 'proveedores', loadComponent: () => import('./pages/dashboard/proveedores/proveedores').then(m => m.ProveedoresComponent) },
+      { path: 'bot-registros', loadComponent: () => import('./pages/dashboard/bot-registros/bot-registros').then(m => m.BotRegistrosComponent) },
+      { path: 'solicitudes', loadComponent: () => import('./pages/dashboard/solicitudes/solicitudes').then(m => m.SolicitudesComponent) },
+      { path: 'reportes',    loadComponent: () => import('./pages/dashboard/reportes/reportes').then(m => m.ReportesComponent) },
+      { path: 'documentos',  loadComponent: () => import('./pages/dashboard/documentos/documentos').then(m => m.DocumentosComponent) },
+      { path: 'escaneos',    loadComponent: () => import('./pages/dashboard/escaneos/escaneos').then(m => m.EscaneosComponent) },
+      { path: 'auditoria',      loadComponent: () => import('./pages/dashboard/auditoria/auditoria').then(m => m.AuditoriaComponent) },
+      { path: 'usuarios',       loadComponent: () => import('./pages/dashboard/usuarios/usuarios').then(m => m.UsuariosComponent) },
+      { path: 'mi-perfil',      loadComponent: () => import('./pages/dashboard/mi-perfil/mi-perfil').then(m => m.MiPerfilComponent) },
+      { path: 'configuracion',  loadComponent: () => import('./pages/dashboard/configuracion/configuracion').then(m => m.ConfiguracionComponent) },
+      { path: 'manual',         loadComponent: () => import('./pages/dashboard/manual/manual').then(m => m.ManualComponent) },
+      { path: 'faq',            loadComponent: () => import('./pages/dashboard/faq/faq').then(m => m.FaqComponent) },
     ]
   },
   // Páginas de error
