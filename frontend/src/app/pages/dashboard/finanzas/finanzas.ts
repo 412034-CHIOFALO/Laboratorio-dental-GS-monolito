@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { iniciarPolling } from '../../../shared/poll.util';
-import { fechaLocal } from '../../../services/date-utils';
+import { fechaLocal, hoyComoLocalDate } from '../../../services/date-utils';
 import {
   FinanzasService, ResumenCajasResponse, CajaMovimientoResponse, TipoCaja,
   CuentaCorrienteOdontologoResponse, SeveridadDeuda,
@@ -17,6 +17,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { AuthService, UsuarioListado } from '../../../services/auth';
 import { ProveedoresService } from '../../../services/proveedores.service';
 import { PagoCuentaCorrienteModalComponent } from '../odontologos/pago-cuenta-corriente-modal/pago-cuenta-corriente-modal.component';
+import { AsistenciaModalComponent } from './asistencia-modal/asistencia-modal.component';
 
 export type FiltroMorosos = 'TODOS' | 'MOROSOS' | 'MAS_30' | 'MAS_60';
 export type FiltroMovimientos = 'TODOS' | 'INGRESO' | 'EGRESO';
@@ -60,7 +61,7 @@ interface ComprobanteRecibido {
 @Component({
   selector: 'app-finanzas',
   standalone: true,
-  imports: [FormsModule, RouterLink, PagoCuentaCorrienteModalComponent],
+  imports: [FormsModule, RouterLink, PagoCuentaCorrienteModalComponent, AsistenciaModalComponent],
   templateUrl: './finanzas.html',
   styleUrls: ['./finanzas.css'],
 })
@@ -166,8 +167,17 @@ export class FinanzasComponent implements OnInit {
   // Modal config de sueldo
   showConfigModal = false;
   empleadoEditando: EmpleadoSueldo | null = null;
-  configForm: ConfigSueldoRequest = { frecuencia: 'MENSUAL', montoBase: 0 };
+  configForm: ConfigSueldoRequest = { frecuencia: 'MENSUAL', montoBase: 0, diasVacacionesAnuales: 14 };
   savingConfig = false;
+
+  // Baja / reincorporación (desde el modal de sueldo)
+  mostrandoBaja = false;
+  bajaForm = { fecha: '', motivo: '' };
+  procesandoBaja = false;
+
+  // Modal de asistencia y vacaciones (calendario)
+  showAsistenciaModal = false;
+  empleadoAsistencia: EmpleadoSueldo | null = null;
 
   // Modal alta de empleado nuevo (usuarios de ms-auth sin dar de alta en sueldos)
   showNuevoEmpleadoModal = false;
@@ -356,7 +366,7 @@ export class FinanzasComponent implements OnInit {
 
   private get hayModalSueldosAbierto(): boolean {
     return this.showConfigModal || this.showPagoModal || this.showCascadaModal
-        || this.showHistorialModal || this.showNuevoEmpleadoModal;
+        || this.showHistorialModal || this.showNuevoEmpleadoModal || this.showAsistenciaModal;
   }
 
   // ═════════════════════════ COMPROBANTES (TRIANGULADOS) ═════════════════════════
@@ -481,7 +491,7 @@ export class FinanzasComponent implements OnInit {
 
   recalculandoDevengado = false;
 
-  /** Fuerza el cálculo de devengado diario ahora (sin esperar al cron de las 00:05). */
+  /** Fuerza el cierre del devengo ahora (sin esperar a la pasada automática, que corre al arrancar y cada hora). */
   recalcularDevengado(): void {
     this.recalculandoDevengado = true;
     this.sueldosService.devengarAhora().subscribe({
@@ -545,10 +555,62 @@ export class FinanzasComponent implements OnInit {
   // ── Modal config de sueldo ──
   abrirConfigSueldo(e: EmpleadoSueldo): void {
     this.empleadoEditando = e;
-    this.configForm = { frecuencia: e.frecuencia, montoBase: e.montoBase };
+    this.configForm = { frecuencia: e.frecuencia, montoBase: e.montoBase, diasVacacionesAnuales: e.diasVacacionesAnuales };
+    this.mostrandoBaja = false;
     this.showConfigModal = true;
   }
-  cerrarConfigModal(): void { this.showConfigModal = false; this.empleadoEditando = null; }
+  cerrarConfigModal(): void { this.showConfigModal = false; this.empleadoEditando = null; this.mostrandoBaja = false; }
+
+  // ── Asistencia y vacaciones ──
+  abrirAsistencia(e: EmpleadoSueldo): void {
+    this.empleadoAsistencia = e;
+    this.showAsistenciaModal = true;
+  }
+  cerrarAsistencia(): void { this.showAsistenciaModal = false; this.empleadoAsistencia = null; }
+  /** Una marca de asistencia pudo mover el saldo: se refresca la lista sin cerrar el calendario. */
+  alCambiarAsistencia(): void { this.cargarEmpleados(true); this.cargarResumen(true); }
+
+  // ── Baja / reincorporación ──
+  abrirBaja(): void {
+    this.bajaForm = { fecha: hoyComoLocalDate(), motivo: '' };
+    this.mostrandoBaja = true;
+  }
+  cancelarBaja(): void { this.mostrandoBaja = false; }
+
+  confirmarBaja(): void {
+    const e = this.empleadoEditando;
+    if (!e || !this.bajaForm.fecha) return;
+    this.procesandoBaja = true;
+    this.sueldosService.darDeBaja(e.usuarioId, this.bajaForm.fecha, this.bajaForm.motivo.trim() || null).subscribe({
+      next: actualizado => {
+        this.reemplazarEmpleado(actualizado);
+        this.procesandoBaja = false;
+        this.cerrarConfigModal();
+        this.notif.exito(`${actualizado.nombre} quedó de baja. ${actualizado.saldoDevengado > 0 ? 'Todavía se le debe ' + this.formatMoney(actualizado.saldoDevengado) + '.' : ''}`.trim());
+      },
+      error: err => { this.procesandoBaja = false; this.notif.errorHttp(err, 'No se pudo dar de baja'); },
+    });
+  }
+
+  reactivarEmpleado(): void {
+    const e = this.empleadoEditando;
+    if (!e) return;
+    this.procesandoBaja = true;
+    this.sueldosService.reactivar(e.usuarioId, hoyComoLocalDate()).subscribe({
+      next: actualizado => {
+        this.reemplazarEmpleado(actualizado);
+        this.procesandoBaja = false;
+        this.cerrarConfigModal();
+        this.notif.exito(`${actualizado.nombre} volvió a estar activo desde hoy`);
+      },
+      error: err => { this.procesandoBaja = false; this.notif.errorHttp(err, 'No se pudo reactivar'); },
+    });
+  }
+
+  private reemplazarEmpleado(actualizado: EmpleadoSueldo): void {
+    const i = this.empleados.findIndex(x => x.usuarioId === actualizado.usuarioId);
+    if (i !== -1) this.empleados[i] = actualizado;
+  }
 
   // ── Modal alta de empleado nuevo (se abre desde la fila del usuario pendiente) ──
   usuarioSeleccionado: UsuarioListado | null = null;
@@ -623,7 +685,7 @@ export class FinanzasComponent implements OnInit {
       usuarioId: e.usuarioId,
       monto: e.saldoDevengado,   // sugerimos pagar lo que se le debe
       manejoSobrante: 'DESCONTAR_PROXIMO',
-      fecha: new Date().toISOString().slice(0, 10),
+      fecha: hoyComoLocalDate(),
     };
     this.showPagoModal = true;
   }

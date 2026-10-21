@@ -1651,3 +1651,15 @@
   color: var(--text);
 }
 .revision-motivos li::marker { color: #dc2626; }
+
+/* Baja / reincorporación de un empleado (dentro del modal de sueldo) */
+.baja-box { margin-top: 0.4rem; padding-top: 0.9rem; border-top: 1px dashed var(--border-med); display: flex; flex-direction: column; gap: 0.6rem; }
+.btn-baja {
+  align-self: flex-start; padding: 0.5rem 0.9rem; font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  color: var(--color-danger); background: transparent; border: 1px solid color-mix(in srgb, var(--color-danger) 55%, transparent); border-radius: 8px;
+}
+.btn-baja:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger) 12%, transparent); }
+.btn-baja:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-baja.confirmar { background: var(--color-danger); color: #fff; border-color: var(--color-danger); }
+.btn-baja.confirmar:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger) 85%, black); }
+.baja-acciones { display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }

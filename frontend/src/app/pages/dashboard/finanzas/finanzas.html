@@ -656,7 +656,7 @@
                 <span class="stat-val">{{ empleadosConDeuda }}</span>
               </div>
               <button class="btn-recalcular" [disabled]="recalculandoDevengado" (click)="recalcularDevengado()"
-                      title="El devengado se calcula solo todas las noches a las 00:05 — usá esto para verlo actualizado ahora mismo">
+                      title="El devengado se actualiza solo al iniciar el sistema y cada hora — usá esto para verlo al día ahora mismo">
                 {{ recalculandoDevengado ? 'Recalculando...' : '↻ Recalcular devengado' }}
               </button>
               <button class="btn-cascada" (click)="abrirCascadaModal()">Distribuir cobro</button>
@@ -710,7 +710,7 @@
                       <strong>{{ e.nombre }}</strong>
                       <span class="empleado-rol">{{ e.rol }}</span>
                     </div>
-                    @if (!e.activo) { <span class="badge-inactivo">Inactivo</span> }
+                    @if (!e.activo) { <span class="badge-inactivo">Baja{{ e.fechaBaja ? ' · ' + formatFechaCortaSueldo(e.fechaBaja) : '' }}</span> }
                   </div>
 
                   <div class="empleado-data">
@@ -726,6 +726,12 @@
                       <span>Se le debe</span>
                       <strong [class.debe]="e.saldoDevengado > 0">{{ formatMoney(e.saldoDevengado) }}</strong>
                     </div>
+                    @if (e.activo && e.devengadoHasta) {
+                      <div class="ed-row">
+                        <span>Devengado hasta</span>
+                        <strong>{{ formatFechaCortaSueldo(e.devengadoHasta) }}</strong>
+                      </div>
+                    }
                     @if (e.saldoSobrante > 0) {
                       <div class="ed-row">
                         <span>A favor del lab</span>
@@ -745,6 +751,10 @@
                     <button class="btn-pagar" [disabled]="e.saldoDevengado <= 0"
                             (click)="abrirPagoSueldo(e)">Registrar pago</button>
                   </div>
+                  <button class="btn-historial" (click)="abrirAsistencia(e)">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    Asistencia y vacaciones
+                  </button>
                   <button class="btn-historial" (click)="abrirHistorial(e)">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
                     Ver histórico de pagos
@@ -875,6 +885,11 @@
               <input type="number" [(ngModel)]="nuevoEmpleadoForm.montoBase" placeholder="0" min="0">
             </div>
           </div>
+          <div class="mov-field">
+            <label>Primer día de trabajo <span class="opt">(opcional)</span></label>
+            <input type="date" [(ngModel)]="nuevoEmpleadoForm.fechaAlta">
+            <span class="mov-field-hint">Si entró a mitad de mes, cobra solo desde ese día. Vacío = hoy.</span>
+          </div>
       </div>
       <div class="mov-modal-foot">
         <button class="btn-secondary" (click)="cerrarNuevoEmpleadoModal()" [disabled]="savingNuevoEmpleado">Cancelar</button>
@@ -911,7 +926,41 @@
             <span class="mov-prefix">$</span>
             <input type="number" [(ngModel)]="configForm.montoBase" placeholder="0" min="0">
           </div>
-          <span class="mov-field-hint">Lo que cobra en un ciclo completo ({{ labelFrecuencia(configForm.frecuencia).toLowerCase() }}).</span>
+          <span class="mov-field-hint">Lo que cobra en un ciclo completo ({{ labelFrecuencia(configForm.frecuencia).toLowerCase() }}). Se reparte por los días reales del mes.</span>
+        </div>
+        <div class="mov-field">
+          <label>Días de vacaciones por año</label>
+          <input type="number" [(ngModel)]="configForm.diasVacacionesAnuales" min="0" max="60">
+          <span class="mov-field-hint">Cupo anual. En el calendario de asistencia se avisa si se lo pasa.</span>
+        </div>
+
+        <div class="baja-box">
+          @if (empleadoEditando.activo) {
+            @if (!mostrandoBaja) {
+              <button type="button" class="btn-baja" (click)="abrirBaja()">Dar de baja a {{ empleadoEditando.nombre }}…</button>
+            } @else {
+              <div class="mov-field">
+                <label>Último día de trabajo</label>
+                <input type="date" [(ngModel)]="bajaForm.fecha" [max]="bajaForm.fecha">
+              </div>
+              <div class="mov-field">
+                <label>Motivo <span class="opt">(opcional)</span></label>
+                <input type="text" [(ngModel)]="bajaForm.motivo" maxlength="200" placeholder="Renuncia, fin de contrato…">
+                <span class="mov-field-hint">Se le devenga hasta ese día y deja de devengar. Lo que ya se le debe se le puede seguir pagando.</span>
+              </div>
+              <div class="baja-acciones">
+                <button type="button" class="btn-secondary" (click)="cancelarBaja()" [disabled]="procesandoBaja">No dar de baja</button>
+                <button type="button" class="btn-baja confirmar" (click)="confirmarBaja()" [disabled]="procesandoBaja || !bajaForm.fecha">
+                  @if (procesandoBaja) { Procesando... } @else { Confirmar baja }
+                </button>
+              </div>
+            }
+          } @else {
+            <p class="mov-field-hint">Está de baja{{ empleadoEditando.fechaBaja ? ' desde el ' + formatFechaCortaSueldo(empleadoEditando.fechaBaja) : '' }}. No devenga sueldo.</p>
+            <button type="button" class="btn-baja" (click)="reactivarEmpleado()" [disabled]="procesandoBaja">
+              @if (procesandoBaja) { Procesando... } @else { Reincorporar desde hoy }
+            </button>
+          }
         </div>
       </div>
       <div class="mov-modal-foot">
@@ -1126,4 +1175,9 @@
     [saldoActual]="odontologoPago.totalDeuda"
     (cerrar)="cerrarModalPago()"
     (pagado)="onPagoRegistrado()" />
+}
+
+<!-- ═══════════════════ MODAL — ASISTENCIA Y VACACIONES ═══════════════════ -->
+@if (showAsistenciaModal && empleadoAsistencia) {
+  <app-asistencia-modal [empleado]="empleadoAsistencia" (cerrar)="cerrarAsistencia()" (cambio)="alCambiarAsistencia()" />
 }

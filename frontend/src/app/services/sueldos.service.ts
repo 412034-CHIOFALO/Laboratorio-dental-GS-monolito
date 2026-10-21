@@ -3,13 +3,16 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { delay } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { hoyComoLocalDate } from './date-utils';
 
 /**
- * Frecuencia con la que se le paga a un integrante del laboratorio.
- *  - DIARIO:    cobra por día trabajado
- *  - SEMANAL:   cobra una vez por semana
- *  - QUINCENAL: cada 15 días
- *  - MENSUAL:   una vez al mes
+ * Frecuencia con la que se le paga a un integrante del laboratorio. El sueldo se reparte por los días REALES
+ * del ciclo (un mensual cobra su monto por mes, en febrero y en enero).
+ *  - DIARIO:    cobra por día trabajado: solo cobra los días que se marcan en el calendario
+ *  - SEMANAL:   su monto por semana (lunes a domingo)
+ *  - QUINCENAL: su monto por mitad de mes (1 al 15 y 16 al último)
+ *  - MENSUAL:   su monto por mes calendario
+ * Los que cobran por ciclo cobran todos los días salvo las ausencias que se marquen.
  */
 export type FrecuenciaPago = 'DIARIO' | 'SEMANAL' | 'QUINCENAL' | 'MENSUAL';
 
@@ -33,11 +36,16 @@ export interface EmpleadoSueldo {
   saldoDevengado: number;        // lo que el lab le debe hoy
   saldoSobrante: number;         // pagado de más, a descontar
   ultimoPago: string | null;     // fecha ISO del último pago
+  fechaAlta: string;             // primer día que corresponde cobrar
+  fechaBaja: string | null;      // último día que corresponde cobrar (null = sigue trabajando)
+  diasVacacionesAnuales: number; // cupo anual de vacaciones
+  devengadoHasta: string | null; // último día ya incluido en el saldo
 }
 
 export interface ConfigSueldoRequest {
   frecuencia: FrecuenciaPago;
   montoBase: number;
+  diasVacacionesAnuales?: number | null;
 }
 
 /** Alta de un integrante nuevo en el módulo de sueldos (ms-finanzas tiene su propia tabla, separada de Usuarios). */
@@ -48,6 +56,9 @@ export interface CrearEmpleadoRequest {
   telefono?: string | null;
   frecuencia: FrecuenciaPago;
   montoBase: number;
+  /** Primer día que le corresponde cobrar (si no se manda, hoy). */
+  fechaAlta?: string | null;
+  diasVacacionesAnuales?: number | null;
 }
 
 export interface PagoSueldoRequest {
@@ -71,6 +82,79 @@ export interface DistribucionCascada {
   empleados: LineaDistribucion[];
   remanente: number;
   cajaRemanente: 'FISICA' | 'BANCARIA' | 'COMPENSACION';
+}
+
+/**
+ * Qué pasó un día con un empleado.
+ *  - TRABAJADO:     trabajó (se paga; para quien cobra por día es lo que le habilita el cobro)
+ *  - AUSENTE:       faltó sin goce de sueldo (no se paga)
+ *  - VACACIONES:    se paga y descuenta del cupo anual
+ *  - FERIADO:       se paga
+ *  - LICENCIA_PAGA: enfermedad, estudio, duelo... se paga
+ */
+export type TipoDia = 'TRABAJADO' | 'AUSENTE' | 'VACACIONES' | 'FERIADO' | 'LICENCIA_PAGA';
+
+export interface DiaAsistencia {
+  fecha: string;
+  tipo: TipoDia | null;
+  sePaga: boolean;
+  /** false si el día cae antes del alta o después de la baja */
+  enRelacion: boolean;
+}
+
+export interface ResumenAsistencia {
+  diasPagos: number;
+  diasNoPagos: number;
+  trabajados: number;
+  ausencias: number;
+  vacaciones: number;
+  feriados: number;
+  licencias: number;
+  sueldoDelMes: number;
+  vacacionesAnuales: number;
+  vacacionesTomadasEnElAnio: number;
+  vacacionesDisponibles: number;
+}
+
+export interface AsistenciaMes {
+  mes: string;                 // AAAA-MM
+  empleadoId: number;
+  empleadoNombre: string;
+  frecuencia: FrecuenciaPago;
+  fechaAlta: string;
+  fechaBaja: string | null;
+  dias: DiaAsistencia[];
+  resumen: ResumenAsistencia;
+}
+
+export interface MarcarAsistenciaRequest {
+  fechas: string[];
+  /** null borra la marca: el día vuelve a ser un día común */
+  tipo: TipoDia | null;
+  nota?: string | null;
+}
+
+export interface MarcarAsistenciaResponse {
+  diasModificados: number;
+  /** cuánto se corrigió el saldo (negativo = se descontó) por los días que ya estaban devengados */
+  ajuste: number;
+  saldoDevengado: number;
+  advertencias: string[];
+}
+
+export type TipoMovimientoSueldo = 'DEVENGO' | 'AJUSTE_ASISTENCIA' | 'AJUSTE_MANUAL' | 'PAGO';
+
+/** Una línea del libro de sueldos: por qué y cuánto cambió el saldo de un empleado. */
+export interface MovimientoSueldo {
+  id: number;
+  fecha: string;
+  tipo: TipoMovimientoSueldo;
+  monto: number;               // con signo
+  saldoDevengado: number;
+  saldoSobrante: number;
+  detalle: string | null;
+  usuario: string | null;
+  creadoEn: string;
 }
 
 export type OrigenPago = 'MANUAL' | 'BOT_WHATSAPP';
@@ -184,6 +268,10 @@ export class SueldosService {
         saldoDevengado: 0,
         saldoSobrante: 0,
         ultimoPago: null,
+        fechaAlta: req.fechaAlta ?? hoyComoLocalDate(),
+        fechaBaja: null,
+        diasVacacionesAnuales: req.diasVacacionesAnuales ?? 14,
+        devengadoHasta: null,
       };
       this.store.push(nuevo);
       return of({ ...nuevo }).pipe(delay(200));
@@ -384,14 +472,105 @@ export class SueldosService {
   }
 
   /** Ajuste manual del saldo devengado (por si el cálculo automático no cuadra). */
-  ajustarDevengado(usuarioId: number, nuevoDevengado: number): Observable<EmpleadoSueldo> {
+  ajustarDevengado(usuarioId: number, nuevoDevengado: number, motivo: string): Observable<EmpleadoSueldo> {
     if (environment.useMocks) {
       const e = this.store.find(x => x.usuarioId === usuarioId);
       if (!e) throw new Error('Empleado no encontrado');
       e.saldoDevengado = nuevoDevengado;
       return of({ ...e }).pipe(delay(150));
     }
-    return this.http.patch<EmpleadoSueldo>(`${this.base}/empleados/${usuarioId}/devengado`, { devengado: nuevoDevengado });
+    return this.http.patch<EmpleadoSueldo>(`${this.base}/empleados/${usuarioId}/devengado`, { devengado: nuevoDevengado, motivo });
+  }
+
+  // ── Asistencia, vacaciones, libro de sueldos, alta y baja ─────────
+
+  /** El calendario de un mes de un empleado ('AAAA-MM'), con su resumen. */
+  asistenciaMes(usuarioId: number, mes: string): Observable<AsistenciaMes> {
+    if (environment.useMocks) {
+      return of(this.armarMesMock(usuarioId, mes)).pipe(delay(150));
+    }
+    const params = new HttpParams().set('mes', mes);
+    return this.http.get<AsistenciaMes>(`${this.base}/empleados/${usuarioId}/asistencia`, { params });
+  }
+
+  /** Marca (o, con tipo null, desmarca) varios días de una vez. */
+  marcarAsistencia(usuarioId: number, req: MarcarAsistenciaRequest): Observable<MarcarAsistenciaResponse> {
+    if (environment.useMocks) {
+      const marcas = this.marcasMock.get(usuarioId) ?? new Map<string, TipoDia>();
+      for (const f of req.fechas) { if (req.tipo) marcas.set(f, req.tipo); else marcas.delete(f); }
+      this.marcasMock.set(usuarioId, marcas);
+      return of({ diasModificados: req.fechas.length, ajuste: 0, saldoDevengado: 0, advertencias: [] }).pipe(delay(150));
+    }
+    return this.http.put<MarcarAsistenciaResponse>(`${this.base}/empleados/${usuarioId}/asistencia`, req);
+  }
+
+  /** Libro de sueldos de un empleado: los últimos movimientos que cambiaron su saldo. */
+  movimientos(usuarioId: number, limite = 100): Observable<MovimientoSueldo[]> {
+    if (environment.useMocks) {
+      return of([] as MovimientoSueldo[]).pipe(delay(120));
+    }
+    const params = new HttpParams().set('limite', limite);
+    return this.http.get<MovimientoSueldo[]>(`${this.base}/empleados/${usuarioId}/movimientos`, { params });
+  }
+
+  /** Da de baja a un empleado: fechaBaja es su último día de trabajo (vacío = hoy). */
+  darDeBaja(usuarioId: number, fechaBaja: string | null, motivo: string | null): Observable<EmpleadoSueldo> {
+    if (environment.useMocks) {
+      const e = this.store.find(x => x.usuarioId === usuarioId);
+      if (!e) throw new Error('Empleado no encontrado');
+      e.activo = false;
+      e.fechaBaja = fechaBaja ?? hoyComoLocalDate();
+      return of({ ...e }).pipe(delay(150));
+    }
+    return this.http.post<EmpleadoSueldo>(`${this.base}/empleados/${usuarioId}/baja`, { fechaBaja, motivo });
+  }
+
+  /** Reincorpora a un empleado dado de baja: desde es su primer día de vuelta (vacío = hoy). */
+  reactivar(usuarioId: number, desde: string | null): Observable<EmpleadoSueldo> {
+    if (environment.useMocks) {
+      const e = this.store.find(x => x.usuarioId === usuarioId);
+      if (!e) throw new Error('Empleado no encontrado');
+      e.activo = true;
+      e.fechaBaja = null;
+      e.fechaAlta = desde ?? hoyComoLocalDate();
+      return of({ ...e }).pipe(delay(150));
+    }
+    return this.http.post<EmpleadoSueldo>(`${this.base}/empleados/${usuarioId}/reactivar`, { desde });
+  }
+
+  // Marcas de asistencia en memoria (solo para el modo de demostración).
+  private marcasMock = new Map<number, Map<string, TipoDia>>();
+
+  private armarMesMock(usuarioId: number, mes: string): AsistenciaMes {
+    const e = this.store.find(x => x.usuarioId === usuarioId);
+    if (!e) throw new Error('Empleado no encontrado');
+    const [anio, m] = mes.split('-').map(Number);
+    const cantidad = new Date(anio, m, 0).getDate();
+    const marcas = this.marcasMock.get(usuarioId) ?? new Map<string, TipoDia>();
+    const dias: DiaAsistencia[] = [];
+    let pagos = 0;
+    for (let d = 1; d <= cantidad; d++) {
+      const fecha = `${mes}-${String(d).padStart(2, '0')}`;
+      const tipo = marcas.get(fecha) ?? null;
+      const enRelacion = fecha >= e.fechaAlta && (!e.fechaBaja || fecha <= e.fechaBaja);
+      const sePaga = enRelacion && (tipo ? tipo !== 'AUSENTE' : e.frecuencia !== 'DIARIO');
+      if (sePaga) pagos++;
+      dias.push({ fecha, tipo, sePaga, enRelacion });
+    }
+    const cuenta = (t: TipoDia) => dias.filter(x => x.tipo === t && x.enRelacion).length;
+    const porDia = e.frecuencia === 'DIARIO' ? e.montoBase : e.montoBase / (e.frecuencia === 'MENSUAL' ? cantidad : e.frecuencia === 'QUINCENAL' ? 15 : 7);
+    return {
+      mes, empleadoId: e.usuarioId, empleadoNombre: e.nombre, frecuencia: e.frecuencia,
+      fechaAlta: e.fechaAlta, fechaBaja: e.fechaBaja, dias,
+      resumen: {
+        diasPagos: pagos, diasNoPagos: dias.filter(x => x.enRelacion).length - pagos,
+        trabajados: cuenta('TRABAJADO'), ausencias: cuenta('AUSENTE'), vacaciones: cuenta('VACACIONES'),
+        feriados: cuenta('FERIADO'), licencias: cuenta('LICENCIA_PAGA'),
+        sueldoDelMes: Math.round(porDia * pagos * 100) / 100,
+        vacacionesAnuales: e.diasVacacionesAnuales, vacacionesTomadasEnElAnio: cuenta('VACACIONES'),
+        vacacionesDisponibles: Math.max(0, e.diasVacacionesAnuales - cuenta('VACACIONES')),
+      },
+    };
   }
 
   /**
@@ -419,11 +598,11 @@ export class SueldosService {
   // ── Datos demo (mock) — integrantes del laboratorio ──────────────
   private seedMock(): EmpleadoSueldo[] {
     return [
-      { usuarioId: 1, nombre: 'Rebeca González', rol: 'ADMIN',          telefono: '351-655-1001', activo: true, frecuencia: 'MENSUAL',   montoBase: 0,      saldoDevengado: 0,      saldoSobrante: 0, ultimoPago: null },
-      { usuarioId: 2, nombre: 'Carlos López',    rol: 'TECNICO',        telefono: '351-655-1002', activo: true, frecuencia: 'SEMANAL',   montoBase: 120000, saldoDevengado: 120000, saldoSobrante: 0, ultimoPago: '2026-05-29' },
-      { usuarioId: 3, nombre: 'Mario Giménez',   rol: 'TECNICO',        telefono: '351-655-1003', activo: true, frecuencia: 'DIARIO',    montoBase: 30000,  saldoDevengado: 90000,  saldoSobrante: 0, ultimoPago: '2026-06-03' },
-      { usuarioId: 4, nombre: 'Valentina Torres',rol: 'ADMINISTRATIVO', telefono: '351-655-1004', activo: true, frecuencia: 'QUINCENAL', montoBase: 180000, saldoDevengado: 90000,  saldoSobrante: 15000, ultimoPago: '2026-05-31' },
-      { usuarioId: 5, nombre: 'Diego Ferreyra',  rol: 'TECNICO',        telefono: '351-655-1005', activo: true, frecuencia: 'SEMANAL',   montoBase: 110000, saldoDevengado: 55000,  saldoSobrante: 0, ultimoPago: '2026-06-01' },
+      { usuarioId: 1, nombre: 'Rebeca González', rol: 'ADMIN',          telefono: '351-655-1001', activo: true, frecuencia: 'MENSUAL',   montoBase: 0,      saldoDevengado: 0,      saldoSobrante: 0, ultimoPago: null, fechaAlta: '2026-01-01', fechaBaja: null, diasVacacionesAnuales: 14, devengadoHasta: null },
+      { usuarioId: 2, nombre: 'Carlos López',    rol: 'TECNICO',        telefono: '351-655-1002', activo: true, frecuencia: 'SEMANAL',   montoBase: 120000, saldoDevengado: 120000, saldoSobrante: 0, ultimoPago: '2026-05-29', fechaAlta: '2026-01-01', fechaBaja: null, diasVacacionesAnuales: 14, devengadoHasta: null },
+      { usuarioId: 3, nombre: 'Mario Giménez',   rol: 'TECNICO',        telefono: '351-655-1003', activo: true, frecuencia: 'DIARIO',    montoBase: 30000,  saldoDevengado: 90000,  saldoSobrante: 0, ultimoPago: '2026-06-03', fechaAlta: '2026-01-01', fechaBaja: null, diasVacacionesAnuales: 14, devengadoHasta: null },
+      { usuarioId: 4, nombre: 'Valentina Torres',rol: 'ADMINISTRATIVO', telefono: '351-655-1004', activo: true, frecuencia: 'QUINCENAL', montoBase: 180000, saldoDevengado: 90000,  saldoSobrante: 15000, ultimoPago: '2026-05-31', fechaAlta: '2026-01-01', fechaBaja: null, diasVacacionesAnuales: 14, devengadoHasta: null },
+      { usuarioId: 5, nombre: 'Diego Ferreyra',  rol: 'TECNICO',        telefono: '351-655-1005', activo: true, frecuencia: 'SEMANAL',   montoBase: 110000, saldoDevengado: 55000,  saldoSobrante: 0, ultimoPago: '2026-06-01', fechaAlta: '2026-01-01', fechaBaja: null, diasVacacionesAnuales: 14, devengadoHasta: null },
     ];
   }
 }

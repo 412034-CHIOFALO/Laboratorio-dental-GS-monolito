@@ -1,0 +1,114 @@
+<div class="am-overlay" (click)="cerrar.emit()">
+  <div class="am-modal" role="dialog" aria-modal="true" [attr.aria-label]="'Asistencia de ' + empleado().nombre" (click)="$event.stopPropagation()">
+
+    <header class="am-head">
+      <div>
+        <h2>{{ empleado().nombre }}</h2>
+        <p class="am-sub">Asistencia, vacaciones y movimientos del sueldo</p>
+      </div>
+      <button type="button" class="am-close" (click)="cerrar.emit()" aria-label="Cerrar">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </header>
+
+    <nav class="am-tabs" role="tablist">
+      <button type="button" role="tab" [attr.aria-selected]="vista() === 'calendario'" [class.activa]="vista() === 'calendario'" (click)="cambiarVista('calendario')">Calendario</button>
+      <button type="button" role="tab" [attr.aria-selected]="vista() === 'movimientos'" [class.activa]="vista() === 'movimientos'" (click)="cambiarVista('movimientos')">Movimientos del saldo</button>
+    </nav>
+
+    @if (vista() === 'calendario') {
+      <div class="am-body">
+        <p class="am-explica">{{ explicacion() }}</p>
+
+        <div class="am-mes">
+          <button type="button" class="am-nav" (click)="mesAnterior()" aria-label="Mes anterior">‹</button>
+          <strong class="am-mes-titulo">{{ tituloMes() }}</strong>
+          <button type="button" class="am-nav" (click)="mesSiguiente()" aria-label="Mes siguiente">›</button>
+          <button type="button" class="am-link" (click)="irAHoy()">Hoy</button>
+        </div>
+
+        @if (cargando() && !data()) {
+          <div class="am-cargando">Cargando calendario…</div>
+        } @else if (data(); as d) {
+          <div class="am-grilla" role="grid" [class.ocupada]="cargando()">
+            @for (n of diasSemana; track n) { <span class="am-dow" role="columnheader">{{ n }}</span> }
+            @for (_ of celdasPrevias(); track $index) { <span class="am-vacia"></span> }
+            @for (dia of d.dias; track dia.fecha) {
+              <button type="button" [class]="claseDia(dia)" role="gridcell"
+                      [disabled]="!dia.enRelacion || guardando()"
+                      [attr.aria-pressed]="seleccion().has(dia.fecha)"
+                      [attr.aria-label]="ariaDia(dia)"
+                      (click)="clickDia(dia, $event)">
+                <span class="dia-num">{{ numeroDia(dia) }}</span>
+                <span class="dia-tag">{{ etiquetaDia(dia) }}</span>
+              </button>
+            }
+          </div>
+
+          <div class="am-atajos">
+            <span class="am-hint">Tocá los días que quieras. Con <kbd>Mayús</kbd> elegís un rango.</span>
+            <button type="button" class="am-link" (click)="seleccionarLunesAViernes()">Lunes a viernes</button>
+            <button type="button" class="am-link" (click)="seleccionarTodoElMes()">Todo el mes</button>
+            @if (seleccion().size > 0) { <button type="button" class="am-link" (click)="limpiarSeleccion()">Limpiar</button> }
+          </div>
+
+          <section class="am-aplicar" [class.vacia]="seleccion().size === 0">
+            <div class="am-aplicar-titulo">
+              @if (seleccion().size === 0) {
+                Elegí uno o más días para marcarlos
+              } @else {
+                <strong>{{ seleccion().size }}</strong> {{ seleccion().size === 1 ? 'día elegido' : 'días elegidos' }} — ¿qué pasó?
+              }
+            </div>
+            <div class="am-paleta">
+              @for (t of tipos; track t.valor) {
+                <button type="button" [class]="'am-chip t-' + t.valor" [disabled]="seleccion().size === 0 || guardando()"
+                        [title]="t.ayuda" (click)="aplicar(t.valor)">{{ t.label }}</button>
+              }
+              <button type="button" class="am-chip quitar" [disabled]="seleccion().size === 0 || guardando()"
+                      title="El día vuelve a ser un día común" (click)="aplicar(null)">Quitar marca</button>
+            </div>
+            <input type="text" class="am-nota" [formControl]="nota" maxlength="200"
+                   placeholder="Nota (opcional): certificado médico, viaje, etc." aria-label="Nota opcional">
+          </section>
+
+          <section class="am-resumen" aria-label="Resumen del mes">
+            <div class="am-dato"><span>Días con cobro</span><strong>{{ d.resumen.diasPagos }}</strong></div>
+            <div class="am-dato"><span>Ausencias</span><strong [class.rojo]="d.resumen.ausencias > 0">{{ d.resumen.ausencias }}</strong></div>
+            <div class="am-dato"><span>Vacaciones</span><strong>{{ d.resumen.vacaciones }}</strong></div>
+            <div class="am-dato"><span>Feriados / licencias</span><strong>{{ d.resumen.feriados + d.resumen.licencias }}</strong></div>
+            <div class="am-dato grande"><span>Sueldo del mes según asistencia</span><strong>{{ dinero(d.resumen.sueldoDelMes) }}</strong></div>
+            <div class="am-dato grande">
+              <span>Vacaciones del año</span>
+              <strong>{{ d.resumen.vacacionesTomadasEnElAnio }} de {{ d.resumen.vacacionesAnuales }} <small>(quedan {{ d.resumen.vacacionesDisponibles }})</small></strong>
+            </div>
+          </section>
+          <p class="am-nota-pie">{{ pieDelResumen() }}</p>
+        }
+      </div>
+    } @else {
+      <div class="am-body">
+        <p class="am-explica">Cada cambio del saldo queda anotado acá: devengos, ajustes por asistencia, ajustes manuales y pagos. Saldo actual: <strong>{{ dinero(empleado().saldoDevengado) }}</strong>.</p>
+        @if (cargandoMovimientos()) {
+          <div class="am-cargando">Cargando movimientos…</div>
+        } @else if (movimientos().length === 0) {
+          <div class="am-cargando">Todavía no hay movimientos.</div>
+        } @else {
+          <ul class="am-libro">
+            @for (m of movimientos(); track m.id) {
+              <li>
+                <div class="am-libro-fila">
+                  <span class="am-libro-fecha">{{ fechaCorta(m.fecha) }}</span>
+                  <span [class]="'am-libro-tipo ' + m.tipo">{{ etiquetaMovimiento(m.tipo) }}</span>
+                  <strong [class.pos]="m.monto > 0" [class.neg]="m.monto < 0">{{ m.monto > 0 ? '+' : '' }}{{ dinero(m.monto) }}</strong>
+                </div>
+                @if (m.detalle) { <p class="am-libro-detalle">{{ m.detalle }}</p> }
+                <p class="am-libro-saldo">Saldo: {{ dinero(m.saldoDevengado) }}@if (m.saldoSobrante > 0) { · adelanto a descontar {{ dinero(m.saldoSobrante) }} }@if (m.usuario) { · {{ m.usuario }} }</p>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+  </div>
+</div>
