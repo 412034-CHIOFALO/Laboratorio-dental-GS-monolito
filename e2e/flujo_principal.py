@@ -7,7 +7,8 @@ Qué cubre (cada bloque es independiente: si uno falla, los demás siguen y se i
   2. pedido completo: odontólogo -> trabajo con receta -> pedido -> producción (descuenta stock) ->
      estados y transiciones inválidas -> entrega (nace la deuda) -> cobro parcial -> cobro total
   3. permisos por rol: el técnico ve pedidos pero no finanzas ni puede crear pedidos
-  4. bot de WhatsApp: el semáforo (lo dudoso queda pendiente y se aprueba/rechaza), pago por transferencia
+  4. sueldos por mes calendario: devengo exacto, asistencia que corrige el saldo, libro, baja y reactivación
+  5. bot de WhatsApp: el semáforo (lo dudoso queda pendiente y se aprueba/rechaza), pago por transferencia
      y efectivo con anti-duplicados (mismo mensaje, mismo
      N° de operación, mismo archivo, consulta de mensajes conocidos, clave del bot inválida)
 
@@ -20,6 +21,9 @@ real una vez que tenga datos de verdad, salvo que se quiera una prueba de humo (
 """
 import argparse
 import base64
+import calendar
+import datetime
+from decimal import ROUND_HALF_UP, Decimal
 import importlib.util
 import os
 import sys
@@ -145,12 +149,104 @@ def permisos(base, clave_tecnico):
     assert codigo(t, "GET", "/api/finanzas/comprobantes") == 403
     assert codigo(t, "GET", "/api/finanzas/cajas/resumen") == 403
     assert codigo(t, "GET", "/api/auth/usuarios") == 403
+    assert codigo(t, "GET", "/api/finanzas/sueldos/empleados/1/asistencia") == 403, "el técnico no debe ver la asistencia de nadie"
+    assert codigo(t, "PUT", "/api/finanzas/sueldos/empleados/1/asistencia", {"fechas": [fecha(-1)], "tipo": "AUSENTE"}) == 403
     assert codigo(t, "POST", "/api/pedidos", {}) == 403
     assert codigo(t, "POST", "/api/odontologos", {}) == 403
     assert codigo(Api(base, ""), "GET", "/api/pedidos") in (401, 403), "sin sesión no se debe poder leer pedidos"
 
 
-# ───────────────────────────── 4. bot ─────────────────────────────
+# ───────────────────────────── 4. sueldos por mes calendario ─────────────────────────────
+def _tarifa(monto, dia):
+    """Lo que vale un día de un sueldo mensual: monto / días REALES de ese mes (igual que el backend)."""
+    return (Decimal(monto) / Decimal(calendar.monthrange(dia.year, dia.month)[1])).quantize(Decimal("1E-10"), ROUND_HALF_UP)
+
+
+def _devengo_esperado(monto, desde, hasta):
+    total, d = Decimal(0), desde
+    while d <= hasta:
+        total += _tarifa(monto, d)
+        d += datetime.timedelta(days=1)
+    return total.quantize(Decimal("0.01"), ROUND_HALF_UP)
+
+
+@bloque("sueldos: devengo por mes calendario, asistencia que corrige el saldo, libro, baja y reactivación")
+def sueldos_calendario(base, clave):
+    api = login(base, "admin", clave)
+    uid = 900000 + int(SUFIJO) % 90000
+    monto = 300000
+    alta = datetime.date.fromisoformat(fecha(-10))
+    emp = api.call("POST", "/api/finanzas/sueldos/empleados", {
+        "usuarioId": uid, "nombre": f"E2E Sueldos {SUFIJO}", "rol": "TECNICO", "frecuencia": "MENSUAL",
+        "montoBase": monto, "fechaAlta": alta.isoformat()})
+    assert emp["fechaAlta"] == alta.isoformat() and emp["fechaBaja"] is None and emp["diasVacacionesAnuales"] == 14, emp
+    assert float(emp["saldoDevengado"]) == 0 and emp["devengadoHasta"] is None, "recién dado de alta: nada devengado todavía"
+    ruta = f"/api/finanzas/sueldos/empleados/{uid}"
+
+    # 1) el devengo cierra los días reales desde el alta hasta ayer (el "ayer" lo informa el propio servidor,
+    #    que corre en otra zona horaria que esta prueba) y es idempotente
+    api.call("POST", "/api/finanzas/sueldos/devengar-ahora")
+    e1 = api.call("GET", ruta)
+    ayer = datetime.date.fromisoformat(e1["devengadoHasta"])
+    esperado = _devengo_esperado(monto, alta, ayer)
+    assert abs(Decimal(str(e1["saldoDevengado"])) - esperado) <= Decimal("0.01"), f"devengo: {e1['saldoDevengado']} vs {esperado}"
+    api.call("POST", "/api/finanzas/sueldos/devengar-ahora")
+    assert api.call("GET", ruta)["saldoDevengado"] == e1["saldoDevengado"], "devengar dos veces no debe sumar dos veces"
+    saldo0 = Decimal(str(e1["saldoDevengado"]))
+
+    # 2) una ausencia en un día YA devengado descuenta lo que valía ese día
+    dia = alta + datetime.timedelta(days=1)
+    r = api.call("PUT", f"{ruta}/asistencia", {"fechas": [dia.isoformat()], "tipo": "AUSENTE", "nota": "E2E"})
+    assert r["diasModificados"] == 1 and float(r["ajuste"]) < 0, r
+    saldo1 = Decimal(str(api.call("GET", ruta)["saldoDevengado"]))
+    assert abs((saldo0 - saldo1) - _tarifa(monto, dia)) <= Decimal("0.01"), f"la ausencia debía descontar {_tarifa(monto, dia)}: {saldo0} -> {saldo1}"
+
+    # 3) el calendario del mes lo muestra y no se paga ese día
+    mes = api.call("GET", f"{ruta}/asistencia", query={"mes": dia.strftime("%Y-%m")})
+    assert len(mes["dias"]) == calendar.monthrange(dia.year, dia.month)[1]
+    marcado = [d for d in mes["dias"] if d["fecha"] == dia.isoformat()][0]
+    assert marcado["tipo"] == "AUSENTE" and marcado["sePaga"] is False, marcado
+    assert mes["resumen"]["ausencias"] >= 1
+
+    # 4) repetir la misma marca no cambia nada; quitarla devuelve el día
+    assert api.call("PUT", f"{ruta}/asistencia", {"fechas": [dia.isoformat()], "tipo": "AUSENTE"})["diasModificados"] == 0
+    api.call("PUT", f"{ruta}/asistencia", {"fechas": [dia.isoformat()], "tipo": None})
+    saldo2 = Decimal(str(api.call("GET", ruta)["saldoDevengado"]))
+    assert abs(saldo2 - saldo0) <= Decimal("0.01"), f"al quitar la ausencia el saldo debía volver: {saldo0} vs {saldo2}"
+
+    # 5) vacaciones por encima del cupo: se guarda pero avisa
+    api.call("PUT", f"{ruta}/config", {"frecuencia": "MENSUAL", "montoBase": monto, "diasVacacionesAnuales": 0})
+    v = api.call("PUT", f"{ruta}/asistencia", {"fechas": [fecha(2)], "tipo": "VACACIONES"})
+    assert v["diasModificados"] == 1 and v["advertencias"], f"debía avisar que supera el cupo: {v}"
+    api.call("PUT", f"{ruta}/asistencia", {"fechas": [fecha(2)], "tipo": None})
+
+    # 6) fuera del período de empleo no se puede marcar
+    assert codigo(api, "PUT", f"{ruta}/asistencia", {"fechas": [(alta - datetime.timedelta(days=1)).isoformat()], "tipo": "AUSENTE"}) in (400, 422), \
+        "marcar un día anterior al alta debe rechazarse"
+
+    # 7) el ajuste manual exige motivo y queda en el libro
+    assert codigo(api, "PATCH", f"{ruta}/devengado", {"devengado": 1000}) in (400, 422), "sin motivo no debe ajustar"
+    api.call("PATCH", f"{ruta}/devengado", {"devengado": 123456.78, "motivo": "E2E: reconciliación"})
+    libro = lista(api.call("GET", f"{ruta}/movimientos"))
+    tipos = {m["tipo"] for m in libro}
+    assert {"DEVENGO", "AJUSTE_ASISTENCIA", "AJUSTE_MANUAL"} <= tipos, f"el libro debía tener devengo y ambos ajustes: {tipos}"
+    assert all(m["saldoDevengado"] is not None for m in libro)
+
+    # 8) baja: deja de devengar pero lo que se le debe se le puede pagar; después se reincorpora
+    b = api.call("POST", f"{ruta}/baja", {"fechaBaja": ayer.isoformat(), "motivo": "E2E"})
+    assert b["activo"] is False and b["fechaBaja"] == ayer.isoformat(), b
+    saldo_baja = api.call("GET", ruta)["saldoDevengado"]
+    api.call("POST", "/api/finanzas/sueldos/devengar-ahora")
+    assert api.call("GET", ruta)["saldoDevengado"] == saldo_baja, "una baja no debe seguir devengando"
+    assert codigo(api, "POST", f"{ruta}/baja", {"fechaBaja": ayer.isoformat()}) in (400, 422), "no se puede dar de baja dos veces"
+    pago = api.call("POST", "/api/finanzas/sueldos/pago", {"usuarioId": uid, "monto": 1000, "manejoSobrante": "CUBRE_LAB", "fecha": ayer.isoformat(), "nota": "E2E liquidación"})
+    assert pago["monto"] is not None, pago
+    assert "PAGO" in {m["tipo"] for m in lista(api.call("GET", f"{ruta}/movimientos"))}, "el pago debía quedar en el libro"
+    rea = api.call("POST", f"{ruta}/reactivar", {"desde": None})
+    assert rea["activo"] is True and rea["fechaBaja"] is None, rea
+
+
+# ───────────────────────────── 5. bot ─────────────────────────────
 @bloque("bot: transferencia sin duplicados (mismo mensaje, misma operación, mismo archivo)")
 def bot_transferencia(base, clave_bot, ctx):
     api, odo = ctx["api"], ctx["odo"]
@@ -289,6 +385,7 @@ def main():
     sesion(args.base, clave)
     pedido_completo(args.base, clave, ctx)
     permisos(args.base, clave_t)
+    sueldos_calendario(args.base, clave)
     if "odo" in ctx:
         bot_transferencia(args.base, clave_bot, ctx)
         if "empleado" in ctx:
