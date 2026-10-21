@@ -716,7 +716,7 @@ async function procesarPago(msgComprobante, chat, contacto, pie, lectura, msgPie
       console.log('   ↩ Duplicado detectado en la reconciliación — se ignora (sin respuesta).');
       return;
     }
-    await responder(`ℹ️ Ese comprobante ya estaba registrado (${resultado?.mensaje || 'operación ' + (lectura.idOperacion || '—')}).`);
+    await responder(`ℹ️ Ese comprobante ya estaba cargado: ${resultado?.mensaje || 'operación ' + (lectura.idOperacion || '—')}`);
     return;
   }
   if (estado === 'PENDIENTE') {
