@@ -20,6 +20,9 @@ public interface ConfiguracionSueldoRepository extends JpaRepository<Configuraci
 
     List<ConfiguracionSueldo> findByActivoTrueOrderByEmpleadoNombreAsc();
 
-    @Query("SELECT COALESCE(SUM(c.saldoDevengado), 0) FROM ConfiguracionSueldo c WHERE c.activo = true")
+    /** Quien se dio de baja pero todavía tiene saldo sigue siendo plata que el laboratorio debe. */
+    List<ConfiguracionSueldo> findBySaldoDevengadoGreaterThanOrderByEmpleadoNombreAsc(BigDecimal minimo);
+
+    @Query("SELECT COALESCE(SUM(c.saldoDevengado), 0) FROM ConfiguracionSueldo c")
     BigDecimal totalDevengado();
 }

@@ -29,14 +29,16 @@ import java.util.Optional;
 /**
  * Implementación de {@link IGestionSueldoService} para la gestión de sueldos del personal del laboratorio.
  *
- * <p>El sistema de sueldos funciona con devengo diario:</p>
+ * <p>El sistema de sueldos funciona con devengo por mes calendario:</p>
  * <ol>
  *   <li>Cada empleado tiene una {@link ConfiguracionSueldo} con
- *       un monto base y una frecuencia de cobro ({@link FrecuenciaPago}).</li>
- *   <li>El scheduler {@link DevengoScheduler} ejecuta {@link #devengarDiario()} cada noche,
- *       acumulando en {@code saldoDevengado} la parte proporcional del día.</li>
+ *       un monto base y una frecuencia de cobro ({@link FrecuenciaPago}), y un calendario de
+ *       asistencia (ausencias, vacaciones, feriados).</li>
+ *   <li>{@link DevengoService} cierra los días (al arrancar y cada hora, ver {@link DevengoScheduler}),
+ *       acumulando en {@code saldoDevengado} lo que ganó cada día según las reglas de {@link CalculoDevengo}.</li>
  *   <li>Al registrar un pago, el monto se descuenta del {@code saldoDevengado}.
  *       El sobrante o faltante se gestiona según la política {@link ManejoSobrante}.</li>
+ *   <li>Todo cambio del saldo queda en el libro de sueldos ({@link LibroSueldos}).</li>
  * </ol>
  *
  * <p>También procesa comprobantes de transferencia enviados por el bot de WhatsApp
@@ -59,6 +61,8 @@ public class GestionSueldoService implements IGestionSueldoService {
     private final CajaMovimientoRepository cajaMovimientoRepo;
     private final AuditoriaService auditoria;
     private final RevisionPago revision;
+    private final DevengoService devengo;
+    private final LibroSueldos libro;
 
     @Override
     public List<EmpleadoSueldoResponse> listarEmpleados() {
@@ -77,41 +81,22 @@ public class GestionSueldoService implements IGestionSueldoService {
     public EmpleadoSueldoResponse guardarConfig(Long usuarioId, ConfigSueldoRequest req) {
         ConfiguracionSueldo c = configRepo.findByEmpleadoId(usuarioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Empleado", usuarioId));
+        boolean cambiaSueldo = c.getFrecuencia() != req.getFrecuencia()
+                || c.getMontoBase().compareTo(req.getMontoBase()) != 0;
+        String antes = c.getFrecuencia() + " $" + c.getMontoBase().toPlainString();
+        if (cambiaSueldo && c.isActivo()) {
+            // Lo trabajado hasta ayer se liquida con el sueldo anterior; el nuevo rige desde hoy.
+            devengo.devengarConfig(c, LocalDate.now());
+        }
         c.setFrecuencia(req.getFrecuencia());
         c.setMontoBase(req.getMontoBase());
-        return EmpleadoSueldoResponse.from(configRepo.save(c));
-    }
-
-    @Override
-    @Transactional
-    public void devengarDiario() {
-        LocalDate hoy = LocalDate.now();
-        for (ConfiguracionSueldo c : configRepo.findByActivoTrueOrderByEmpleadoNombreAsc()) {
-            LocalDate desde = c.getUltimoDevengoCalculado() != null
-                    ? c.getUltimoDevengoCalculado()
-                    : c.getFechaCreacion().toLocalDate();
-            long dias = java.time.temporal.ChronoUnit.DAYS.between(desde, hoy);
-            if (dias <= 0) continue; // ya está al día (o el reloj del server se movió para atrás)
-
-            BigDecimal tarifaDiaria = c.getMontoBase()
-                    .divide(BigDecimal.valueOf(c.getFrecuencia().diasDeCiclo()), 2, java.math.RoundingMode.HALF_UP);
-            BigDecimal devengo = tarifaDiaria.multiply(BigDecimal.valueOf(dias));
-
-            BigDecimal sobrante = c.getSaldoSobrante();
-            if (sobrante.signum() > 0) {
-                BigDecimal consumido = devengo.min(sobrante);
-                c.setSaldoSobrante(sobrante.subtract(consumido));
-                devengo = devengo.subtract(consumido);
-                log.info("[Devengo] {} — ${} del devengo de hoy se descontó del adelanto pendiente (queda ${} de adelanto)",
-                        c.getEmpleadoNombre(), consumido, c.getSaldoSobrante());
-            }
-
-            c.setSaldoDevengado(c.getSaldoDevengado().add(devengo));
-            c.setUltimoDevengoCalculado(hoy);
-            configRepo.save(c);
-            log.info("[Devengo] {} — +{} días × ${} = ${} devengado neto (saldo devengado ahora: ${})",
-                    c.getEmpleadoNombre(), dias, tarifaDiaria, devengo, c.getSaldoDevengado());
+        if (req.getDiasVacacionesAnuales() != null) c.setDiasVacacionesAnuales(req.getDiasVacacionesAnuales());
+        EmpleadoSueldoResponse resp = EmpleadoSueldoResponse.from(configRepo.save(c));
+        if (cambiaSueldo) {
+            auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Sueldo modificado", "Empleado " + c.getEmpleadoNombre(),
+                    antes + " → " + c.getFrecuencia() + " $" + c.getMontoBase().toPlainString());
         }
+        return resp;
     }
 
     @Override
@@ -128,8 +113,13 @@ public class GestionSueldoService implements IGestionSueldoService {
                 .activo(true)
                 .frecuencia(req.getFrecuencia())
                 .montoBase(req.getMontoBase())
+                .fechaAlta(req.getFechaAlta() != null ? req.getFechaAlta() : LocalDate.now())
                 .build();
-        return EmpleadoSueldoResponse.from(configRepo.save(c));
+        if (req.getDiasVacacionesAnuales() != null) c.setDiasVacacionesAnuales(req.getDiasVacacionesAnuales());
+        EmpleadoSueldoResponse resp = EmpleadoSueldoResponse.from(configRepo.save(c));
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Empleado dado de alta en sueldos", "Empleado " + c.getEmpleadoNombre(),
+                c.getFrecuencia() + " $" + c.getMontoBase().toPlainString() + " · desde " + c.getFechaAlta());
+        return resp;
     }
 
     @Override
@@ -150,6 +140,11 @@ public class GestionSueldoService implements IGestionSueldoService {
         registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.FISICA, req.getMonto(),
                 "Sueldo (manual) a " + c.getEmpleadoNombre(), null,
                 CurrentUser.usernameOrSistema(), req.getFecha());
+        // Si se pagó de más y el empleado devuelve la diferencia, esa plata vuelve a la caja (el egreso de
+        // arriba fue por el monto completo). Con DESCONTAR_PROXIMO o CUBRE_LAB no vuelve nada.
+        if (guardado.getManejoSobrante() == ManejoSobrante.DEVUELVE_EMPLEADO) {
+            registrarExcedenteEnCaja(guardado, TipoCaja.FISICA, null);
+        }
         auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Pago de sueldo (manual)", "Empleado " + c.getEmpleadoNombre(),
                 "$" + req.getMonto());
         return PagoSueldoResponse.from(guardado);
@@ -349,13 +344,22 @@ public class GestionSueldoService implements IGestionSueldoService {
 
     @Override
     @Transactional
-    public EmpleadoSueldoResponse ajustarDevengado(Long usuarioId, BigDecimal nuevoDevengado) {
+    public EmpleadoSueldoResponse ajustarDevengado(Long usuarioId, BigDecimal nuevoDevengado, String motivo) {
         if (nuevoDevengado == null || nuevoDevengado.compareTo(BigDecimal.ZERO) < 0) {
             throw new BusinessException("El devengado no puede ser negativo");
         }
+        if (motivo == null || motivo.isBlank()) {
+            throw new BusinessException("Explicá el motivo del ajuste.");
+        }
         ConfiguracionSueldo c = getConfig(usuarioId);
+        BigDecimal anterior = c.getSaldoDevengado();
         c.setSaldoDevengado(nuevoDevengado);
-        return EmpleadoSueldoResponse.from(configRepo.save(c));
+        EmpleadoSueldoResponse resp = EmpleadoSueldoResponse.from(configRepo.save(c));
+        libro.registrar(c, TipoMovimientoSueldo.AJUSTE_MANUAL, nuevoDevengado.subtract(anterior), LocalDate.now(),
+                "Ajuste manual de $" + anterior.toPlainString() + " a $" + nuevoDevengado.toPlainString() + " · " + motivo.trim());
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Devengado ajustado a mano", "Empleado " + c.getEmpleadoNombre(),
+                "$" + anterior.toPlainString() + " → $" + nuevoDevengado.toPlainString() + " · " + motivo.trim());
+        return resp;
     }
 
     @Override
@@ -645,8 +649,9 @@ public class GestionSueldoService implements IGestionSueldoService {
         if (monto == null || monto.compareTo(BigDecimal.ZERO) <= 0) {
             throw new BusinessException("El monto debe ser mayor a cero");
         }
-        if (!c.isActivo()) {
-            throw new BusinessException("El empleado " + c.getEmpleadoNombre() + " está inactivo");
+        // Quien se dio de baja pero todavía tiene saldo se puede seguir pagando (liquidación final); sin saldo, no.
+        if (!c.isActivo() && c.getSaldoDevengado().signum() <= 0) {
+            throw new BusinessException("El empleado " + c.getEmpleadoNombre() + " está dado de baja y no tiene saldo pendiente");
         }
 
         BigDecimal excedente = BigDecimal.ZERO;
@@ -665,6 +670,9 @@ public class GestionSueldoService implements IGestionSueldoService {
         LocalDate fechaPago = fecha != null ? fecha : LocalDate.now();
         c.setUltimoPago(fechaPago);
         configRepo.save(c);
+        libro.registrar(c, TipoMovimientoSueldo.PAGO, monto.negate(), fechaPago,
+                "Pago de $" + monto.toPlainString() + " (" + origen + ")"
+                        + (excedente.signum() > 0 ? " · $" + excedente.toPlainString() + " de más (" + manejo + ")" : ""));
 
         return PagoSueldo.builder()
                 .empleadoId(c.getEmpleadoId())
@@ -859,7 +867,8 @@ public class GestionSueldoService implements IGestionSueldoService {
 
     @Override
     public DistribucionCascadaResponse sugerirCascada(BigDecimal monto, TipoCaja cajaRemanente) {
-        List<ConfiguracionSueldo> empleados = configRepo.findByActivoTrueOrderByEmpleadoNombreAsc();
+        // Incluye a quien se dio de baja pero todavía tiene saldo: sigue siendo plata que se le debe.
+        List<ConfiguracionSueldo> empleados = configRepo.findBySaldoDevengadoGreaterThanOrderByEmpleadoNombreAsc(BigDecimal.ZERO);
 
         BigDecimal restante = monto;
         List<LineaDistribucionResponse> lineas = new ArrayList<>();

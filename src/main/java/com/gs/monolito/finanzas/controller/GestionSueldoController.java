@@ -5,6 +5,7 @@ import org.springframework.validation.annotation.Validated;
 import com.gs.monolito.finanzas.dto.*;
 import com.gs.monolito.finanzas.exception.BusinessException;
 import com.gs.monolito.finanzas.model.TipoCaja;
+import com.gs.monolito.finanzas.service.DevengoService;
 import com.gs.monolito.finanzas.service.IGestionSueldoService;
 import com.gs.monolito.finanzas.service.FinanzasComprobanteStorageService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,6 +42,7 @@ import java.util.Map;
 public class GestionSueldoController {
 
     private final IGestionSueldoService service;
+    private final DevengoService devengo;
     private final FinanzasComprobanteStorageService minioStorage;
 
     @Operation(summary = "Lista todos los empleados con su estado de sueldo",
@@ -100,7 +102,8 @@ public class GestionSueldoController {
     }
 
     @Operation(summary = "Ajusta manualmente el saldo devengado de un empleado",
-               description = "Corrección puntual del saldo devengado, sin generar un pago real. Útil para reconciliaciones contables.")
+               description = "Corrección puntual del saldo devengado, sin generar un pago real. Útil para reconciliaciones contables. " +
+                             "El motivo es obligatorio: queda en el libro de sueldos del empleado y en la auditoría.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Devengado ajustado correctamente"),
         @ApiResponse(responseCode = "404", description = "Empleado no encontrado"),
@@ -110,24 +113,20 @@ public class GestionSueldoController {
     public ResponseEntity<EmpleadoSueldoResponse> ajustarDevengado(
             @Parameter(description = "ID del usuario en el módulo auth", required = true)
             @PathVariable @Positive Long usuarioId,
-            @RequestBody Map<String, BigDecimal> body) {
-        BigDecimal devengado = body.get("devengado");
-        if (devengado == null) {
-            throw new BusinessException("El campo 'devengado' es obligatorio.");
-        }
-        return ResponseEntity.ok(service.ajustarDevengado(usuarioId, devengado));
+            @Valid @RequestBody AjusteDevengadoRequest body) {
+        return ResponseEntity.ok(service.ajustarDevengado(usuarioId, body.devengado(), body.motivo()));
     }
 
-    @Operation(summary = "Fuerza el cálculo de devengado diario ahora mismo",
-               description = "Devenga el sueldo prorrateado de todos los empleados activos hasta el día de hoy, sin " +
-                             "esperar al cron diario (00:05). Es idempotente. Pensado para testing/demos.")
+    @Operation(summary = "Fuerza el cierre del devengo ahora mismo",
+               description = "Cierra los días pendientes de todos los empleados activos hasta ayer, sin esperar a la próxima " +
+                             "pasada automática (al arrancar y cada hora). Es idempotente.")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Devengado recalculado"),
         @ApiResponse(responseCode = "403", description = "Acceso denegado — se requiere rol ADMIN o ADMINISTRATIVO")
     })
     @PostMapping("/devengar-ahora")
     public ResponseEntity<Void> devengarAhora() {
-        service.devengarDiario();
+        devengo.devengarTodos();
         return ResponseEntity.noContent().build();
     }
 

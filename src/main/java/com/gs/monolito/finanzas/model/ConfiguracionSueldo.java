@@ -72,10 +72,36 @@ public class ConfiguracionSueldo {
     private LocalDate ultimoPago;
 
     /**
-     * Última fecha hasta la que ya se calculó el devengo diario (ver
-     * {@link com.gs.monolito.finanzas.service.GestionSueldoService#devengarDiario()}).
-     * Null hasta el primer cálculo — ese caso se devenga desde
-     * {@link #fechaCreacion} (el día de alta), prorrateando el ciclo incompleto.
+     * Primer día que corresponde cobrar. Antes de esta fecha el empleado no existe para la liquidación
+     * (un alta a mitad de mes cobra solo los días que le tocan). Al reactivar a alguien se mueve al día
+     * de la reactivación: lo que pasó en el medio no se le devenga.
+     */
+    @Column(name = "fecha_alta", nullable = false)
+    private LocalDate fechaAlta;
+
+    /** Último día que corresponde cobrar; null mientras sigue trabajando. */
+    @Column(name = "fecha_baja")
+    private LocalDate fechaBaja;
+
+    /** Cupo anual de vacaciones (14 días corridos es el mínimo de la ley para menos de 5 años de antigüedad). */
+    @Column(name = "dias_vacaciones_anuales", nullable = false)
+    @Builder.Default
+    private int diasVacacionesAnuales = 14;
+
+    /**
+     * Fracción de centavo todavía no acreditada. El devengo de un día es una fracción del sueldo
+     * (monto / días del mes) que casi nunca cae en centavos exactos; en vez de perder o inventar un
+     * centavo por día, se acumula acá y se acredita cuando suma uno. Así un mes completo da EXACTAMENTE
+     * el sueldo.
+     */
+    @Column(name = "resto_devengo", nullable = false, precision = 14, scale = 10)
+    @Builder.Default
+    private BigDecimal restoDevengo = BigDecimal.ZERO;
+
+    /**
+     * Hasta qué día se cerró el devengo: se devengó hasta el día ANTERIOR a esta fecha (inclusive), o sea
+     * que el día de esta fecha todavía no se cerró. Null hasta el primer cálculo: en ese caso se devenga
+     * desde {@link #fechaAlta}. Ver {@link com.gs.monolito.finanzas.service.DevengoService}.
      */
     @Column(name = "ultimo_devengo_calculado")
     private LocalDate ultimoDevengoCalculado;
@@ -90,6 +116,7 @@ public class ConfiguracionSueldo {
     protected void onCreate() {
         this.fechaCreacion = LocalDateTime.now();
         this.fechaModificacion = LocalDateTime.now();
+        if (this.fechaAlta == null) this.fechaAlta = LocalDate.now();
     }
 
     @PreUpdate

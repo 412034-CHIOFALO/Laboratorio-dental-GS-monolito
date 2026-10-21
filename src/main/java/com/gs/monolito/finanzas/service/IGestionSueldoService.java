@@ -44,7 +44,8 @@ public interface IGestionSueldoService {
      */
     RegistroPagoBotResponse registrarPagoAutomatico(PagoAutomaticoRequest req);
 
-    EmpleadoSueldoResponse ajustarDevengado(Long usuarioId, BigDecimal nuevoDevengado);
+    /** Pisa el saldo devengado a mano. El motivo es obligatorio: queda en el libro de sueldos y en la auditoría. */
+    EmpleadoSueldoResponse ajustarDevengado(Long usuarioId, BigDecimal nuevoDevengado, String motivo);
 
     List<PagoSueldoResponse> historialPagos(Long usuarioId);
 
@@ -73,8 +74,6 @@ public interface IGestionSueldoService {
     List<RegistroPagoBotResponse> listarPendientesRevision();
 
     DistribucionCascadaResponse sugerirCascada(BigDecimal monto, TipoCaja cajaRemanente);
-
-    void devengarDiario();
 
     /**
      * Registra manualmente un pago triangulado a un proveedor: el odontólogo

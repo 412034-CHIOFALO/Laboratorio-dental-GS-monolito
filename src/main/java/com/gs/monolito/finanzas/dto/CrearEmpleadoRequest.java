@@ -2,6 +2,8 @@ package com.gs.monolito.finanzas.dto;
 
 import com.gs.monolito.finanzas.model.FrecuenciaPago;
 import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -9,6 +11,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * Alta manual (o disparada por el módulo auth al activar una cuenta) de un
@@ -40,4 +43,12 @@ public class CrearEmpleadoRequest {
     @PositiveOrZero(message = "El monto base no puede ser negativo")
     @Digits(integer = 10, fraction = 2, message = "El monto base excede el máximo permitido")
     private BigDecimal montoBase;
+
+    /** Opcional: primer día que le corresponde cobrar. Si no viene, hoy. */
+    private LocalDate fechaAlta;
+
+    /** Opcional: cupo anual de vacaciones (14 si no viene). */
+    @Min(value = 0, message = "Los días de vacaciones no pueden ser negativos")
+    @Max(value = 60, message = "Los días de vacaciones no pueden superar 60")
+    private Integer diasVacacionesAnuales;
 }

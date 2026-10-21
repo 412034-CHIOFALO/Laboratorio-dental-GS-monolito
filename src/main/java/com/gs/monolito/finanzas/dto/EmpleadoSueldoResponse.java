@@ -17,7 +17,12 @@ public record EmpleadoSueldoResponse(
         BigDecimal montoBase,
         BigDecimal saldoDevengado,
         BigDecimal saldoSobrante,
-        LocalDate ultimoPago
+        LocalDate ultimoPago,
+        LocalDate fechaAlta,
+        LocalDate fechaBaja,
+        int diasVacacionesAnuales,
+        /** Último día ya devengado (el saldo incluye hasta ese día); null si todavía no se cerró ninguno. */
+        LocalDate devengadoHasta
 ) {
     public static EmpleadoSueldoResponse from(ConfiguracionSueldo c) {
         return new EmpleadoSueldoResponse(
@@ -30,7 +35,11 @@ public record EmpleadoSueldoResponse(
                 c.getMontoBase(),
                 c.getSaldoDevengado(),
                 c.getSaldoSobrante(),
-                c.getUltimoPago()
+                c.getUltimoPago(),
+                c.getFechaAlta(),
+                c.getFechaBaja(),
+                c.getDiasVacacionesAnuales(),
+                c.getUltimoDevengoCalculado() == null ? null : c.getUltimoDevengoCalculado().minusDays(1)
         );
     }
 }
