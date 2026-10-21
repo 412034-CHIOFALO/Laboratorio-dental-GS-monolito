@@ -51,6 +51,16 @@ public class GestionSueldoService implements IGestionSueldoService {
 
     private static final Logger log = LoggerFactory.getLogger(GestionSueldoService.class);
 
+    /** Un comprobante "cuenta" para detectar repetidos mientras esté registrado o esperando revisión. */
+    private static final List<EstadoRegistroBot> ESTADOS_QUE_CUENTAN = List.of(EstadoRegistroBot.REGISTRADO, EstadoRegistroBot.PENDIENTE);
+    /** Al aprobar un pendiente solo importa lo que ya se aplicó: otro pendiente igual no bloquea (se aprueba uno solo). */
+    private static final List<EstadoRegistroBot> ESTADOS_APLICADOS = List.of(EstadoRegistroBot.REGISTRADO);
+    /** Mismo monto y mismo receptor dentro de estas horas = "se parece a otro comprobante" y lo revisa una persona. */
+    private static final int HORAS_PARECIDO_TRANSFERENCIA = 72;
+    private static final int HORAS_PARECIDO_EFECTIVO = 24;
+    /** Id que no existe: para buscar duplicados de un registro que todavía no se guardó. */
+    private static final Long SIN_ID = 0L;
+
     private final ConfiguracionSueldoRepository configRepo;
     private final PagoSueldoRepository pagoRepo;
     private final FinanzasComprobanteStorageService minioStorage;
@@ -177,7 +187,7 @@ public class GestionSueldoService implements IGestionSueldoService {
 
         RegistroPagoBot reg = RegistroPagoBot.builder()
                 .monto(req.getMonto())
-                .idOperacion(req.getIdOperacion())
+                .idOperacion(operacionParaGuardar(req.getIdOperacion()))
                 .idMensajeWa(vacioANull(req.getIdMensaje()))
                 .idMensajePie(vacioANull(req.getIdMensajePie()))
                 .emisor(req.getEmisor())
@@ -192,26 +202,24 @@ public class GestionSueldoService implements IGestionSueldoService {
         String hash = hashDeComprobante(req);
         reg.setHashComprobante(hash);
 
-        // Duplicado por N° de operación, o por ser exactamente el mismo archivo (cubre los
-        // comprobantes donde el OCR no logró leer el N° de operación).
-        String motivoDuplicado = null;
-        if (req.getIdOperacion() != null && !req.getIdOperacion().isBlank()
-                && registroRepo.existsByIdOperacionAndEstado(req.getIdOperacion(), EstadoRegistroBot.REGISTRADO)) {
-            motivoDuplicado = "El comprobante (operación " + req.getIdOperacion() + ") ya fue registrado antes.";
-        } else if (hash != null && registroRepo.existsByHashComprobanteAndEstado(hash, EstadoRegistroBot.REGISTRADO)) {
-            motivoDuplicado = "Ese mismo archivo ya fue registrado antes (aunque no se pudo leer el N° de operación).";
-        }
-        if (motivoDuplicado != null) {
+        // Repetido: el mismo N° de operación o exactamente el mismo archivo que otro comprobante YA REGISTRADO O
+        // TODAVÍA PENDIENTE de revisión. Antes solo se miraba contra los registrados: un comprobante reenviado
+        // mientras el primero esperaba revisión quedaba también pendiente, y aprobando los dos se pagaba doble.
+        Optional<Duplicado> repetido = buscarDuplicado(req.getIdOperacion(), hash, SIN_ID, ESTADOS_QUE_CUENTAN);
+        if (repetido.isPresent()) {
             reg.setEstado(EstadoRegistroBot.DUPLICADO);
             reg.setTipoReceptor(TipoReceptorBot.DESCONOCIDO);
-            reg.setMensaje(motivoDuplicado);
+            reg.setMensaje(recortar(repetido.get().motivo(), 300));
+            log.info("[BOT] Comprobante repetido (registro #{}): {}", repetido.get().otro().getId(), repetido.get().motivo());
             return RegistroPagoBotResponse.from(registroRepo.save(reg));
         }
 
         // Semáforo: si algo del comprobante no se puede dar por bueno, NO se aplica el pago: queda pendiente
         // de revisión y un administrativo lo aprueba o rechaza viendo la imagen. Solo se frena si el receptor
         // es conocido (si no lo es, se rechaza igual más abajo, no hay nada que revisar).
-        List<String> motivos = revision.motivos(req);
+        List<String> motivos = new java.util.ArrayList<>(revision.motivos(req));
+        parecidoA(req).ifPresent(otro -> motivos.add("Se parece a otro comprobante ya cargado (registro #" + otro.getId()
+                + ", " + hace(otro.getFechaHora()) + "): mismo monto y mismo receptor"));
         if (!motivos.isEmpty()
                 && (resolverEmpleadoOpt(req).isPresent() || resolverProveedorOpt(req.getReceptorNombre()).isPresent())) {
             reg.setEstado(EstadoRegistroBot.PENDIENTE);
@@ -226,6 +234,89 @@ public class GestionSueldoService implements IGestionSueldoService {
         }
 
         return aplicarTransferencia(reg, req, comprobanteRef);
+    }
+
+    // ── Repetidos ────────────────────────────────────────────────────
+
+    /** El comprobante con el que choca un registro, y por qué. */
+    private record Duplicado(RegistroPagoBot otro, String motivo) {}
+
+    /**
+     * ¿Ya hay otro registro (en alguno de esos estados) con el mismo N° de operación o el mismo archivo?
+     * El N° de operación se compara normalizado (sin espacios ni signos, en mayúsculas), porque el OCR
+     * puede leer "12 345 678" donde otro comprobante dice "12345678".
+     */
+    private Optional<Duplicado> buscarDuplicado(String idOperacion, String hash, Long idPropio, List<EstadoRegistroBot> estados) {
+        List<String> variantes = variantesDeOperacion(idOperacion);
+        if (!variantes.isEmpty()) {
+            Optional<RegistroPagoBot> otro = registroRepo.findFirstByIdOperacionInAndEstadoInAndIdNotOrderByIdAsc(variantes, estados, idPropio);
+            if (otro.isPresent()) {
+                return Optional.of(new Duplicado(otro.get(), "Ya hay un comprobante con esa operación (" + variantes.get(variantes.size() - 1)
+                        + "): registro #" + otro.get().getId() + ", " + estadoEnPalabras(otro.get()) + "."));
+            }
+        }
+        if (hash != null) {
+            Optional<RegistroPagoBot> otro = registroRepo.findFirstByHashComprobanteAndEstadoInAndIdNotOrderByIdAsc(hash, estados, idPropio);
+            if (otro.isPresent()) {
+                return Optional.of(new Duplicado(otro.get(), "Ese mismo archivo ya está cargado (aunque no se pudo leer el N° de operación): registro #"
+                        + otro.get().getId() + ", " + estadoEnPalabras(otro.get()) + "."));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static String estadoEnPalabras(RegistroPagoBot r) {
+        return r.getEstado() == EstadoRegistroBot.PENDIENTE ? "pendiente de revisión" : "ya registrado";
+    }
+
+    /** Mismo monto y mismo receptor cargados hace poco, aunque el N° de operación o el archivo no coincidan. */
+    private Optional<RegistroPagoBot> parecidoA(PagoAutomaticoRequest req) {
+        return parecido(req.getMonto(), req.getReceptorNombre(), FuentePago.TRANSFERENCIA, HORAS_PARECIDO_TRANSFERENCIA);
+    }
+
+    private Optional<RegistroPagoBot> efectivoParecidoA(PagoEfectivoRequest req) {
+        return parecido(req.getMonto(), req.getReceptorNombre(), FuentePago.EFECTIVO, HORAS_PARECIDO_EFECTIVO);
+    }
+
+    private Optional<RegistroPagoBot> parecido(BigDecimal monto, String receptor, FuentePago fuente, int horas) {
+        String receptorNorm = normalizarNombre(receptor);
+        if (monto == null || receptorNorm.isEmpty()) return Optional.empty();
+        return registroRepo.findByMontoAndEstadoInAndFechaHoraAfterAndIdNot(
+                        monto, ESTADOS_QUE_CUENTAN, java.time.LocalDateTime.now().minusHours(horas), SIN_ID).stream()
+                .filter(r -> r.getFuente() == fuente)
+                .filter(r -> receptorNorm.equals(normalizarNombre(r.getReceptorNombre())))
+                .findFirst();
+    }
+
+    /** "hace 3 h" / "hace 12 min" / "hace 2 días". */
+    private static String hace(java.time.LocalDateTime cuando) {
+        if (cuando == null) return "hace un rato";
+        long min = java.time.Duration.between(cuando, java.time.LocalDateTime.now()).toMinutes();
+        if (min < 1) return "recién";
+        if (min < 60) return "hace " + min + " min";
+        if (min < 48 * 60) return "hace " + (min / 60) + " h";
+        return "hace " + (min / (24 * 60)) + " días";
+    }
+
+    /** Sin espacios ni signos y en mayúsculas; null si no queda nada. */
+    static String normalizarOperacion(String operacion) {
+        if (operacion == null) return null;
+        String limpia = operacion.toUpperCase(java.util.Locale.ROOT).replaceAll("[^A-Z0-9]", "");
+        return limpia.isEmpty() ? null : limpia;
+    }
+
+    /** Lo que se guarda en el registro: el N° normalizado (así los repetidos se encuentran aunque se lea distinto). */
+    private static String operacionParaGuardar(String operacion) {
+        String norm = normalizarOperacion(operacion);
+        return norm != null ? norm : vacioANull(operacion);
+    }
+
+    /** El N° leído y su versión normalizada, para buscar también los registros guardados antes de normalizar. */
+    private static List<String> variantesDeOperacion(String operacion) {
+        String norm = normalizarOperacion(operacion);
+        if (norm == null) return List.of();
+        String crudo = operacion.trim();
+        return crudo.equals(norm) ? List.of(norm) : List.of(crudo, norm);
     }
 
     private static String recortar(String s, int max) {
@@ -712,6 +803,9 @@ public class GestionSueldoService implements IGestionSueldoService {
                 .tipoReceptor(TipoReceptorBot.DESCONOCIDO)
                 .mensaje("Efectivo declarado en el grupo — pendiente de confirmación.")
                 .build();
+        efectivoParecidoA(req).ifPresent(otro -> reg.setMensaje(recortar(
+                "Efectivo declarado en el grupo — pendiente de confirmación. Ojo: se parece al registro #" + otro.getId()
+                        + " (mismo monto y receptor, " + hace(otro.getFechaHora()) + "); confirmá solo si es otro pago.", 300)));
         log.info("[BOT-EFECTIVO] Borrador: {} → ${}", req.getReceptorNombre(), req.getMonto());
         return RegistroPagoBotResponse.from(registroRepo.save(reg));
     }
@@ -851,6 +945,12 @@ public class GestionSueldoService implements IGestionSueldoService {
 
     /** Un administrativo aprobó una transferencia que el semáforo había frenado: se aplica como si hubiera entrado limpia. */
     private RegistroPagoBotResponse confirmarTransferencia(RegistroPagoBot reg) {
+        // Entre que quedó pendiente y ahora, otro comprobante igual pudo haberse aplicado (por ejemplo, el que se
+        // aprobó primero): se vuelve a mirar antes de pagar. Si lo hay, no se aplica nada.
+        Optional<Duplicado> repetido = buscarDuplicado(reg.getIdOperacion(), reg.getHashComprobante(), reg.getId(), ESTADOS_APLICADOS);
+        if (repetido.isPresent()) {
+            throw new BusinessException("No se puede aprobar: " + repetido.get().motivo() + " Rechazá este comprobante: es repetido.");
+        }
         PagoAutomaticoRequest req = new PagoAutomaticoRequest();
         req.setReceptorNombre(reg.getReceptorNombre());
         req.setMonto(reg.getMonto());

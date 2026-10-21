@@ -21,6 +21,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -79,7 +80,8 @@ class GestionSueldoDedupeTest {
     @Test
     void elMismoArchivoSeDetectaComoDuplicadoAunSinNumeroDeOperacion() {
         when(registroRepo.findFirstByIdMensajeWaOrIdMensajePie(anyString(), anyString())).thenReturn(Optional.empty());
-        when(registroRepo.existsByHashComprobanteAndEstado(anyString(), eq(EstadoRegistroBot.REGISTRADO))).thenReturn(true);
+        when(registroRepo.findFirstByHashComprobanteAndEstadoInAndIdNotOrderByIdAsc(anyString(), any(), anyLong()))
+                .thenReturn(Optional.of(RegistroPagoBot.builder().id(4L).estado(EstadoRegistroBot.REGISTRADO).build()));
 
         // mensaje distinto (otro ID de WhatsApp), pero el archivo es byte a byte el mismo
         RegistroPagoBotResponse r = service.registrarPagoAutomatico(transferencia("otro-mensaje", null, "pdf-1"));
@@ -97,7 +99,8 @@ class GestionSueldoDedupeTest {
     @Test
     void elHashEsElDeLosBytesDelArchivo() {
         when(registroRepo.findFirstByIdMensajeWaOrIdMensajePie(anyString(), anyString())).thenReturn(Optional.empty());
-        when(registroRepo.existsByHashComprobanteAndEstado(anyString(), eq(EstadoRegistroBot.REGISTRADO))).thenReturn(true);
+        when(registroRepo.findFirstByHashComprobanteAndEstadoInAndIdNotOrderByIdAsc(anyString(), any(), anyLong()))
+                .thenReturn(Optional.of(RegistroPagoBot.builder().id(4L).estado(EstadoRegistroBot.REGISTRADO).build()));
 
         service.registrarPagoAutomatico(transferencia("m1", null, "hola"));
 

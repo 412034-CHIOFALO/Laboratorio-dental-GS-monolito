@@ -12,10 +12,21 @@ public interface RegistroPagoBotRepository extends JpaRepository<RegistroPagoBot
 
     List<RegistroPagoBot> findAllByOrderByFechaHoraDesc();
 
-    boolean existsByIdOperacionAndEstado(String idOperacion, EstadoRegistroBot estado);
+    /**
+     * El registro más viejo que ya tiene alguno de esos N° de operación (se pasa el valor leído y su versión
+     * normalizada) en alguno de esos estados, sin contar al propio registro ({@code idPropio}; 0 si todavía no existe).
+     */
+    java.util.Optional<RegistroPagoBot> findFirstByIdOperacionInAndEstadoInAndIdNotOrderByIdAsc(
+            java.util.Collection<String> operaciones, java.util.Collection<EstadoRegistroBot> estados, Long idPropio);
 
-    /** El mismo archivo ya registrado (mismo SHA-256), aunque el comprobante no traiga N° de operación. */
-    boolean existsByHashComprobanteAndEstado(String hashComprobante, EstadoRegistroBot estado);
+    /** Lo mismo para el mismo archivo (mismo SHA-256), aunque el comprobante no traiga N° de operación. */
+    java.util.Optional<RegistroPagoBot> findFirstByHashComprobanteAndEstadoInAndIdNotOrderByIdAsc(
+            String hashComprobante, java.util.Collection<EstadoRegistroBot> estados, Long idPropio);
+
+    /** Registros del mismo monto cargados desde {@code desde}: candidatos a "se parece a otro comprobante". */
+    List<RegistroPagoBot> findByMontoAndEstadoInAndFechaHoraAfterAndIdNot(
+            java.math.BigDecimal monto, java.util.Collection<EstadoRegistroBot> estados,
+            java.time.LocalDateTime desde, Long idPropio);
 
     /** El registro de un mensaje de WhatsApp ya procesado (como comprobante/comando o como pie). */
     java.util.Optional<RegistroPagoBot> findFirstByIdMensajeWaOrIdMensajePie(String idMensajeWa, String idMensajePie);
