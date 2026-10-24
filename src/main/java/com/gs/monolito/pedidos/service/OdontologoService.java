@@ -1,5 +1,8 @@
 package com.gs.monolito.pedidos.service;
 
+import com.gs.monolito.auth.service.AuditoriaService;
+import com.gs.monolito.common.audit.Cambios;
+import com.gs.monolito.common.security.CurrentUser;
 import com.gs.monolito.pedidos.dto.OdontologoRequest;
 import com.gs.monolito.pedidos.dto.OdontologoResponse;
 import com.gs.monolito.pedidos.exception.BusinessException;
@@ -40,6 +43,7 @@ public class OdontologoService implements IOdontologoService {
 
     private final OdontologoRepository repository;
     private final PedidoRepository pedidoRepository;
+    private final AuditoriaService auditoria;
 
     @Value("${gs.odontologos.meses-inactividad:6}")
     private int mesesInactividad;
@@ -140,7 +144,14 @@ public class OdontologoService implements IOdontologoService {
                 .clinica(blankToNull(request.getClinica()))
                 .direccion(blankToNull(request.getDireccion()))
                 .build();
-        return OdontologoResponse.from(repository.save(nuevo));
+        Odontologo guardado = repository.save(nuevo);
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "CREAR", "Alta de odontólogo", entidad(guardado),
+                Cambios.nuevo()
+                        .dato("clínica", guardado.getClinica()).dato("matrícula", guardado.getMatricula())
+                        .datoSensible("teléfono", guardado.getTelefono()).datoSensible("email", guardado.getEmail())
+                        .datoSensible("DNI", guardado.getDni()).datoSensible("CUIT", guardado.getCuit())
+                        .resumen());
+        return OdontologoResponse.from(guardado);
     }
 
     @Override
@@ -159,15 +170,38 @@ public class OdontologoService implements IOdontologoService {
             throw new ConflictException("Ya existe otro odontólogo con CUIT: " + cuit);
         }
 
-        o.setNombre(normalizarNombre(request.getNombre()));
+        String nombre    = normalizarNombre(request.getNombre());
+        String telefono  = blankToNull(request.getTelefono());
+        String email     = blankToNull(request.getEmail());
+        String matricula = blankToNull(request.getMatricula());
+        String clinica   = blankToNull(request.getClinica());
+        String direccion = blankToNull(request.getDireccion());
+
+        // El teléfono es de lo que depende el aviso de "pedido listo": que un cambio quede registrado con quién lo hizo.
+        Cambios cambios = Cambios.nuevo()
+                .texto("nombre", o.getNombre(), nombre)
+                .texto("clínica", o.getClinica(), clinica)
+                .texto("matrícula", o.getMatricula(), matricula)
+                .texto("dirección", o.getDireccion(), direccion)
+                .sensible("teléfono", o.getTelefono(), telefono)
+                .sensible("email", o.getEmail(), email)
+                .sensible("DNI", o.getDni(), dni)
+                .sensible("CUIT", o.getCuit(), cuit);
+        String entidadAntes = entidad(o);
+
+        o.setNombre(nombre);
         o.setDni(dni);
         o.setCuit(cuit);
-        o.setTelefono(blankToNull(request.getTelefono()));
-        o.setEmail(blankToNull(request.getEmail()));
-        o.setMatricula(blankToNull(request.getMatricula()));
-        o.setClinica(blankToNull(request.getClinica()));
-        o.setDireccion(blankToNull(request.getDireccion()));
-        return OdontologoResponse.from(repository.save(o));
+        o.setTelefono(telefono);
+        o.setEmail(email);
+        o.setMatricula(matricula);
+        o.setClinica(clinica);
+        o.setDireccion(direccion);
+        Odontologo guardado = repository.save(o);
+        if (cambios.hayCambios()) {
+            auditoria.registrar(CurrentUser.usernameOrSistema(), "EDITAR", "Edición de odontólogo", entidadAntes, cambios.resumen());
+        }
+        return OdontologoResponse.from(guardado);
     }
 
     @Override
@@ -178,6 +212,8 @@ public class OdontologoService implements IOdontologoService {
         o.setActivo(false);
         repository.save(o);
         log.info("[GS-PEDIDOS] Odontólogo desactivado: {} (id={})", o.getNombre(), id);
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "ELIMINAR", "Baja de odontólogo", entidad(o),
+                "Queda inactivo: no aparece en el buscador, pero se conserva su historial y su cuenta corriente.");
     }
 
     @Override
@@ -190,9 +226,16 @@ public class OdontologoService implements IOdontologoService {
         return repository.findByActivoTrueAndNombreIgnoreCase(normalizado)
                 .orElseGet(() -> {
                     log.info("[GS-PEDIDOS] Odontólogo nuevo creado on-the-fly: {}", normalizado);
-                    Odontologo nuevo = Odontologo.builder().nombre(normalizado).build();
-                    return repository.save(nuevo);
+                    Odontologo nuevo = repository.save(Odontologo.builder().nombre(normalizado).build());
+                    // Es la fuente típica de duplicados ("Dr. Pérez" vs "Pérez Juan"): que se vea cuándo y quién lo originó.
+                    auditoria.registrar(CurrentUser.usernameOrSistema(), "CREAR", "Alta automática de odontólogo", entidad(nuevo),
+                            "Se creó al cargar un pedido o una solicitud con un nombre que no existía. Revisá que no sea un duplicado de otro odontólogo.");
+                    return nuevo;
                 });
+    }
+
+    private static String entidad(Odontologo o) {
+        return "Odontólogo " + o.getNombre() + " (id " + o.getId() + ")";
     }
 
     private String normalizarNombre(String s) {

@@ -74,7 +74,13 @@ public class DeudaProveedorService implements IDeudaProveedorService {
             .nroFacturaProveedor(request.getNroFacturaProveedor())
             .observaciones(request.getObservaciones())
             .build();
-        return DeudaProveedorResponse.from(deudaRepo.save(d));
+        DeudaProveedor guardada = deudaRepo.save(d);
+        // Una deuda nueva cambia lo que el laboratorio debe: que quede quién la cargó y por cuánto.
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "PROVEEDOR", "Deuda a proveedor cargada", "Proveedor " + proveedor.getNombre(),
+                "$" + guardada.getMonto() + " · " + guardada.getDescripcion()
+                        + (guardada.getNroFacturaProveedor() != null ? " · factura " + guardada.getNroFacturaProveedor() : "")
+                        + (guardada.getFechaVencimiento() != null ? " · vence " + guardada.getFechaVencimiento() : ""));
+        return DeudaProveedorResponse.from(guardada);
     }
 
     /**

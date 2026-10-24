@@ -8,6 +8,7 @@ Qué cubre (cada bloque es independiente: si uno falla, los demás siguen y se i
      estados y transiciones inválidas -> entrega (nace la deuda) -> cobro parcial -> cobro total
   3. permisos por rol: el técnico ve pedidos pero no finanzas ni puede crear pedidos
   4. escaneos 3D: se inspeccionan por dentro al subirse (medidas, hash), un archivo roto o repetido se rechaza
+  4b. auditoría: odontólogos, proveedores y deudas dejan rastro con los datos personales enmascarados
   5. solicitudes por mail: la API responde, exige sesión y rechaza lo inexistente (sin casilla real en la CI)
   6. sueldos por mes calendario: devengo exacto, asistencia que corrige el saldo, libro, baja y reactivación
   7. bot de WhatsApp: el semáforo (lo dudoso queda pendiente y se aprueba/rechaza), pago por transferencia
@@ -222,6 +223,47 @@ def escaneos_3d(base, clave, ctx):
     assert codigo(api, "GET", f"{ruta}/{mios[0]['id']}/archivo") == 200
     api.call("DELETE", f"{ruta}/{mios[0]['id']}")
     assert not [e for e in lista(api.call("GET", ruta)) if str(SUFIJO) in e["fileName"]], "el escaneo borrado no debía listarse"
+
+
+# ───────────────────────────── 4b. auditoría ─────────────────────────────
+def _eventos(api, texto):
+    """Eventos de la bitácora cuyo texto contiene `texto` (la búsqueda ignora mayúsculas)."""
+    pagina = api.call("GET", "/api/auth/auditoria", query={"q": texto, "size": 100})
+    return pagina["content"] if isinstance(pagina, dict) else pagina
+
+
+@bloque("auditoría: odontólogos, proveedores y deudas dejan rastro, con los datos personales enmascarados")
+def auditoria(base, clave, ctx):
+    api, odo = login(base, "admin", clave), ctx["odo"]
+
+    # el teléfono se carga y después se cambia: la bitácora dice que cambió, sin guardar el número completo
+    cuerpo = {"nombre": odo["nombre"], "email": odo.get("email")}
+    api.call("PUT", f"/api/odontologos/{odo['id']}", {**cuerpo, "telefono": "1155554521"})
+    api.call("PUT", f"/api/odontologos/{odo['id']}", {**cuerpo, "telefono": "1144449876"})
+    api.call("PUT", f"/api/odontologos/{odo['id']}", {**cuerpo, "telefono": "1144449876"})   # sin cambios: no hace ruido
+    eventos = _eventos(api, f"e2e {SUFIJO}")
+    de_odo = [e for e in eventos if odo["nombre"] in e["entidad"]]
+    assert any(e["accion"] == "Alta de odontólogo" for e in de_odo), f"falta el alta del odontólogo: {de_odo}"
+    ediciones = [e["detalle"] for e in de_odo if e["accion"] == "Edición de odontólogo"]
+    assert ediciones.count("teléfono: (vacío) → …4521") == 1, f"primera edición del teléfono: {ediciones}"
+    assert ediciones.count("teléfono: …4521 → …9876") == 1, f"segunda edición del teléfono: {ediciones}"
+    assert len(ediciones) == 2, f"guardar sin cambios no debía generar un evento: {ediciones}"
+    assert not any("1155554521" in str(e) or "1144449876" in str(e) for e in eventos), "la bitácora guardó un teléfono completo"
+    deuda = [e for e in eventos if e["accion"] == "Deuda del odontólogo generada" and odo["nombre"] in e["entidad"]]
+    assert len(deuda) == 1 and "$100000" in deuda[0]["detalle"], f"al entregar debía quedar la deuda registrada: {deuda}"
+
+    # proveedor: alta, cambio de CUIT, deuda y baja
+    prov = api.call("POST", "/api/finanzas/proveedores", {"nombre": f"E2E proveedor {SUFIJO}", "cuit": "30-71234567-8"})
+    api.call("PUT", f"/api/finanzas/proveedores/{prov['id']}", {"nombre": prov["nombre"], "cuit": "30-79999999-1"})
+    api.call("POST", "/api/finanzas/proveedores/deudas", {"proveedorId": prov["id"], "descripcion": "Yeso E2E", "monto": 45000})
+    api.call("DELETE", f"/api/finanzas/proveedores/{prov['id']}")
+    eventos = _eventos(api, f"e2e proveedor {SUFIJO}")
+    acciones = {e["accion"]: e["detalle"] for e in eventos}
+    for esperada in ("Alta de proveedor", "Edición de proveedor", "Deuda a proveedor cargada", "Baja de proveedor"):
+        assert esperada in acciones, f"falta '{esperada}' en la bitácora: {sorted(acciones)}"
+    assert acciones["Edición de proveedor"] == "CUIT: …5678 → …9991", acciones["Edición de proveedor"]
+    assert "$45000" in acciones["Deuda a proveedor cargada"], acciones["Deuda a proveedor cargada"]
+    assert not any("30-71234567" in str(e) or "30-79999999" in str(e) for e in eventos), "la bitácora guardó un CUIT completo"
 
 
 # ───────────────────────────── 5. solicitudes por mail ─────────────────────────────
@@ -495,6 +537,8 @@ def main():
     permisos(args.base, clave_t)
     if "pedido" in ctx:
         escaneos_3d(args.base, clave, ctx)
+    if "odo" in ctx:
+        auditoria(args.base, clave, ctx)
     solicitudes(args.base, clave, clave_t)
     sueldos_calendario(args.base, clave)
     if "odo" in ctx:

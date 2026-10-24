@@ -95,7 +95,12 @@ public class FinanzasService implements IFinanzasService {
                 .fechaVencimiento(request.getFechaVencimiento())
                 .observaciones(request.getObservaciones())
                 .build();
-        return ComprobanteResponse.from(repository.save(c));
+        Comprobante guardado = repository.save(c);
+        // Es el momento en que una entrega se convierte en deuda del odontólogo: queda quién y por cuánto.
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "CREAR", "Deuda del odontólogo generada",
+                "Comprobante " + guardado.getNroComprobante() + " · " + guardado.getOdontologoNombre(),
+                "$" + guardado.getMonto() + " · pedido " + guardado.getNroPedido() + " · " + guardado.getTrabajo());
+        return ComprobanteResponse.from(guardado);
     }
 
     /**
@@ -113,7 +118,13 @@ public class FinanzasService implements IFinanzasService {
                     "El nuevo monto ($" + nuevoMonto + ") es menor a lo ya cobrado ($" + c.getMontoPagado() +
                     "). Si hay que devolver plata, registrá un reintegro en vez de editar el comprobante.");
             }
+            java.math.BigDecimal montoAnterior = c.getMonto();
             c.setMonto(nuevoMonto);
+            if (montoAnterior == null || montoAnterior.compareTo(nuevoMonto) != 0) {
+                auditoria.registrar(CurrentUser.usernameOrSistema(), "EDITAR", "Monto de la deuda corregido",
+                        "Comprobante " + c.getNroComprobante() + " · " + c.getOdontologoNombre(),
+                        "$" + montoAnterior + " → $" + nuevoMonto + " · pedido " + c.getNroPedido());
+            }
             if (c.getMontoPagado().compareTo(nuevoMonto) >= 0 && c.getEstadoPago() != EstadoPago.COBRADO) {
                 c.setEstadoPago(EstadoPago.COBRADO);
                 c.setFechaCobro(LocalDate.now());
@@ -139,9 +150,13 @@ public class FinanzasService implements IFinanzasService {
         if (comprobante.isEmpty()) return true;
         Comprobante c = comprobante.get();
         if (c.getMontoPagado() != null && c.getMontoPagado().signum() > 0) return false;
+        String anterior = c.getOdontologoNombre();
         c.setOdontologoId(odontologoId);
         c.setOdontologoNombre(odontologoNombre);
         repository.save(c);
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "EDITAR", "Deuda reasignada a otro odontólogo",
+                "Comprobante " + c.getNroComprobante() + " · pedido " + c.getNroPedido(),
+                anterior + " → " + odontologoNombre + " · $" + c.getMonto());
         return true;
     }
 

@@ -1,5 +1,7 @@
 package com.gs.monolito.finanzas.service;
 
+import com.gs.monolito.auth.service.AuditoriaService;
+import com.gs.monolito.common.security.CurrentUser;
 import com.gs.monolito.finanzas.dto.ReporteMensualResponse;
 import com.gs.monolito.finanzas.exception.BusinessException;
 import com.gs.monolito.finanzas.model.ReporteMensual;
@@ -27,6 +29,7 @@ public class ReporteMensualService {
     private final ReporteCajaPdfService pdfService;
     private final FinanzasComprobanteStorageService storage;
     private final ReporteMensualRepository repo;
+    private final AuditoriaService auditoria;
 
     @Transactional
     public ReporteMensualResponse generar(int anio, int mes, boolean automatico) {
@@ -42,6 +45,7 @@ public class ReporteMensualService {
         }
 
         ReporteMensual r = repo.findByAnioAndMes(anio, mes).orElseGet(ReporteMensual::new);
+        boolean regenera = r.getId() != null;
         r.setAnio(anio);
         r.setMes(mes);
         r.setObjectName(objectName);
@@ -51,6 +55,11 @@ public class ReporteMensualService {
         repo.save(r);
 
         log.info("[REPORTE] Reporte mensual {}/{} generado ({}).", mes, anio, automatico ? "automatico" : "manual");
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "REPORTE",
+                regenera ? "Reporte mensual regenerado" : "Reporte mensual generado",
+                String.format("Reporte %02d/%d", mes, anio),
+                (automatico ? "Automático (cierre de mes)" : "Manual")
+                        + (regenera ? " · reemplazó al archivado anteriormente: el PDF anterior ya no está disponible" : ""));
         return ReporteMensualResponse.from(r);
     }
 

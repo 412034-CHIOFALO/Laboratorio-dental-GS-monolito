@@ -2,10 +2,12 @@ package com.gs.monolito.pedidos.controller;
 import jakarta.validation.constraints.Positive;
 import org.springframework.validation.annotation.Validated;
 
+import com.gs.monolito.auth.service.AuditoriaService;
 import com.gs.monolito.pedidos.dto.DocumentoPedidoResponse;
 import com.gs.monolito.pedidos.exception.BusinessException;
 import com.gs.monolito.pedidos.exception.ResourceNotFoundException;
 import com.gs.monolito.pedidos.model.DocumentoPedido;
+import com.gs.monolito.pedidos.model.Pedido;
 import com.gs.monolito.pedidos.repository.DocumentoPedidoRepository;
 import com.gs.monolito.pedidos.repository.PedidoRepository;
 import com.gs.monolito.pedidos.service.PedidosDocumentoStorageService;
@@ -52,6 +54,7 @@ public class DocumentoController {
     private final PedidoRepository pedidoRepository;
     private final PedidosDocumentoStorageService minioStorageService;
     private final UploadValidator uploadValidator;
+    private final AuditoriaService auditoria;
 
     @Operation(
         summary = "Listar documentos de un pedido",
@@ -121,7 +124,9 @@ public class DocumentoController {
                 .build();
 
         DocumentoPedido saved = docRepo.save(doc);
-        log.info("[DOC] Archivo '{}' subido al pedido {}", saved.getFileName(), pedidoId);
+        log.info("[DOC] Archivo '{}' subido al pedido {} por {}", saved.getFileName(), pedidoId, subidoPor);
+        auditoria.registrar(subidoPor, "DOCUMENTO", "Documento subido", entidadPedido(pedidoId),
+                saved.getFileName() + " · " + kb(saved.getTamanioBytes()));
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(saved));
     }
 
@@ -167,15 +172,28 @@ public class DocumentoController {
     public ResponseEntity<Void> eliminar(
             @Parameter(description = "ID del pedido", example = "42")
             @PathVariable @Positive Long pedidoId,
-            @Parameter(description = "ID del documento a eliminar", example = "7")
-            @PathVariable @Positive Long docId) {
+            @PathVariable @Positive Long docId,
+            Authentication auth) {
         DocumentoPedido doc = docRepo.findById(docId)
                 .filter(d -> d.getPedidoId().equals(pedidoId))
                 .orElseThrow(() -> new ResourceNotFoundException("Documento no encontrado"));
         minioStorageService.eliminar(doc.getObjectKey());
         docRepo.delete(doc);
-        log.info("[DOC] Documento {} eliminado del pedido {}", docId, pedidoId);
+        String quien = auth != null ? auth.getName() : "desconocido";
+        log.info("[DOC] Documento {} ('{}') eliminado del pedido {} por {}", docId, doc.getFileName(), pedidoId, quien);
+        // El borrado es irreversible (también se saca de MinIO): que quede quién fue y cuál era el archivo.
+        auditoria.registrar(quien, "DOCUMENTO", "Documento eliminado", entidadPedido(pedidoId),
+                doc.getFileName() + " · subido por " + doc.getSubidoPor());
         return ResponseEntity.noContent().build();
+    }
+
+    private String entidadPedido(Long pedidoId) {
+        return "Pedido " + pedidoRepository.findById(pedidoId).map(Pedido::getNroPedido).orElse("#" + pedidoId);
+    }
+
+    private static String kb(Long bytes) {
+        if (bytes == null) return "tamaño desconocido";
+        return bytes < 1024 * 1024 ? Math.max(1, bytes / 1024) + " KB" : String.format(java.util.Locale.ROOT, "%.1f MB", bytes / 1048576.0);
     }
 
     private DocumentoPedidoResponse toResponse(DocumentoPedido d) {

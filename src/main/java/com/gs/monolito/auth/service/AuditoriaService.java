@@ -23,8 +23,19 @@ public class AuditoriaService {
         this.repo = repo;
     }
 
+    /**
+     * Registra un evento. Los textos se cortan al largo de su columna: la auditoría nunca debe hacer fallar la
+     * operación de negocio que está anotando (un nombre largo o un detalle de más de 500 caracteres reventaría el
+     * guardado y, al estar en la misma transacción, revertiría el pago o el pedido).
+     */
     public void registrar(String usuario, String tipo, String accion, String entidad, String detalle) {
-        repo.save(new AuditoriaEvento(usuario, tipo, accion, entidad, detalle));
+        repo.save(new AuditoriaEvento(
+                cortar(usuario, 100), cortar(tipo, 50), cortar(accion, 200), cortar(entidad, 200), cortar(detalle, 500)));
+    }
+
+    private static String cortar(String s, int max) {
+        if (s == null || s.length() <= max) return s;
+        return s.substring(0, max - 1) + "…";
     }
 
     /** tipo/q nulos o en blanco no filtran nada — ver AuditoriaEventoRepository#buscar. */
