@@ -324,3 +324,23 @@ completan las variables.
    última vez y si hubo un error (clave vencida, casilla inaccesible).
 
 **Si no llegan solicitudes**: mirar el estado en la pantalla (último error), y los logs: `docker compose logs app | grep CORREO`.
+
+## 12. Después de un reinicio del servidor
+
+**Qué pasaba:** el servidor no está 24/7. Al volver a prenderlo, Docker relanza los contenedores solo, pero si el plugin de
+logs `loki` quedó **deshabilitado**, `app`, `frontend` y `backup` no pueden crearse (`exit 128`, "plugin loki found but
+disabled") y Docker no reintenta: el sitio quedaba caído hasta que alguien lo levantara a mano (pasó el 2026-10-23).
+
+**Cómo se resuelve ahora:** `arranque.sh` habilita el plugin y arranca solo los contenedores que fallaron al crearse (nunca
+los que se pararon a propósito, como el bot). Si algo sigue sin arrancar, los recrea sin el envío de logs. Se ejecuta solo
+al prender el servidor con una línea en el crontab del usuario que corre Docker (`crontab -e`):
+
+```
+@reboot sleep 30 && /opt/gs-monolito/arranque.sh
+```
+
+- Log: `~/claude/logs/arranque.log` (cada arranque deja qué encontró, qué arrancó y el estado final).
+- Ver cómo está todo sin tocar nada: `./arranque.sh --estado`.
+- `deploy.sh` también habilita el plugin si lo encuentra deshabilitado (antes solo miraba que estuviera instalado).
+- Sigue faltando una alerta **externa** de "sitio caído" (UptimeRobot o similar sobre `https://<tu dominio>`): sin ella un corte
+  solo se nota cuando alguien entra.

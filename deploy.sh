@@ -88,10 +88,18 @@ if [ -n "$(leer_env DUCKDNS_TOKEN)" ]; then
     SERVICIOS+=(duckdns)
 fi
 if [ "$(leer_env OTEL_ENABLED)" = "true" ]; then
-    if docker plugin ls 2>/dev/null | grep -q loki; then
+    # Instalado no alcanza: tras un reinicio el plugin puede quedar deshabilitado y entonces los contenedores
+    # creados con el driver loki no arrancan (es lo que tiró abajo el sitio el 2026-10-23).
+    PLUGIN_LOKI=$(docker plugin ls --format '{{.Name}} {{.Enabled}}' 2>/dev/null | awk '$1 ~ /^loki(:|$)/ {print $2; exit}')
+    if [ "$PLUGIN_LOKI" = "false" ]; then
+        echo "El plugin de Docker 'loki' está deshabilitado: lo habilito."
+        docker plugin enable loki >/dev/null 2>&1 || true
+        PLUGIN_LOKI=$(docker plugin ls --format '{{.Name}} {{.Enabled}}' 2>/dev/null | awk '$1 ~ /^loki(:|$)/ {print $2; exit}')
+    fi
+    if [ "$PLUGIN_LOKI" = "true" ]; then
         COMPOSE+=(-f docker-compose.observability.yml)
     else
-        echo "AVISO: OTEL_ENABLED=true pero falta el plugin de Docker 'loki' (ver PRODUCCION.md, paso 5):"
+        echo "AVISO: OTEL_ENABLED=true pero el plugin de Docker 'loki' no está instalado o no se pudo habilitar (ver PRODUCCION.md, paso 5):"
         echo "       se sigue sin el envío de logs (métricas y trazas no dependen del plugin)."
     fi
 fi
