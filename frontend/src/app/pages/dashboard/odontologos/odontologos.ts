@@ -298,11 +298,14 @@ export class OdontologosComponent implements OnInit {
         this.ccSaldo = comps.reduce((acc, c) => acc + (c.saldoPendiente ?? 0), 0);
         this.ccCargando = false;
       },
-      error: () => { this.ccCargando = false; },
+      error: err => {
+        this.ccCargando = false;
+        this.notif.errorHttp(err, 'No se pudo cargar la cuenta corriente de este odontólogo');
+      },
     });
     this.finanzas.historialPagosOdontologo(odontologoId).subscribe({
       next: pagos => { this.ccHistorial = pagos; },
-      error: () => {},
+      error: err => this.notif.errorHttp(err, 'No se pudo cargar el historial de pagos'),
     });
   }
 

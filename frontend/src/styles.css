@@ -498,15 +498,21 @@ html[data-theme="light"] #toast-container > .toast-warning {
 
 @media (max-width: 540px) {
   /* En mobile el container se estira de lado a lado (con margen), y cada toast
-     ocupa el 100%. Antes quedaba anclado a la derecha y el toast se desbordaba. */
+     ocupa el 100%. Antes quedaba anclado a la derecha y el toast se desbordaba.
+     Va ABAJO y no arriba: arriba tapaba el encabezado (la hamburguesa y el título), que es justo lo que se
+     necesita tocar mientras el aviso está en pantalla. Abajo queda al alcance del pulgar y, cuando exista la
+     barra inferior, --bottom-nav-h lo sube por encima de ella. El más nuevo queda pegado al borde. */
   #toast-container {
-    top: 12px !important;
+    top: auto !important;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px) + var(--bottom-nav-h, 0px)) !important;
     left: 12px !important;
     right: 12px !important;
+    display: flex;
+    flex-direction: column-reverse;
   }
   #toast-container > div {
     width: 100% !important;
-    margin: 0 0 10px 0 !important;
+    margin: 10px 0 0 0 !important;
   }
 }
 
@@ -609,5 +615,52 @@ html[data-theme="light"] #toast-container > .toast-warning {
   .audit-table th, .tabla thead th, .tabla th, .hist-table th,
   .table-wrap-scroll thead th, .ped-table th, .stk-table th {
     position: static !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TÁCTIL — campos sin zoom en iPhone y zona de toque de 44 px
+   Se aplica en pantallas táctiles (pointer: coarse) o angostas; en escritorio con mouse no cambia nada.
+
+   · Safari de iPhone/iPad amplía la pantalla al enfocar un campo con letra menor a 16 px y después no vuelve.
+   · Una zona de toque de 44 px (guía de Apple y WCAG 2.5.5) evita los toques errados; antes había botones de
+     ícono de 32×28, de 19×19 y filas del menú de 22 px de alto, con "Cancelar pedido" pegado a "Ver detalle".
+   Se usa min-width/min-height (no width/height) para ganarle al tamaño fijo de cada componente sin pelear
+   por especificidad.
+═══════════════════════════════════════════════════════════════════ */
+@media (pointer: coarse), (max-width: 768px) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=hidden]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=hidden]),
+  select {
+    min-height: 44px;
+  }
+
+  /* Botones de ícono y controles del encabezado */
+  .btn-icono, .hamburger-btn, .theme-toggle, .close-mobile-btn, .toggle-pass, .btn-icon-tel,
+  .modal-close, .btn-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* Dos botones de ícono juntos (ver / cancelar): separados, para no tocar uno por el otro */
+  .btn-icono + .btn-icono { margin-left: 8px; }
+
+  /* Acciones con texto, selectores de rol y menú lateral */
+  .btn-action, .btn-desactivar, .btn-activar, .btn-ver-trabajos, .btn-entregar, .btn-create, .btn-primary, .btn-primario,
+  .btn-secundario, .btn-peligro, .btn-backup, .btn-export, .btn-gen-reporte, .btn-refresh, .conexion-badge, .adj,
+  .select-rol, .nav-item, .col-tab {
+    min-height: 44px;
+  }
+  /* Filtros y pestañas en forma de píldora: algo más bajos, como cualquier chip, pero ya no de 30 px */
+  .cat-pill, .estado-pill, .fin-pill, .stk-pill, .filter-pill, .act-chip, .sol-tabs button {
+    min-height: 40px;
+  }
+  /* Enlaces de texto sueltos: se agranda la zona de toque sin mover nada del diseño (el margen negativo lo compensa) */
+  .widget-link, .nro-pedido-link, .panel__link {
+    padding-block: 14px;
+    margin-block: -14px;
   }
 }

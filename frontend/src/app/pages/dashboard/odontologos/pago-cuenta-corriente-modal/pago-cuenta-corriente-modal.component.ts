@@ -54,7 +54,10 @@ export class PagoCuentaCorrienteModalComponent implements OnInit {
   };
 
   ngOnInit(): void {
-    this.proveedoresService.listar().subscribe(lista => this.proveedores.set(lista));
+    this.proveedoresService.listar().subscribe({
+      next: lista => this.proveedores.set(lista),
+      error: err => this.notif.errorHttp(err, 'No se pudo cargar la lista de proveedores'),
+    });
   }
 
   get valido(): boolean {

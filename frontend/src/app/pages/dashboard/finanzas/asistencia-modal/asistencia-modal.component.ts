@@ -13,7 +13,7 @@ interface TipoDiaUI {
 }
 
 /**
- * Calendario de asistencia de un empleado: se eligen los días (sueltos, o en rango con Mayús) y se les pone
+ * Calendario de asistencia de un empleado: se eligen los días (sueltos, o en rango con «Elegir rango» o Mayús) y se les pone
  * qué pasó (trabajó, ausente, vacaciones, feriado, licencia paga). Cada marca mueve el sueldo por días reales
  * del mes: el backend corrige el saldo solo si el día ya estaba devengado.
  */
@@ -52,6 +52,20 @@ export class AsistenciaModalComponent implements OnInit {
 
   readonly seleccion = signal<ReadonlySet<string>>(new Set<string>());
   private ancla: string | null = null;
+
+  /**
+   * Rango con el dedo: un celular no tiene tecla Mayús. Con el modo activo, el primer toque marca el inicio y el
+   * segundo el final; al cerrarse el rango vuelve solo a la selección día por día.
+   */
+  readonly modoRango = signal(false);
+  readonly inicioRango = signal<string | null>(null);
+  /** Con mouse además se puede mantener Mayús; con el dedo ese consejo no sirve y se omite. */
+  private readonly hayMouse = typeof matchMedia === 'function' && matchMedia('(pointer: fine)').matches;
+  readonly ayudaSeleccion = computed(() => {
+    if (this.modoRango()) return this.inicioRango() ? 'Ahora tocá el último día del rango.' : 'Tocá el primer día del rango.';
+    return 'Tocá los días que quieras, o «Elegir rango» para marcar desde un día hasta otro.'
+      + (this.hayMouse ? ' También con Mayús.' : '');
+  });
 
   readonly movimientos = signal<MovimientoSueldo[]>([]);
   readonly cargandoMovimientos = signal(false);
@@ -132,9 +146,16 @@ export class AsistenciaModalComponent implements OnInit {
     if (!d.enRelacion || this.guardando()) return;
     const data = this.data();
     const nueva = new Set(this.seleccion());
-    if (ev.shiftKey && this.ancla && data) {
-      const [desde, hasta] = this.ancla <= d.fecha ? [this.ancla, d.fecha] : [d.fecha, this.ancla];
+    const inicio = this.inicioRango();
+    const cierraRango = this.modoRango() && inicio !== null;
+    if ((ev.shiftKey && this.ancla || cierraRango) && data) {
+      const desdeCualquiera = cierraRango ? inicio! : this.ancla!;
+      const [desde, hasta] = desdeCualquiera <= d.fecha ? [desdeCualquiera, d.fecha] : [d.fecha, desdeCualquiera];
       data.dias.filter(x => x.enRelacion && x.fecha >= desde && x.fecha <= hasta).forEach(x => nueva.add(x.fecha));
+      if (cierraRango) { this.modoRango.set(false); this.inicioRango.set(null); }
+    } else if (this.modoRango()) {
+      nueva.add(d.fecha);
+      this.inicioRango.set(d.fecha);
     } else if (nueva.has(d.fecha)) {
       nueva.delete(d.fecha);
     } else {
@@ -142,6 +163,11 @@ export class AsistenciaModalComponent implements OnInit {
     }
     this.seleccion.set(nueva);
     this.ancla = d.fecha;
+  }
+
+  alternarRango(): void {
+    this.modoRango.update(v => !v);
+    this.inicioRango.set(null);
   }
 
   seleccionarLunesAViernes(): void {
@@ -165,6 +191,8 @@ export class AsistenciaModalComponent implements OnInit {
   limpiarSeleccion(): void {
     this.seleccion.set(new Set<string>());
     this.ancla = null;
+    this.modoRango.set(false);
+    this.inicioRango.set(null);
   }
 
   // ── Marcar ────────────────────────────────────────────────────────
@@ -216,6 +244,13 @@ export class AsistenciaModalComponent implements OnInit {
   /** Solo los días marcados llevan rótulo: los comunes (con o sin cobro) se distinguen por el fondo. */
   etiquetaDia(d: DiaAsistencia): string {
     return d.enRelacion && d.tipo ? this.etiqueta(d.tipo) : '';
+  }
+
+  /** Para la celda del calendario en pantallas angostas: "VACACIONES" no entra en una celda de 42 px. */
+  etiquetaCorta(d: DiaAsistencia): string {
+    if (!d.enRelacion || !d.tipo) return '';
+    const cortas: Record<TipoDia, string> = { TRABAJADO: 'Trab.', AUSENTE: 'Aus.', VACACIONES: 'Vac.', FERIADO: 'Fer.', LICENCIA_PAGA: 'Lic.' };
+    return cortas[d.tipo];
   }
 
   etiqueta(t: TipoDia): string {

@@ -488,7 +488,11 @@ export class PedidosComponent implements OnInit {
         next: event => {
           if (event.type === HttpEventType.Response) { subidos++; subirSiguiente(i + 1); }
         },
-        error: () => { fallidos++; subirSiguiente(i + 1); },
+        error: err => {
+          fallidos++;
+          this.notif.error(`${archivos[i].name}: ${this.notif.mensajeHttp(err, 'no se pudo subir')}`, `Pedido ${nroPedido}: escaneo rechazado`);
+          subirSiguiente(i + 1);
+        },
       });
     };
     subirSiguiente(0);

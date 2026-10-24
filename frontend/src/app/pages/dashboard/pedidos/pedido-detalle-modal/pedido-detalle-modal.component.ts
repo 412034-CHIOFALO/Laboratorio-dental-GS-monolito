@@ -64,7 +64,10 @@ export class PedidoDetalleModalComponent implements OnInit {
     this.cargandoEscaneos.set(true);
     this.escaneosService.listar(this.pedidoId).subscribe({
       next: es => { this.escaneos.set(es); this.cargandoEscaneos.set(false); },
-      error: () => this.cargandoEscaneos.set(false),
+      error: err => {
+        this.cargandoEscaneos.set(false);
+        this.notif.errorHttp(err, 'No se pudieron cargar los escaneos del pedido');
+      },
     });
   }
 

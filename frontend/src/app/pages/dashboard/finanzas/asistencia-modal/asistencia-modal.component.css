@@ -50,9 +50,19 @@
   font-size: 0.78rem; font-weight: 600; color: var(--accent); border-radius: 6px;
 }
 .am-link:hover { text-decoration: underline; }
+/* "Elegir rango" prendido: se ve que el próximo toque cuenta como inicio o fin de un rango */
+.am-link.activo { background: color-mix(in srgb, var(--accent) 18%, transparent); outline: 1px solid var(--accent); }
+.am-hint-rango { color: var(--accent); font-weight: 600; }
+/* Con el dedo: zona de toque de 44 px (los enlaces de texto de 0,78 rem eran de unos 20 px) */
+@media (pointer: coarse), (max-width: 768px) {
+  .am-link { min-height: 44px; padding: 0 0.6rem; }
+  .am-nav { width: 44px; height: 44px; }
+  .am-chip { min-height: 44px; }
+}
 
 /* Grilla */
-.am-grilla { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; transition: opacity 0.15s; }
+/* minmax(0, 1fr): con 1fr a secas una columna no baja de su contenido, y un "VACACIONES" ensanchaba su columna a costa de las demás */
+.am-grilla { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; transition: opacity 0.15s; }
 .am-grilla.ocupada { opacity: 0.55; }
 .am-dow { text-align: center; font-size: var(--text-xs, 10px); font-weight: 700; letter-spacing: 0.06em; color: var(--dim); padding-bottom: 2px; }
 .am-vacia { min-height: 1px; }
@@ -68,7 +78,12 @@
 .dia:active:not(:disabled) { transform: scale(0.97); }
 .dia:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .dia-num { font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.dia-tag { font-size: 9px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.1; text-align: center; opacity: 0.85; }
+.dia-tag { max-width: 100%; font-size: 9px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.1; text-align: center; opacity: 0.85; overflow: hidden; }
+.tag-corto { display: none; }
+@media (max-width: 520px) {
+  .tag-largo { display: none; }
+  .tag-corto { display: inline; }
+}
 
 .dia.comun-nopaga {
   color: var(--muted);

@@ -69,8 +69,15 @@ export class SolicitudesComponent implements OnInit {
   ngOnInit(): void {
     this.cargar();
     this.svc.estadoCorreo().subscribe({ next: e => this.correo.set(e), error: () => this.correo.set(null) });
-    this.odontologosSvc.buscar().subscribe({ next: o => this.odontologos.set(o), error: () => {} });
-    this.catalogoSvc.listar().subscribe({ next: t => this.trabajos.set(t.filter(x => x.activo)), error: () => {} });
+    // Sin estas listas los selectores del formulario quedan vacíos: hay que decirlo, no dejar que parezca que no hay datos.
+    this.odontologosSvc.buscar().subscribe({
+      next: o => this.odontologos.set(o),
+      error: err => this.notif.errorHttp(err, 'No se pudo cargar la lista de odontólogos'),
+    });
+    this.catalogoSvc.listar().subscribe({
+      next: t => this.trabajos.set(t.filter(x => x.activo)),
+      error: err => this.notif.errorHttp(err, 'No se pudo cargar el catálogo de trabajos'),
+    });
   }
 
   cargar(): void {

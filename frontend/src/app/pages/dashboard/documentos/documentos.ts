@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { PedidosService, PedidoResponse } from '../../../services/pedidos.service';
 import { DocumentosService, DocumentoResponse } from '../../../services/documentos.service';
 import { AuthService } from '../../../services/auth';
+import { NotificationService } from '../../../services/notification.service';
 import { iniciarPolling } from '../../../shared/poll.util';
 import { EscaneosComponent } from '../escaneos/escaneos';
 
@@ -19,6 +20,7 @@ export class DocumentosComponent implements OnInit, OnDestroy {
   private docService      = inject(DocumentosService);
   private auth            = inject(AuthService);
   private destroyRef      = inject(DestroyRef);
+  private notif           = inject(NotificationService);
 
   readonly esAdmin = this.auth.isAdmin();
 
@@ -97,7 +99,10 @@ export class DocumentosComponent implements OnInit, OnDestroy {
         this.cargandoDocs.set(false);
         ds.filter(d => this.esImagen(d)).forEach(d => this.cargarThumbnail(p.id, d));
       },
-      error: ()  => { this.cargandoDocs.set(false); },
+      error: err => {
+        this.cargandoDocs.set(false);
+        this.notif.errorHttp(err, 'No se pudieron cargar los documentos de este pedido');
+      },
     });
   }
 
@@ -136,7 +141,10 @@ export class DocumentosComponent implements OnInit, OnDestroy {
         this.abriendoId.set(null);
         setTimeout(() => URL.revokeObjectURL(url), 15000);
       },
-      error: () => { this.abriendoId.set(null); },
+      error: err => {
+        this.abriendoId.set(null);
+        this.notif.errorHttp(err, `No se pudo abrir ${doc.fileName}`);
+      },
     });
   }
 
@@ -172,9 +180,13 @@ export class DocumentosComponent implements OnInit, OnDestroy {
       next: doc => {
         this.docs.update(ds => [doc, ...ds]);
         this.subiendo.set(false);
+        this.notif.exito(`${file.name} subido`);
         if (this.esImagen(doc)) this.cargarThumbnail(p.id, doc);
       },
-      error: () => { this.subiendo.set(false); },
+      error: err => {
+        this.subiendo.set(false);
+        this.notif.error(`${file.name}: ${this.notif.mensajeHttp(err, 'no se pudo subir')}`, 'Documento rechazado');
+      },
     });
   }
 
@@ -193,8 +205,12 @@ export class DocumentosComponent implements OnInit, OnDestroy {
           URL.revokeObjectURL(url);
           this.imagenUrls.update(m => { const n = new Map(m); n.delete(doc.id); return n; });
         }
+        this.notif.exito('Documento eliminado');
       },
-      error: () => { this.eliminandoId.set(null); },
+      error: err => {
+        this.eliminandoId.set(null);
+        this.notif.errorHttp(err, `No se pudo eliminar ${doc.fileName}`);
+      },
     });
   }
 

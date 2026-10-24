@@ -7,6 +7,7 @@ import { EscaneosService, EscaneoResponse } from '../../../services/escaneos.ser
 import { Visor3dComponent } from './visor3d.component';
 import { PedidoDetalleModalComponent } from '../pedidos/pedido-detalle-modal/pedido-detalle-modal.component';
 import { iniciarPolling } from '../../../shared/poll.util';
+import { NotificationService } from '../../../services/notification.service';
 
 const EXTENSIONES_3D = ['.stl', '.obj', '.ply', '.3ds', '.step', '.stp', '.iges', '.igs'];
 // Formatos que el visor 3D embebido sabe renderizar.
@@ -23,6 +24,7 @@ export class EscaneosComponent implements OnInit {
   private pedidosService = inject(PedidosService);
   private escaneosService = inject(EscaneosService);
   private destroyRef = inject(DestroyRef);
+  private notif = inject(NotificationService);
 
   cargandoPedidos = signal(true);
   errorPedidos    = signal('');
@@ -106,7 +108,10 @@ export class EscaneosComponent implements OnInit {
     this.cargandoEscaneos.set(true);
     this.escaneosService.listar(p.id).subscribe({
       next: es => { this.escaneos.set(es); this.cargandoEscaneos.set(false); },
-      error: ()  => { this.cargandoEscaneos.set(false); },
+      error: err => {
+        this.cargandoEscaneos.set(false);
+        this.notif.errorHttp(err, 'No se pudieron cargar los escaneos de este pedido');
+      },
     });
   }
 
@@ -134,12 +139,15 @@ export class EscaneosComponent implements OnInit {
     this.subidosCount.set(0);
     this.subiendoTotal.set(files.length);
     const desc = this.descripcionInput.trim() || undefined;
+    let subidos = 0;
+    let rechazados = 0;
 
     const subirSiguiente = (i: number): void => {
       if (i >= files.length) {
         this.descripcionInput = '';
         this.subiendo.set(false);
         this.progresoActual.set(0);
+        this.avisarResultadoDeSubida(files.length, subidos, rechazados);
         return;
       }
       this.progresoActual.set(0);
@@ -148,18 +156,38 @@ export class EscaneosComponent implements OnInit {
           if (event.type === HttpEventType.UploadProgress && event.total) {
             this.progresoActual.set(Math.round((100 * event.loaded) / event.total));
           } else if (event.type === HttpEventType.Response && event.body) {
+            subidos++;
             this.escaneos.update(es => [event.body!, ...es]);
             this.subidosCount.set(i + 1);
+            this.avisarAdvertencias(files[i].name, event.body.advertencias);
             subirSiguiente(i + 1);
           }
         },
-        error: () => {
+        error: err => {
+          // El backend dice por qué rechazó el archivo (cortado, con datos inválidos, demasiado pesado…): se muestra tal cual.
+          rechazados++;
+          this.notif.error(`${files[i].name}: ${this.notif.mensajeHttp(err, 'no se pudo subir')}`, 'Escaneo rechazado');
           this.subidosCount.set(i + 1);
           subirSiguiente(i + 1);
         },
       });
     };
     subirSiguiente(0);
+  }
+
+  /** Lo que el backend vio raro pero dejó pasar (unidades dudosas, caras degeneradas…): hay que enterarse al subir, no después. */
+  private avisarAdvertencias(nombre: string, advertencias: string[] | null | undefined): void {
+    if (!advertencias?.length) return;
+    const resto = advertencias.length > 1 ? ` (y ${advertencias.length - 1} aviso${advertencias.length > 2 ? 's' : ''} más)` : '';
+    this.notif.alerta(`${nombre}: ${advertencias[0]}${resto}`, 'Se subió, pero revisalo');
+  }
+
+  private avisarResultadoDeSubida(total: number, subidos: number, rechazados: number): void {
+    if (rechazados === 0 && subidos > 0) {
+      this.notif.exito(subidos === 1 ? 'Escaneo subido' : `${subidos} escaneos subidos`);
+    } else if (subidos > 0 && rechazados > 0) {
+      this.notif.alerta(`Se subieron ${subidos} de ${total} escaneos. ${rechazados === 1 ? 'Uno fue rechazado' : `${rechazados} fueron rechazados`}.`, 'Subida incompleta');
+    }
   }
 
   eliminar(escaneo: EscaneoResponse): void {
@@ -170,8 +198,12 @@ export class EscaneosComponent implements OnInit {
       next: () => {
         this.escaneos.update(es => es.filter(e => e.id !== escaneo.id));
         this.eliminandoId.set(null);
+        this.notif.exito('Escaneo eliminado');
       },
-      error: () => { this.eliminandoId.set(null); },
+      error: err => {
+        this.eliminandoId.set(null);
+        this.notif.errorHttp(err, `No se pudo eliminar ${escaneo.fileName}`);
+      },
     });
   }
 
@@ -206,7 +238,10 @@ export class EscaneosComponent implements OnInit {
         this.visorAbierto.set(true);
         this.cargandoVisorId.set(null);
       },
-      error: () => { this.cargandoVisorId.set(null); },
+      error: err => {
+        this.cargandoVisorId.set(null);
+        this.notif.errorHttp(err, `No se pudo abrir ${escaneo.fileName}`);
+      },
     });
   }
 
@@ -234,7 +269,10 @@ export class EscaneosComponent implements OnInit {
         setTimeout(() => URL.revokeObjectURL(url), 15000);
         this.descargandoId.set(null);
       },
-      error: () => { this.descargandoId.set(null); },
+      error: err => {
+        this.descargandoId.set(null);
+        this.notif.errorHttp(err, `No se pudo descargar ${escaneo.fileName}`);
+      },
     });
   }
 

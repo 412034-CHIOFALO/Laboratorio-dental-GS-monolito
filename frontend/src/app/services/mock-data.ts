@@ -221,7 +221,8 @@ export const MOCK_MATERIALES: MockMaterial[] = [
 // ── AUDITORÍA ─────────────────────────────────────────────────
 export type TipoAudit =
   | 'LOGIN' | 'CREAR' | 'EDITAR' | 'PAGO' | 'ESTADO' | 'ELIMINAR' | 'BACKUP'
-  | 'CAJA' | 'COBRO' | 'ENTREGA' | 'PROVEEDOR' | 'STOCK' | 'SUELDO';
+  | 'CAJA' | 'COBRO' | 'ENTREGA' | 'PROVEEDOR' | 'STOCK' | 'SUELDO'
+  | 'ESCANEO' | 'DOCUMENTO' | 'REPORTE' | 'SOLICITUD' | 'REVISION' | 'LOGIN_FALLIDO';
 
 export interface MockAuditEvent {
   id: number;

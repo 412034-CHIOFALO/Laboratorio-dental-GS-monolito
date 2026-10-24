@@ -63,6 +63,12 @@ export class AuditoriaComponent implements OnInit {
     { valor: 'ESTADO',    label: 'Cambio de estado'     },
     { valor: 'ENTREGA',   label: 'Entregas'             },
     { valor: 'BACKUP',    label: 'Backups'              },
+    { valor: 'ESCANEO',   label: 'Escaneos 3D'          },
+    { valor: 'DOCUMENTO', label: 'Documentos'           },
+    { valor: 'SOLICITUD', label: 'Pedidos por mail'     },
+    { valor: 'REVISION',  label: 'Revisión de pagos'    },
+    { valor: 'REPORTE',   label: 'Reportes mensuales'   },
+    { valor: 'LOGIN_FALLIDO', label: 'Ingresos fallidos' },
   ];
 
   private destroyRef = inject(DestroyRef);
@@ -191,6 +197,11 @@ export class AuditoriaComponent implements OnInit {
       CAJA: 'blue', STOCK: 'blue',
       // Entrega de un pedido — parte del mismo ciclo de vida que ESTADO.
       ENTREGA: 'purple',
+      // Archivos del pedido y reportes — informativos.
+      ESCANEO: 'blue', DOCUMENTO: 'blue', REPORTE: 'neutral',
+      // Lo que entra por mail y lo que el sistema no dio por bueno: a mirar.
+      SOLICITUD: 'cyan', REVISION: 'amber',
+      LOGIN_FALLIDO: 'rose',
     };
     return m[tipo] ?? 'neutral';
   }
@@ -212,6 +223,12 @@ export class AuditoriaComponent implements OnInit {
       CAJA:      'M20 12V7H4v5m16 0v7a1 1 0 01-1 1H5a1 1 0 01-1-1v-7m16 0H4',
       STOCK:     'M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8',
       ENTREGA:   'M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4',
+      ESCANEO:   'M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9',
+      DOCUMENTO: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z',
+      REPORTE:   'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+      SOLICITUD: 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4',
+      REVISION:  'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
+      LOGIN_FALLIDO: 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z',
     };
     return m[tipo] ?? '';
   }

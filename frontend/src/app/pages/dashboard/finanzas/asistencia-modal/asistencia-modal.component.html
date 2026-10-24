@@ -40,13 +40,15 @@
                       [attr.aria-label]="ariaDia(dia)"
                       (click)="clickDia(dia, $event)">
                 <span class="dia-num">{{ numeroDia(dia) }}</span>
-                <span class="dia-tag">{{ etiquetaDia(dia) }}</span>
+                <span class="dia-tag"><span class="tag-largo">{{ etiquetaDia(dia) }}</span><span class="tag-corto" aria-hidden="true">{{ etiquetaCorta(dia) }}</span></span>
               </button>
             }
           </div>
 
           <div class="am-atajos">
-            <span class="am-hint">Tocá los días que quieras. Con <kbd>Mayús</kbd> elegís un rango.</span>
+            <span class="am-hint" [class.am-hint-rango]="modoRango()" aria-live="polite">{{ ayudaSeleccion() }}</span>
+            <button type="button" class="am-link am-rango" [class.activo]="modoRango()" [attr.aria-pressed]="modoRango()"
+                    (click)="alternarRango()">Elegir rango</button>
             <button type="button" class="am-link" (click)="seleccionarLunesAViernes()">Lunes a viernes</button>
             <button type="button" class="am-link" (click)="seleccionarTodoElMes()">Todo el mes</button>
             @if (seleccion().size > 0) { <button type="button" class="am-link" (click)="limpiarSeleccion()">Limpiar</button> }

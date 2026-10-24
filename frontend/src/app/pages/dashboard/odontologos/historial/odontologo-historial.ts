@@ -88,6 +88,10 @@ export class OdontologoHistorialComponent implements OnInit {
   private cargar(id: number, silencioso = false): void {
     if (silencioso && this.showModalPago) return; // no pisar mientras hay un pago en curso
     if (!silencioso) this.loading = true;
+    // Si una consulta falla NO se reemplaza lo que ya se ve por "0" o una lista vacía: eso mostraría "no debe nada"
+    // cuando en realidad no se pudo consultar. Se conserva lo anterior y, si el usuario recién entró, se le avisa.
+    let fallo = false;
+    const sinDatos = () => { fallo = true; return of(null); };
     forkJoin({
       odontologo: this.odontologosService.buscarPorId(id).pipe(
         catchError(err => {
@@ -95,26 +99,29 @@ export class OdontologoHistorialComponent implements OnInit {
           return of(null);
         })
       ),
-      pedidos: this.pedidosService.listarTodos().pipe(
-        catchError(() => of([] as PedidoResponse[]))
-      ),
+      pedidos: this.pedidosService.listarTodos().pipe(catchError(sinDatos)),
       saldo: this.puedeVerFinanzas
-        ? this.finanzasService.saldoPorOdontologo(id).pipe(catchError(() => of(0)))
+        ? this.finanzasService.saldoPorOdontologo(id).pipe(catchError(sinDatos))
         : of(0),
       comprobantes: this.puedeVerFinanzas
-        ? this.finanzasService.comprobantesPorOdontologo(id).pipe(catchError(() => of([] as ComprobanteResponse[])))
+        ? this.finanzasService.comprobantesPorOdontologo(id).pipe(catchError(sinDatos))
         : of([] as ComprobanteResponse[]),
       historialPagos: this.puedeVerFinanzas
-        ? this.finanzasService.historialPagosOdontologo(id).pipe(catchError(() => of([] as PagoCuentaCorrienteResponse[])))
+        ? this.finanzasService.historialPagosOdontologo(id).pipe(catchError(sinDatos))
         : of([] as PagoCuentaCorrienteResponse[]),
     }).subscribe(({ odontologo, pedidos, saldo, comprobantes, historialPagos }) => {
       this.odontologo = odontologo;
-      this.pedidos = pedidos.filter(p => p.odontologoId === id)
-                            .sort((a, b) => new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime());
-      this.saldoDeuda = saldo;
-      this.comprobantes = comprobantes;
-      this.historialPagos = historialPagos;
+      if (pedidos !== null) {
+        this.pedidos = pedidos.filter(p => p.odontologoId === id)
+                              .sort((a, b) => new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime());
+      }
+      if (saldo !== null) this.saldoDeuda = saldo;
+      if (comprobantes !== null) this.comprobantes = comprobantes;
+      if (historialPagos !== null) this.historialPagos = historialPagos;
       if (!silencioso) this.loading = false;
+      if (fallo && !silencioso) {
+        this.notif.alerta('No se pudo cargar parte de la cuenta corriente: los montos que ves pueden estar desactualizados.', 'Datos incompletos');
+      }
     });
   }
 
@@ -134,17 +141,19 @@ export class OdontologoHistorialComponent implements OnInit {
     this.showModalPago = false;
     if (!this.odontologo) return;
     const id = this.odontologo.id;
+    // Un solo mensaje para las tres: si fallan juntas (sin conexión) el aviso se muestra una vez (preventDuplicates).
+    const avisar = () => this.notif.alerta('El pago se registró, pero no se pudo actualizar la cuenta corriente. Recargá la página para ver los montos al día.', 'Datos desactualizados');
     this.finanzasService.saldoPorOdontologo(id).subscribe({
       next: saldo => this.saldoDeuda = saldo,
-      error: () => {},
+      error: avisar,
     });
     this.finanzasService.comprobantesPorOdontologo(id).subscribe({
       next: comps => this.comprobantes = comps,
-      error: () => {},
+      error: avisar,
     });
     this.finanzasService.historialPagosOdontologo(id).subscribe({
       next: pagos => this.historialPagos = pagos,
-      error: () => {},
+      error: avisar,
     });
   }
 

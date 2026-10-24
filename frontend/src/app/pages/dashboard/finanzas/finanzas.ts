@@ -536,7 +536,11 @@ export class FinanzasComponent implements OnInit {
           && !u.rol.includes('ODONTOLOGO'));      // cliente del labo, no cobra sueldo
         if (!silencioso) this.loadingUsuariosSinAlta = false;
       },
-      error: () => { if (!silencioso) this.loadingUsuariosSinAlta = false; },
+      error: err => {
+        if (silencioso) return;
+        this.loadingUsuariosSinAlta = false;
+        this.notif.errorHttp(err, 'No se pudo cargar la lista de usuarios para dar de alta empleados');
+      },
     });
   }
 

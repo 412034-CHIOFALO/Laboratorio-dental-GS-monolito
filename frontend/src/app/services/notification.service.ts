@@ -81,8 +81,18 @@ export class NotificationService {
     // ── Caso 1: sin conexión / CORS / network down ──────────────────
     if (status === 0 || status === undefined) {
       this.toastr.error(
-        'No se pudo conectar con el servidor. Verificá que el microservicio esté corriendo.',
+        'No se pudo conectar con el servidor. Revisá tu conexión e intentá de nuevo.',
         'Sin conexión',
+        { timeOut: 6000 }
+      );
+      return;
+    }
+
+    // ── Caso 1b: el archivo supera el límite (lo corta nginx antes de llegar a la app, con una página HTML) ──
+    if (status === 413) {
+      this.toastr.error(
+        'El archivo es más grande de lo que acepta el servidor. Probá con uno más liviano.',
+        'Archivo demasiado grande',
         { timeOut: 6000 }
       );
       return;
@@ -119,6 +129,22 @@ export class NotificationService {
       ?? this.tituloPorStatus(status)
       ?? `Error ${status}`;
     this.toastr.error(msg, titulo, { timeOut: 5000 });
+  }
+
+  /**
+   * El texto del error en una sola línea, sin mostrar nada. Sirve cuando el toast lo arma quien llama
+   * (por ejemplo "ENCERADO.stl: el archivo está cortado") o cuando hay varios fallos que resumir.
+   */
+  mensajeHttp(err: any, fallback: string): string {
+    const body = (err?.error ?? {}) as BackendErrorBody;
+    const status: number | undefined = err?.status;
+    if (status === 0 || status === undefined) return 'no hay conexión con el servidor';
+    if (status === 413) return 'el archivo es demasiado grande';
+    if (status === 502 || status === 503 || status === 504) return 'el servidor no está disponible en este momento';
+    if (Array.isArray(body.campos) && body.campos.length > 0) {
+      return body.campos.map(c => `${this.humanizarCampo(c.campo)}: ${c.mensaje}`).join(' · ');
+    }
+    return body.mensaje ?? body.message ?? fallback;
   }
 
   // ── Helpers privados ─────────────────────────────────────────────
