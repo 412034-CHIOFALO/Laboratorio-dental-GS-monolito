@@ -267,6 +267,8 @@
   transition: all 0.15s;
   margin-left: 4px;
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .btn-icono:hover {
   border-color: var(--gs-green);

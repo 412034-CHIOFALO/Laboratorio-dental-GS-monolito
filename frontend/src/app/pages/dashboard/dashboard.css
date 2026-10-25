@@ -22,6 +22,7 @@
   --topbar-h:            56px;
   display: block;
   height: 100vh;
+  height: 100dvh;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,6 +32,7 @@
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
   height: 100vh;
+  height: 100dvh;
   font-family: 'Inter', sans-serif;
   transition: grid-template-columns 0.25s ease;
   position: relative;
@@ -75,6 +77,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   position: sticky;
   top: 0;
   overflow: hidden;
@@ -428,9 +431,14 @@
   background: var(--gs-bg);
   overflow-y: auto;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  -webkit-overflow-scrolling: touch;
+  /* Sin -webkit-overflow-scrolling: touch. En iOS ya es el comportamiento normal, y esa propiedad convierte al
+     contenedor en una capa aparte: los modales con position: fixed que están adentro se comportaban como si
+     scrollearan con el contenido y la barra superior se les montaba encima. */
+  /* El gesto de scroll no se "contagia" al documento: evita el rebote que mueve toda la app y deja un hueco vacío. */
+  overscroll-behavior-y: contain;
 }
 
 /* ── TOPBAR DESKTOP (solo visible >= 1024px) ── */
@@ -679,6 +687,7 @@
     position: fixed;
     left: 0; top: 0;
     height: 100vh;
+    height: 100dvh;
     width: var(--sidebar-w);
     transform: translateX(-100%);
     box-shadow: 4px 0 32px rgba(0,0,0,0.5);
@@ -697,7 +706,7 @@
   .collapse-btn { display: none; }
   .mobile-topbar { display: flex; }
   .desktop-topbar { display: none; }
-  .main-content { min-height: calc(100vh - var(--topbar-h)); }
+  .main-content { min-height: calc(100vh - var(--topbar-h)); min-height: calc(100dvh - var(--topbar-h)); }
   .home-view { padding: 1.5rem; }
 
   /* ── Sidebar mobile: tamaños más grandes para tap targets cómodos ── */

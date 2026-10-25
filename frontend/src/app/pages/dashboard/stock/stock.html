@@ -55,7 +55,7 @@
       Solo bajo stock
     </label>
 
-    <div class="cat-pills">
+    <div class="cat-pills chips-scroll">
       @for (cat of categorias; track cat.valor) {
         <button class="cat-pill"
                 [class.active]="categoriaActiva === cat.valor"

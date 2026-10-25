@@ -289,7 +289,10 @@ tr.urgente.atrasado td:first-child {
   cursor: pointer;
   transition: all 0.15s;
   margin-left: 4px;
+  /* Centrado: con la zona de toque de 44 px (styles.css) el ícono quedaba arriba a la izquierda y chiquito. */
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .btn-icono:hover {
   border-color: var(--gs-green);

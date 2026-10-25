@@ -9,7 +9,7 @@
   </div>
 
   <!-- ── PILLS DE NAVEGACIÓN ── -->
-  <nav class="fin-pills">
+  <nav class="fin-pills chips-scroll">
     @for (s of secciones; track s.id) {
       <button class="fin-pill" [class.active]="seccionActiva === s.id"
               [routerLink]="s.id === 'proveedores' ? '/dashboard/proveedores' : null"

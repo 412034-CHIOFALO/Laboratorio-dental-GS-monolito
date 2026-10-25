@@ -46,7 +46,7 @@
         </button>
       }
     </div>
-    <div class="estado-pills">
+    <div class="estado-pills chips-scroll">
       @for (e of estados; track e.valor) {
         <button
           class="estado-pill"
@@ -166,12 +166,12 @@
 
         <!-- Odontólogo con autocomplete inteligente -->
         <div class="form-row">
-          <label>Odontólogo * <span class="label-hint">— buscar por nombre, DNI, CUIT o matrícula</span></label>
+          <label>Odontólogo *</label>
           <div class="autocomplete-wrap">
             <input
               type="text"
               class="form-input"
-              placeholder="Ej: Dr. García · 28456789 · 20-28456789-3 · MN 12345"
+              placeholder="Nombre, DNI, CUIT o matrícula"
               [(ngModel)]="form.odontologoNombre"
               (ngModelChange)="onOdontologoInput()"
               (blur)="ocultarSugerenciasConDelay()"
@@ -270,12 +270,12 @@
 
         <!-- Trabajo con autocomplete sobre el catálogo -->
         <div class="form-row">
-          <label>Tipo de trabajo * <span class="label-hint">— escribí y elegí del catálogo o agregá uno personalizado</span></label>
+          <label>Tipo de trabajo *</label>
           <div class="autocomplete-wrap">
             <input
               type="text"
               class="form-input"
-              placeholder="Ej: Corona Metal-Cerámica..."
+              placeholder="Ej: Corona Metal-Cerámica"
               [(ngModel)]="form.trabajo"
               (ngModelChange)="onTrabajoInput()"
               (focus)="onTrabajoInput()"

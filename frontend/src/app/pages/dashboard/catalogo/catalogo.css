@@ -473,7 +473,7 @@
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.6);
-  z-index: 200;
+  z-index: 1000;
   animation: fadeIn 0.18s ease;
   backdrop-filter: blur(3px);
 }
@@ -483,7 +483,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 201;
+  z-index: 1001;
   background: var(--gs-card);
   border: 1px solid var(--gs-border-md);
   border-radius: 18px;

@@ -182,7 +182,7 @@
 .modal-backdrop {
   position: fixed; inset: 0;
   background: rgba(0,0,0,0.6);
-  z-index: 200;
+  z-index: 1000;
   backdrop-filter: blur(3px);
 }
 
@@ -190,7 +190,7 @@
   position: fixed;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  z-index: 201;
+  z-index: 1001;
   background: var(--gs-card);
   border: 1px solid var(--gs-border-md);
   border-radius: 16px;

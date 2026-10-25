@@ -198,6 +198,9 @@ html, body {
   padding: 0;
   width: 100%;
   height: 100%;
+  /* Sin rebote de toda la página al pasarse del final del scroll (en la PWA de iPhone movía la app entera y dejaba
+     un hueco vacío abajo). */
+  overscroll-behavior: none;
   font-family: var(--font-sans);
   background-color: var(--bg);
   color: var(--text);
@@ -647,6 +650,9 @@ html[data-theme="light"] #toast-container > .toast-warning {
   }
   /* Dos botones de ícono juntos (ver / cancelar): separados, para no tocar uno por el otro */
   .btn-icono + .btn-icono { margin-left: 8px; }
+  /* Ícono centrado y de tamaño tocable (el botón es de 44 px: un ícono de 14 px quedaba perdido en una esquina) */
+  .btn-icono { display: inline-flex; align-items: center; justify-content: center; }
+  .btn-icono svg { width: 20px; height: 20px; flex-shrink: 0; }
 
   /* Acciones con texto, selectores de rol y menú lateral */
   .btn-action, .btn-desactivar, .btn-activar, .btn-ver-trabajos, .btn-entregar, .btn-create, .btn-primary, .btn-primario,
@@ -663,4 +669,64 @@ html[data-theme="light"] #toast-container > .toast-warning {
     padding-block: 14px;
     margin-block: -14px;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MODALES — scroll propio, por encima de todo y sin arrastrar la página de atrás
+   Todos los modales del panel (pedidos, catálogo, stock, odontólogos, usuarios, finanzas, asistencia…) viven
+   adentro de .main-content, que es el contenedor que scrollea. Sin esto, en el celular:
+   · el gesto de scroll sobre el modal terminaba moviendo la tabla de atrás;
+   · el modal podía quedar tapado por la barra superior (Laboratorio GS / menú / tema);
+   · en teléfonos con notch, 90vh no descuenta la barra del sistema y el modal se pasaba de la pantalla.
+═══════════════════════════════════════════════════════════════════ */
+/* Mientras haya un modal abierto, el contenido de atrás no scrollea (conserva su posición para cuando se cierre) */
+.main-content:has(.modal-overlay, .modal-backdrop, .am-overlay, .mov-overlay) {
+  /* !important: el propio .main-content (dashboard.css) define overflow-y: auto con la misma especificidad */
+  overflow: hidden !important;
+}
+.modal-overlay, .modal-backdrop, .am-overlay, .mov-overlay {
+  overscroll-behavior: contain;
+}
+@media (max-width: 768px) {
+  .modal-overlay, .am-overlay, .mov-overlay {
+    z-index: 1000;
+    /* respeta el notch de arriba y la barra de inicio de abajo */
+    padding: max(0.75rem, env(safe-area-inset-top)) 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+  }
+  /* dvh = la pantalla que realmente se ve (vh cuenta la barra del navegador y se pasa) */
+  .modal-panel, .am-modal, .mov-modal {
+    max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    overscroll-behavior: contain;
+  }
+  .modal {
+    max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    overscroll-behavior: contain;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FILTROS EN PÍLDORA — en el celular, una sola fila con scroll hacia el costado
+   (Todos / Recibidos / En proceso / … ocupaban hasta tres filas y se llevaban un cuarto de la pantalla).
+   Se usa agregando la clase chips-scroll al contenedor de las píldoras.
+═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .chips-scroll {
+    /* La fila tiene que medir como mucho lo que mide su contenedor: si no (por ejemplo dentro de un flex con
+       align-items: flex-start) crece hasta el ancho de todas las píldoras y no hay nada que scrollear. */
+    min-width: 0;
+    max-width: 100%;
+    align-self: stretch;
+    display: flex;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pan-y;
+    scrollbar-width: none;
+    /* un poco de aire para que la última píldora no quede pegada al borde al terminar el scroll */
+    padding-inline-end: 1rem;
+    scroll-padding-inline: 1rem;
+  }
+  .chips-scroll::-webkit-scrollbar { display: none; }
+  .chips-scroll > * { flex: 0 0 auto !important; white-space: nowrap; }
 }
