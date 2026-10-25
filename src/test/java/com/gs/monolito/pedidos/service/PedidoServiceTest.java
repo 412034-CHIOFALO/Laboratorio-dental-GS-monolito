@@ -280,4 +280,35 @@ class PedidoServiceTest {
 
         verify(emisionComprobanteService).emitirSiCorresponde(pedido, new BigDecimal("20000"));
     }
+
+    @Test
+    void marcarEntregado_sinMontoYSinPrecioAcordado_seRechazaYElPedidoSigueListo() {
+        Pedido pedido = pedidoBase(EstadoPedido.LISTO);
+        pedido.setPrecioAcordado(null);
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+
+        EntregaRequest req = new EntregaRequest();
+        req.setRetiradoPor("Juan López");
+
+        assertThatThrownBy(() -> pedidoService.marcarEntregado(1L, req))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("mayor a cero");
+
+        assertThat(pedido.getEstado()).isEqualTo(EstadoPedido.LISTO);
+        verifyNoInteractions(emisionComprobanteService);
+    }
+
+    @Test
+    void marcarEntregado_conPrecioAcordadoEnCeroYSinMonto_tambienSeRechaza() {
+        Pedido pedido = pedidoBase(EstadoPedido.LISTO);
+        pedido.setPrecioAcordado(BigDecimal.ZERO);
+        when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedido));
+
+        EntregaRequest req = new EntregaRequest();
+        req.setRetiradoPor("Juan López");
+
+        assertThatThrownBy(() -> pedidoService.marcarEntregado(1L, req))
+                .isInstanceOf(BusinessException.class);
+        verifyNoInteractions(emisionComprobanteService);
+    }
 }

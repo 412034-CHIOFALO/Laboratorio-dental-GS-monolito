@@ -219,6 +219,15 @@ public class PedidoService implements IPedidoService {
                 "Solo se pueden entregar pedidos en estado LISTO. Estado actual: " + pedido.getEstado());
         }
 
+        // Sin monto no hay deuda: entregar así dejaba el trabajo cobrado a nadie y nada lo reintentaba.
+        java.math.BigDecimal monto = request.getMonto() != null
+            ? request.getMonto()
+            : pedido.getPrecioAcordado();
+        if (monto == null || monto.signum() <= 0) {
+            throw new BusinessException(
+                "Indicá el monto a facturar: tiene que ser mayor a cero. Sin monto no se puede generar la deuda del odontólogo.");
+        }
+
         pedido.setEstado(EstadoPedido.ENTREGADO);
         pedido.setFechaEntregaReal(
             request.getFechaEntregaReal() != null ? request.getFechaEntregaReal() : LocalDate.now());
@@ -228,14 +237,11 @@ public class PedidoService implements IPedidoService {
                 ? request.getObservacionesEntrega().trim()
                 : null);
 
-        java.math.BigDecimal monto = request.getMonto() != null
-            ? request.getMonto()
-            : pedido.getPrecioAcordado();
         emisionComprobanteService.emitirSiCorresponde(pedido, monto);
 
         Pedido guardado = pedidoRepository.save(pedido);
         auditoria.registrar(CurrentUser.usernameOrSistema(), "ENTREGA", "Pedido entregado", "Pedido " + guardado.getNroPedido(),
-                "Retiró: " + guardado.getRetiradoPor() + " · facturado $" + (monto != null ? monto : "—"));
+                "Retiró: " + guardado.getRetiradoPor() + " · facturado $" + monto);
         return toResponse(guardado);
     }
 

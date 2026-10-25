@@ -49,6 +49,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
     .page-sub:empty { display: none; }
     .page-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
     .page-actions:empty { display: none; }
+    @media (max-width: 560px) { .page-actions { width: 100%; } }
   `,
 })
 export class PageHeaderComponent {

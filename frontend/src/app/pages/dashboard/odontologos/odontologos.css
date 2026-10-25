@@ -608,3 +608,36 @@
 .cc-pago { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 0.3rem 0; color: var(--gs-text-dim); border-bottom: 1px dashed var(--gs-border); }
 .cc-saldo-info { color: var(--gs-text-dim); margin-bottom: 0.5rem; }
 .form-hint { display: block; color: var(--gs-text-muted); font-size: 0.78rem; margin-top: 3px; }
+
+.odo-enlace { color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.odo-enlace:hover { color: var(--gs-green); text-decoration: underline; }
+
+/* ── Celular: una lista que se lee de un vistazo ──
+   Cada ficha pasa de ~270 px a ~170 px: nombre y estado arriba, contacto en dos líneas que se tocan para llamar o
+   escribir, y «Ver trabajos» como enlace en vez de un botón ancho repetido seis veces. */
+@media (max-width: 560px) {
+  .filter-bar { gap: 0.6rem; }
+  .search-wrap { flex: 1 1 100%; }
+  .search-input { box-sizing: border-box; padding-block: 0.7rem; }
+  .actividad-filtros { margin-top: 0; }
+
+  .odo-grid { grid-template-columns: 1fr; gap: 10px; overflow: visible; }
+  .odo-card { padding: 14px 14px 4px; gap: 10px; }
+  .odo-page .btn-create { flex: 1 1 auto; justify-content: center; box-shadow: none; }
+  .odo-card:hover { transform: none; box-shadow: none; }
+
+  .odo-card-header { gap: 4px 12px; }
+  .odo-avatar { width: 40px; height: 40px; font-size: 0.85rem; }
+  .odo-id { min-width: 0; }
+  .odo-id h3 { font-size: 1rem; white-space: normal; overflow: visible; }
+  .badge-sin-pedidos { flex-basis: 100%; width: fit-content; margin-left: 52px; }
+
+  .odo-info { gap: 8px; font-size: 0.88rem; }
+  .odo-tag { font-size: 0.72rem; }
+
+  .odo-card-footer { margin-top: -6px; padding-top: 0; border-top: none; display: flex; justify-content: flex-end; }
+  .btn-ver-trabajos { width: auto; padding: 8px 2px; background: none; border: none; border-radius: 6px; }
+  .btn-ver-trabajos:hover { background: none; }
+  .btn-ver-trabajos svg { display: none; }
+  .btn-ver-trabajos::after { content: '→'; }
+}

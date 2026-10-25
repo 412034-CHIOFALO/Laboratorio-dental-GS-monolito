@@ -448,3 +448,5 @@ textarea.form-input { resize: vertical; min-height: 60px; }
   .header-actions { width: 100%; }
   .header-actions button { flex: 1; justify-content: center; }
 }
+
+.form-error { display: block; margin-top: 4px; font-size: 0.78rem; font-weight: 600; color: var(--color-danger, #dc2626); }

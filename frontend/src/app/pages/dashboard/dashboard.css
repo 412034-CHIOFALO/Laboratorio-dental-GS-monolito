@@ -479,16 +479,6 @@
   background: var(--neutral-tint);
   border-color: var(--border-med);
 }
-.theme-toggle.compact {
-  padding: 5px;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--muted);
-}
-.theme-toggle.compact:hover {
-  color: var(--text);
-  background: var(--neutral-tint);
-}
 
 /* ── HOME VIEW ── */
 .home-view {
@@ -931,3 +921,18 @@
 }
 .notis-empty svg { color: var(--accent); }
 .notis-empty span { font-size: 12.5px; }
+
+/* ── Celular: las notificaciones viven en la barra de arriba y se abren a lo ancho ── */
+@media (max-width: 1023px) {
+  .mobile-topbar .notis-trigger { width: 40px; height: 40px; border-color: transparent; }
+  .mobile-topbar .notis-menu {
+    position: fixed;
+    top: calc(var(--topbar-h) + env(safe-area-inset-top) + 8px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+  }
+  .mobile-topbar .notis-list { max-height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - 110px); }
+  .tema-btn { padding: 9px; }
+}

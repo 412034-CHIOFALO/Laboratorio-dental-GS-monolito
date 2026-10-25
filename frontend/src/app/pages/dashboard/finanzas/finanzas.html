@@ -305,7 +305,7 @@
           <div class="movimientos-header">
             <div>
               <h2>Movimientos · {{ cajaActivaLabel }}</h2>
-              <p class="movimientos-sub">Click en cualquier columna para reordenar</p>
+              <p class="movimientos-sub solo-escritorio">Click en cualquier columna para reordenar</p>
             </div>
             <div class="movimientos-header-right">
               <div class="resumen-mini">
@@ -342,7 +342,7 @@
           </div>
 
           <div class="movimientos-filtros">
-            <div class="filtros-chips">
+            <div class="filtros-chips chips-scroll">
               <button class="chip" [class.active]="filtroMovimientos === 'TODOS'"
                       (click)="cambiarFiltroMovimientos('TODOS')">Todos ({{ movimientosDelPeriodo.length }})</button>
               <button class="chip" [class.active]="filtroMovimientos === 'INGRESO'"
@@ -400,8 +400,8 @@
                         </span>
                         {{ m.concepto }}
                       </td>
-                      <td><span class="ref">{{ m.referencia ?? '—' }}</span></td>
-                      <td class="muted">{{ m.creadoPor ?? '—' }}</td>
+                      <td class="celda-ref"><span class="ref">{{ m.referencia ?? '—' }}</span></td>
+                      <td class="muted celda-creador">{{ m.creadoPor ?? '—' }}</td>
                       <td class="celda-monto" [attr.data-tipo]="m.tipo">
                         {{ m.tipo === 'INGRESO' ? '+' : '−' }} {{ formatMoney(m.monto) }}
                       </td>
@@ -444,7 +444,7 @@
           </div>
 
           <div class="cuentas-filtros">
-            <div class="filtros-chips">
+            <div class="filtros-chips chips-scroll">
               @for (f of filtros; track f.valor) {
                 <button class="chip" [class.active]="filtroMorosos === f.valor"
                         (click)="cambiarFiltroMoroso(f.valor)">
@@ -502,8 +502,8 @@
                         <div class="avatar-mini">{{ c.odontologoNombre.charAt(0).toUpperCase() }}</div>
                         <span>{{ c.odontologoNombre }}</span>
                       </td>
-                      <td class="th-num">{{ c.comprobantesPendientes }}</td>
-                      <td class="th-num muted">{{ formatFechaCorta(c.fechaMasAntigua) }}</td>
+                      <td class="th-num" data-label="Comprobantes">{{ c.comprobantesPendientes }}</td>
+                      <td class="th-num muted" data-label="Desde">{{ formatFechaCorta(c.fechaMasAntigua) }}</td>
                       <td class="th-num">
                         <span class="dias-pill" [attr.data-rango]="c.diasSinPagar > 60 ? 'alto' : c.diasSinPagar > 30 ? 'medio' : 'bajo'">
                           {{ c.diasSinPagar }}d
@@ -553,7 +553,7 @@
           </div>
 
           <div class="cuentas-filtros">
-            <div class="filtros-chips">
+            <div class="filtros-chips chips-scroll">
               <button class="chip" [class.active]="filtroOrigen === 'TODOS'" (click)="cambiarFiltroOrigen('TODOS')">Todos</button>
               <button class="chip" [class.active]="filtroOrigen === 'BOT_WHATSAPP'" (click)="cambiarFiltroOrigen('BOT_WHATSAPP')">Bot</button>
               <button class="chip" [class.active]="filtroOrigen === 'MANUAL'" (click)="cambiarFiltroOrigen('MANUAL')">Manual</button>
@@ -576,7 +576,7 @@
             </div>
           } @else {
             <div class="tabla-wrap">
-              <table class="cuentas-tabla">
+              <table class="cuentas-tabla pagos-tabla">
                 <thead>
                   <tr>
                     <th>Fecha</th>
@@ -603,9 +603,9 @@
                           {{ labelTipoReceptor(c.tipoReceptor) }}
                         </span>
                       </td>
-                      <td>{{ c.emisor ?? '—' }}</td>
+                      <td data-label="Pagó">{{ c.emisor ?? '—' }}</td>
                       <td><strong>{{ c.receptorNombre }}</strong></td>
-                      <td class="muted">{{ c.cargadoPorNombre ?? '—' }}</td>
+                      <td class="muted" data-label="Cargó">{{ c.cargadoPorNombre ?? '—' }}</td>
                       <td class="th-num celda-deuda">{{ formatMoney(c.monto) }}</td>
                       <td class="th-num">
                         @if (c.tieneComprobante) {
