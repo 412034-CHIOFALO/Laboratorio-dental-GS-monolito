@@ -644,7 +644,9 @@
                       title="Los sueldos se actualizan solos al iniciar el sistema y cada hora. Usá esto para verlos al día ahora mismo.">
                 {{ recalculandoDevengado ? 'Actualizando...' : '↻ Actualizar sueldos' }}
               </button>
-              <button class="btn-cascada" (click)="abrirCascadaModal()">Distribuir cobro</button>
+              @if (distribuirCobroVisible) {
+                <button class="btn-cascada" (click)="abrirCascadaModal()">Distribuir cobro</button>
+              }
             </div>
           </div>
 

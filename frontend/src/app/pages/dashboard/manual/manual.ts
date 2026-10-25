@@ -296,7 +296,6 @@ export class ManualComponent {
         'Para cambiar el monto, la frecuencia o los días de vacaciones del año: "Editar sueldo". Lo ya trabajado se liquida con el sueldo anterior; el nuevo rige desde hoy. Ahí mismo está "Dar de baja" (fija el último día de trabajo) y, si ya está de baja, "Reincorporar".',
         'Para cargar faltas, vacaciones, feriados o licencias: "Asistencia y vacaciones" → tocá los días en el calendario (con Mayús elegís un rango; "Lunes a viernes" marca los hábiles) → elegí qué pasó: Trabajó, Ausente, Vacaciones, Feriado o Licencia paga. Si el día ya estaba calculado, el saldo se corrige en el momento. La pestaña "Movimientos del saldo" explica cómo se llegó al saldo actual.',
         'Para ver todo lo pagado antes: "Ver histórico de pagos".',
-        'Si necesitás pagarle a varios a la vez: botón "Distribuir cobro" arriba.',
       ],
       flujo: [
         'El sueldo se reparte por los días reales del mes: un mensual cobra siempre su monto por mes (en febrero y en enero), un quincenal por mitades (1 al 15 y 16 al último día) y un semanal de lunes a domingo.',

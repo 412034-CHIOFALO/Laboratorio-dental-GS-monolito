@@ -220,6 +220,15 @@ export class FinanzasComponent implements OnInit {
   pagoForm: PagoSueldoRequest = { usuarioId: 0, monto: 0, manejoSobrante: 'DESCONTAR_PROXIMO', medio: 'EFECTIVO' };
   savingPago = false;
 
+  /**
+   * «Distribuir cobro» está oculto hasta que el cliente confirme que lo quiere. Reparte un cobro entre los sueldos
+   * pendientes sin tocar la cuenta corriente del odontólogo, y las cajas no cierran: registra el egreso de cada sueldo
+   * y suma solo el sobrante como ingreso, así que si el cobro entró ahora la caja queda con lo pagado de menos, y si ya
+   * estaba registrado suma el sobrante dos veces. El código y el endpoint siguen; para volver a mostrarlo, ponerlo en
+   * true, pero antes hay que conectarlo al pago del odontólogo (una sola operación).
+   */
+  readonly distribuirCobroVisible = false;
+
   // Modal cascada: sugiere como distribuir un cobro entre sueldos pendientes + caja
   showCascadaModal = false;
   cascadaMonto: number | null = null;
