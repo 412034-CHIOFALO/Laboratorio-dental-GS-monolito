@@ -1,6 +1,7 @@
 package com.gs.monolito.pedidos.service;
 
 import com.gs.monolito.auth.service.AuditoriaService;
+import com.gs.monolito.common.audit.Cambios;
 import com.gs.monolito.common.security.CurrentUser;
 import com.gs.monolito.pedidos.dto.EntregaRequest;
 import com.gs.monolito.pedidos.dto.PedidoRequest;
@@ -183,6 +184,13 @@ public class PedidoService implements IPedidoService {
                     + "imputados a " + pedido.getOdontologoNombre() + ".");
         }
         String odontologoAnterior = pedido.getOdontologoNombre();
+        // Lo que cambia plata o plazos queda con su antes → después; del paciente solo se anota que se corrigió.
+        String pacienteAntes = pedido.getPaciente();
+        String trabajoAntes = pedido.getTrabajo();
+        java.math.BigDecimal precioAntes = pedido.getPrecioAcordado();
+        Object entregaAntes = pedido.getFechaEntrega();
+        Object prioridadAntes = pedido.getPrioridad();
+        String tecnicoAntes = pedido.getTecnicoNombre();
 
         pedido.setOdontologoId(odontologo.getId());
         pedido.setOdontologoNombre(odontologo.getNombre());
@@ -201,10 +209,17 @@ public class PedidoService implements IPedidoService {
         }
 
         Pedido guardado = pedidoRepository.save(pedido);
+        Cambios cambios = Cambios.nuevo()
+                .texto("odontólogo", odontologoAnterior, guardado.getOdontologoNombre())
+                .dinero("precio", precioAntes, guardado.getPrecioAcordado())
+                .texto("trabajo", trabajoAntes, guardado.getTrabajo())
+                .texto("entrega", entregaAntes, guardado.getFechaEntrega())
+                .texto("prioridad", prioridadAntes, guardado.getPrioridad())
+                .texto("técnico", tecnicoAntes, guardado.getTecnicoNombre());
+        if (!java.util.Objects.equals(pacienteAntes, guardado.getPaciente())) cambios.dato("paciente", "corregido");
+        String detalle = cambios.hayCambios() ? cambios.resumen() : "Datos del pedido actualizados";
         auditoria.registrar(CurrentUser.usernameOrSistema(), "EDITAR", "Pedido editado", "Pedido " + guardado.getNroPedido(),
-                odontologoCambio ? "Odontólogo " + odontologoAnterior + " → " + guardado.getOdontologoNombre()
-                        + (guardado.isComprobanteGenerado() ? " (deuda reasignada)" : "")
-                        : "Datos del pedido actualizados");
+                odontologoCambio && guardado.isComprobanteGenerado() ? detalle + " (deuda reasignada)" : detalle);
         return toResponse(guardado);
     }
 

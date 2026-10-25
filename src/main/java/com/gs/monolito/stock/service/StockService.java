@@ -1,6 +1,7 @@
 package com.gs.monolito.stock.service;
 
 import com.gs.monolito.auth.service.AuditoriaService;
+import com.gs.monolito.common.audit.Cambios;
 import com.gs.monolito.common.security.CurrentUser;
 import com.gs.monolito.stock.dto.MaterialRequest;
 import com.gs.monolito.stock.dto.MaterialResponse;
@@ -76,6 +77,10 @@ public class StockService implements IStockService {
         Material m = materialRepo.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Material", id));
         double stockAnterior = m.getStockActual();
+        String nombreAntes = m.getNombre();
+        Double minimoAntes = m.getStockMinimo();
+        java.math.BigDecimal precioAntes = m.getPrecioUnitario();
+        String proveedorAntes = m.getProveedor();
         m.setNombre(request.getNombre());
         m.setDescripcion(request.getDescripcion());
         m.setCategoria(request.getCategoria());
@@ -100,10 +105,14 @@ public class StockService implements IStockService {
                     .motivo("Ajuste al editar el material (antes " + stockAnterior + ")")
                     .build());
         }
+        Cambios cambios = Cambios.nuevo()
+                .texto("nombre", nombreAntes, guardado.getNombre())
+                .texto("stock", stockAnterior, guardado.getStockActual())
+                .texto("stock mínimo", minimoAntes, guardado.getStockMinimo())
+                .dinero("precio unitario", precioAntes, guardado.getPrecioUnitario())
+                .texto("proveedor", proveedorAntes, guardado.getProveedor());
         auditoria.registrar(CurrentUser.usernameOrSistema(), "EDITAR", "Material editado", "Material " + guardado.getNombre(),
-                Double.compare(stockAnterior, guardado.getStockActual()) != 0
-                        ? "Stock " + stockAnterior + " → " + guardado.getStockActual() + " " + guardado.getUnidadMedida()
-                        : "Datos del material actualizados");
+                cambios.hayCambios() ? cambios.resumen() + " (" + guardado.getUnidadMedida() + ")" : "Datos del material actualizados");
         return MaterialResponse.from(guardado);
     }
 

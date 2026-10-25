@@ -208,6 +208,9 @@
   <!-- Campanita de notificaciones: la misma en el topbar de escritorio y en el del celular. -->
   <ng-template #campana>
         <div class="notis-wrap">
+          @if (notisOpen) {
+            <div class="notis-backdrop" (click)="notisOpen = false" aria-hidden="true"></div>
+          }
           <button class="notis-trigger" [class.open]="notisOpen" (click)="toggleNotis($event)" aria-label="Notificaciones">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             @if (notis.count() > 0) {
@@ -312,7 +315,7 @@
                 </div>
               </div>
               <div class="profile-menu-items">
-                <a class="profile-menu-item" routerLink="/dashboard/mi-perfil" (click)="profileMenuOpen = false">
+                <a class="profile-menu-item" routerLink="/dashboard/configuracion" [queryParams]="{ seccion: 'perfil' }" (click)="profileMenuOpen = false">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                   <span>Mi perfil</span>
                 </a>

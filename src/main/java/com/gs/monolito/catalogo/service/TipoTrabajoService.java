@@ -9,6 +9,7 @@ import com.gs.monolito.catalogo.model.Categoria;
 import com.gs.monolito.catalogo.model.IngredienteReceta;
 import com.gs.monolito.catalogo.model.TipoTrabajo;
 import com.gs.monolito.catalogo.repository.TipoTrabajoRepository;
+import com.gs.monolito.common.audit.Cambios;
 import com.gs.monolito.common.security.CurrentUser;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -92,6 +93,11 @@ public class TipoTrabajoService implements ITipoTrabajoService {
         TipoTrabajo t = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("TipoTrabajo", id));
 
+        String nombreAntes = t.getNombre();
+        java.math.BigDecimal precioAntes = t.getPrecio();
+        Object categoriaAntes = t.getCategoria();
+        Object diasAntes = t.getTiempoEstimadoDias();
+
         t.setNombre(request.getNombre());
         t.setDescripcion(request.getDescripcion());
         t.setPrecio(request.getPrecio());
@@ -101,8 +107,13 @@ public class TipoTrabajoService implements ITipoTrabajoService {
         t.reemplazarReceta(toIngredientes(request));
 
         TipoTrabajoResponse resp = TipoTrabajoResponse.from(repository.save(t));
+        Cambios cambios = Cambios.nuevo()
+                .texto("nombre", nombreAntes, t.getNombre())
+                .dinero("precio", precioAntes, t.getPrecio())
+                .texto("categoría", categoriaAntes, t.getCategoria())
+                .texto("días estimados", diasAntes, t.getTiempoEstimadoDias());
         auditoria.registrar(CurrentUser.usernameOrSistema(), "EDITAR", "Tipo de trabajo editado",
-                "Catálogo: " + t.getNombre(), "Precio $" + t.getPrecio());
+                "Catálogo: " + t.getNombre(), cambios.hayCambios() ? cambios.resumen() : "Sin cambios de precio ni de datos (descripción o receta)");
         return resp;
     }
 

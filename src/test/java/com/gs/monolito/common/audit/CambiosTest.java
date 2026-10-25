@@ -80,4 +80,14 @@ class CambiosTest {
         assertThat(c.resumen()).endsWith("…");
         assertThat(Cambios.MAX).isLessThan(500);
     }
+
+    @Test
+    void unImporteMuestraElAntesYElDespuesSinDecimalesDeRelleno() {
+        Cambios c = Cambios.nuevo()
+                .dinero("precio", new java.math.BigDecimal("15000.00"), new java.math.BigDecimal("18500.50"))
+                .dinero("costo", new java.math.BigDecimal("1000"), new java.math.BigDecimal("1000.00"))
+                .dinero("seña", null, new java.math.BigDecimal("2E+3"));
+
+        assertThat(c.resumen()).isEqualTo("precio: $15000 → $18500.5; seña: (vacío) → $2000");
+    }
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService, PerfilResponse } from '../../../services/auth';
@@ -16,6 +16,9 @@ export class MiPerfilComponent implements OnInit {
   private notif = inject(NotificationService);
   private route = inject(ActivatedRoute);
   private router = inject(Router);
+
+  /** true cuando vive dentro de Configuración, que ya trae el encabezado. */
+  readonly embebido = input(false);
 
   /** true si llegamos acá redirigidos a la fuerza por una contraseña temporal pendiente. */
   cambioObligatorio = signal(false);

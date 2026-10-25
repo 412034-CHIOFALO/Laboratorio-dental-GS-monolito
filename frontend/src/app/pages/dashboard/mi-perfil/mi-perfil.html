@@ -1,4 +1,5 @@
 <div class="perfil-page">
+  @if (!embebido()) {
   <div class="page-header">
     <div class="header-left">
       <div class="page-icon green">
@@ -12,6 +13,7 @@
       </div>
     </div>
   </div>
+  }
 
   @if (cambioObligatorio()) {
     <div class="alert-error">

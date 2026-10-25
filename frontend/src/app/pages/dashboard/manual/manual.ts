@@ -80,7 +80,7 @@ export class ManualComponent {
       grupo: 'Bienvenida',
       intro: 'Hay 4 roles. Los permisos son acumulativos: Administrativo tiene todo lo de Técnico más algunas pantallas extra, y Admin tiene todo lo de Administrativo más Auditoría.',
       queVes: [
-        'Técnico: Inicio, Pedidos, Producción, Entregas, Catálogo, Odontólogos, Stock, Documentos, Escaneos 3D, Manual, Preguntas frecuentes y Mi perfil. No ve Finanzas, Proveedores, Bot WhatsApp, Reportes, Usuarios ni Auditoría, y en la ficha de un odontólogo no ve su saldo/deuda.',
+        'Técnico: Inicio, Pedidos, Producción, Entregas, Catálogo, Odontólogos, Stock, Documentos, Escaneos 3D, Manual, Preguntas frecuentes y Configuración (Mi perfil). No ve Finanzas, Proveedores, Bot WhatsApp, Reportes, Usuarios ni Auditoría, y en la ficha de un odontólogo no ve su saldo/deuda.',
         'Administrativo: todo lo del Técnico + Finanzas (Resumen, Cajas, Cuentas corrientes, Pagos registrados, Proveedores, Sueldos), Bot WhatsApp, Reportes y Usuarios (puede crear y activar cuentas). No ve Auditoría.',
         'Admin: todo lo de Administrativo + Auditoría. Puede crear usuarios pero, a propósito, no puede activarlos él mismo — eso lo hace un Administrativo, como doble control.',
         'Odontólogo: es un rol que existe en el sistema pero los odontólogos no usan este panel — se comunican por WhatsApp/email; el laboratorio carga sus datos y pedidos por ellos.',
@@ -394,12 +394,12 @@ export class ManualComponent {
     // ─────────────────── TU CUENTA ───────────────────
     {
       id: 'mi-perfil',
-      titulo: 'Mi perfil',
+      titulo: 'Configuración → Mi perfil',
       grupo: 'Tu cuenta',
       intro: 'Gestionás tu propia cuenta (distinto de Usuarios, que es donde el Admin gestiona a los demás).',
       queVes: ['Tus datos y tu rol.'],
       queHaces: ['Editás tu nombre/apellido/teléfono y cambiás tu contraseña (pidiendo la actual).'],
-      captura: { id: 'cap-mi-perfil', descripcion: 'La pantalla Mi perfil con las tarjetas de datos y cambio de contraseña.' },
+      captura: { id: 'cap-mi-perfil', descripcion: 'La pestaña Mi perfil de Configuración con las tarjetas de datos y cambio de contraseña.' },
     },
     {
       id: 'flujos',

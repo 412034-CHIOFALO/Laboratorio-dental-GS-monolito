@@ -843,32 +843,11 @@
   display: flex; align-items: center; justify-content: center;
   border: 2px solid var(--bg);
   z-index: 1;
-  animation: notis-pulse 1.6s ease-in-out infinite;
-}
-/* Halo rojo que late detrás del badge para llamar la atención */
-.notis-badge::after {
-  content: '';
-  position: absolute; inset: -2px;
-  border-radius: 999px;
-  background: var(--color-danger);
-  z-index: -1;
-  animation: notis-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
 @keyframes notis-pulse {
   0%, 100% { transform: scale(1); }
   50%      { transform: scale(1.12); }
 }
-@keyframes notis-ping {
-  0%   { transform: scale(1);   opacity: 0.55; }
-  70%  { transform: scale(2.1); opacity: 0; }
-  100% { transform: scale(2.1); opacity: 0; }
-}
-/* Respeta a quienes prefieren menos movimiento */
-@media (prefers-reduced-motion: reduce) {
-  .notis-badge { animation: none; }
-  .notis-badge::after { animation: none; opacity: 0; }
-}
-
 .notis-menu {
   position: absolute; top: calc(100% + 8px); right: 0;
   width: 340px; max-width: calc(100vw - 32px);
@@ -935,4 +914,30 @@
   }
   .mobile-topbar .notis-list { max-height: calc(100dvh - var(--topbar-h) - env(safe-area-inset-top) - 110px); }
   .tema-btn { padding: 9px; }
+}
+
+/* El numerito de la campanita late un poco solo en escritorio; en el celular quieto, sin nada que tape el ícono. */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .notis-badge { animation: notis-pulse 1.6s ease-in-out infinite; }
+}
+
+/* Tocar afuera del aviso lo cierra y no deja tocar lo que hay detrás. */
+.notis-backdrop { display: none; }
+@media (max-width: 1023px) {
+  .notis-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+    background: rgba(0, 0, 0, 0.4);
+    touch-action: none;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Barra superior del celular: botones de 44 px con el ícono al centro y el borde alineado con el margen de la página */
+@media (max-width: 1023px) {
+  .mobile-topbar { padding-left: max(6px, env(safe-area-inset-left)); padding-right: max(6px, env(safe-area-inset-right)); }
+  .hamburger-btn { justify-content: center; }
+  .mobile-topbar .notis-trigger { width: 44px; height: 44px; }
 }

@@ -63,8 +63,8 @@ export class DashboardComponent implements OnInit {
     { type: 'group', label: 'Archivo' },
     { type: 'item', label: 'Documentos',   icon: 'file',      route: '/dashboard/documentos' },
 
-    { type: 'group', label: 'Cuenta', mobileOnly: true },
-    { type: 'item', label: 'Editar perfil', icon: 'settings', route: '/dashboard/mi-perfil', mobileOnly: true },
+    { type: 'group', label: 'Cuenta' },
+    { type: 'item', label: 'Configuración', icon: 'settings', route: '/dashboard/configuracion' },
     { type: 'item', label: 'Manual de usuario', icon: 'book', route: '/dashboard/manual', mobileOnly: true },
     { type: 'item', label: 'Preguntas frecuentes', icon: 'help', route: '/dashboard/faq', mobileOnly: true },
     { type: 'item', label: 'Términos y privacidad', icon: 'shield', route: '/terminos', mobileOnly: true },
@@ -72,7 +72,6 @@ export class DashboardComponent implements OnInit {
     { type: 'group', label: 'Administración' },
     { type: 'item', label: 'Usuarios',     icon: 'users',     route: '/dashboard/usuarios',     roles: ['ROLE_ADMIN', 'ROLE_ADMINISTRATIVO'] },
     { type: 'item', label: 'Auditoría',    icon: 'shield',    route: '/dashboard/auditoria', roles: ['ROLE_ADMIN'] },
-    { type: 'item', label: 'Configuración', icon: 'settings', route: '/dashboard/configuracion', roles: ['ROLE_ADMIN'] },
   ];
 
   readonly themeService    = inject(ThemeService);

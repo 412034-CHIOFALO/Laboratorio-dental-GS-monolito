@@ -41,6 +41,17 @@ public final class Cambios {
         return diff(campo, normalizar(antes), normalizar(despues), true);
     }
 
+    /** Importe: se registra si cambió, como {@code precio: $15000 → $18000} (sin decimales de relleno). */
+    public Cambios dinero(String campo, java.math.BigDecimal antes, java.math.BigDecimal despues) {
+        return diff(campo, importe(antes), importe(despues), false);
+    }
+
+    private static String importe(java.math.BigDecimal v) {
+        if (v == null) return null;
+        java.math.BigDecimal n = v.stripTrailingZeros();
+        return "$" + (n.scale() < 0 ? n.setScale(0) : n).toPlainString();
+    }
+
     /** Para altas: "campo: valor" si hay valor. */
     public Cambios dato(String campo, Object valor) {
         String v = normalizar(valor);

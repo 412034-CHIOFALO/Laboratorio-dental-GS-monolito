@@ -67,7 +67,7 @@ export class FaqComponent {
         {
           id: 'olvide-clave',
           pregunta: 'Me olvidé mi contraseña, ¿qué hago?',
-          respuesta: 'Pedile a un ADMIN que te la restablezca desde Usuarios, o si ya estás logueado, cambiala vos mismo desde Mi perfil → Cambiar contraseña.',
+          respuesta: 'Pedile a un ADMIN que te la restablezca desde Usuarios, o si ya estás logueado, cambiala vos mismo desde Configuración → Mi perfil → Cambiar contraseña.',
         },
         {
           id: 'permisos-rol',
