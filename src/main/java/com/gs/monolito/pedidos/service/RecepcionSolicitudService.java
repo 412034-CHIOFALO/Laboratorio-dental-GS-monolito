@@ -3,14 +3,14 @@ package com.gs.monolito.pedidos.service;
 import com.gs.monolito.auth.service.AuditoriaService;
 import com.gs.monolito.catalogo.repository.TipoTrabajoRepository;
 import com.gs.monolito.pedidos.config.CorreoProperties;
-import com.gs.monolito.pedidos.model.Odontologo;
 import com.gs.monolito.pedidos.model.SolicitudAdjunto;
 import com.gs.monolito.pedidos.model.SolicitudEntrante;
-import com.gs.monolito.pedidos.repository.OdontologoRepository;
 import com.gs.monolito.pedidos.repository.SolicitudAdjuntoRepository;
 import com.gs.monolito.pedidos.repository.SolicitudEntranteRepository;
 import com.gs.monolito.pedidos.service.ExtractorSolicitud.ItemCatalogo;
 import com.gs.monolito.pedidos.service.ExtractorSolicitud.Sugerencia;
+import com.gs.monolito.pedidos.service.RemitenteService.Clasificacion;
+import com.gs.monolito.pedidos.service.RemitenteService.Destino;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,7 +28,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Convierte un mail ya leído en una {@link SolicitudEntrante}: reconoce al odontólogo por su email, adelanta el
+ * Convierte un mail ya leído en una {@link SolicitudEntrante}: según quién lo mande ({@link RemitenteService}) entra a
+ * "Por revisar" o queda aparte como "sin autorizar"; adelanta el
  * formulario con lo que el {@link ExtractorSolicitud} pudo sacar del texto, y guarda los adjuntos (los escaneos 3D
  * pasan antes por el {@link MallaInspector}). No crea el pedido: eso lo decide una persona.
  *
@@ -48,7 +49,6 @@ public class RecepcionSolicitudService {
 
     private final SolicitudEntranteRepository solicitudRepo;
     private final SolicitudAdjuntoRepository adjuntoRepo;
-    private final OdontologoRepository odontologoRepo;
     private final TipoTrabajoRepository tipoTrabajoRepo;
     private final ExtractorSolicitud extractor;
     private final MallaInspector mallaInspector;
@@ -69,29 +69,42 @@ public class RecepcionSolicitudService {
     /** @param nueva false si el mail ya estaba cargado (no se creó nada) */
     public record Resultado(SolicitudEntrante solicitud, boolean nueva) {}
 
+    /**
+     * @param c lo que {@link RemitenteService} decidió sobre el remitente; no puede ser IGNORAR (eso ni se guarda). Si
+     *          es SIN_AUTORIZAR el mail queda aparte: se guarda un cuerpo recortado y ningún adjunto, solo anotados.
+     */
     @Transactional
-    public Resultado registrar(DatosCorreo d) {
+    public Resultado registrar(DatosCorreo d, Clasificacion c) {
+        if (c.destino() == Destino.IGNORAR) {
+            throw new IllegalArgumentException("Un mail ignorado no se registra: " + c.motivo());
+        }
         Optional<SolicitudEntrante> existente = solicitudRepo.findByMessageId(d.messageId());
         if (existente.isPresent()) {
             log.info("[CORREO] El mail {} ya estaba cargado (solicitud #{}): no se vuelve a crear.", d.messageId(), existente.get().getId());
             return new Resultado(existente.get(), false);
         }
 
-        Odontologo odontologo = reconocerOdontologo(d.remitenteEmail());
+        boolean conocido = c.destino() == Destino.CONOCIDO;
+        String cuerpo = recortar(d.cuerpo(), conocido ? props.getMaxCuerpo() : props.getMaxCuerpoCuarentena());
         List<ItemCatalogo> catalogo = tipoTrabajoRepo.findByActivoTrue().stream()
                 .map(t -> new ItemCatalogo(t.getId(), t.getNombre())).toList();
-        Sugerencia sug = extractor.extraer(d.asunto(), d.cuerpo(), LocalDate.now(reloj), catalogo);
+        Sugerencia sug = extractor.extraer(d.asunto(), cuerpo, LocalDate.now(reloj), catalogo);
 
         SolicitudEntrante s = solicitudRepo.save(SolicitudEntrante.builder()
                 .messageId(recortar(d.messageId(), 255))
                 .remitenteEmail(recortar(d.remitenteEmail(), 150))
                 .remitenteNombre(recortar(d.remitenteNombre(), 150))
                 .asunto(recortar(d.asunto(), 255))
-                .cuerpo(recortar(d.cuerpo(), props.getMaxCuerpo()))
+                .cuerpo(cuerpo)
                 .fechaMensaje(d.fecha())
                 .fechaRecepcion(LocalDateTime.now(reloj))
-                .odontologoId(odontologo == null ? null : odontologo.getId())
-                .odontologoNombre(odontologo == null ? null : odontologo.getNombre())
+                .estado(conocido ? SolicitudEntrante.Estado.NUEVA : SolicitudEntrante.Estado.SIN_AUTORIZAR)
+                .odontologoId(c.odontologoId())
+                .odontologoNombre(c.odontologoNombre())
+                .remitenteTipo(c.tipo())
+                .remitenteEtiqueta(recortar(c.etiqueta(), 150))
+                .motivoCuarentena(recortar(c.motivo(), 255))
+                .remitenteVerificado(c.verificado())
                 .sugPaciente(sug.paciente())
                 .sugTrabajo(sug.trabajo())
                 .sugCatalogoTrabajoId(sug.catalogoTrabajoId())
@@ -101,21 +114,21 @@ public class RecepcionSolicitudService {
                 .sugObservaciones(sug.observaciones())
                 .build());
 
-        guardarAdjuntos(s, d.adjuntos());
+        guardarAdjuntos(s, conocido ? d.adjuntos() : sinGuardar(d.adjuntos()));
 
-        log.info("[CORREO] Solicitud #{} de {} ({}): {} adjunto(s){}", s.getId(), d.remitenteEmail(),
-                odontologo == null ? "remitente sin reconocer" : odontologo.getNombre(),
+        log.info("[CORREO] Solicitud #{} de {} ({}){}: {} adjunto(s){}", s.getId(), d.remitenteEmail(),
+                c.etiqueta() == null ? "remitente sin reconocer" : c.etiqueta(), conocido ? "" : " SIN AUTORIZAR",
                 adjuntoRepo.countBySolicitudId(s.getId()), s.getNotaAdjuntos() == null ? "" : ", con avisos");
-        auditoria.registrar("correo", "SOLICITUD", "Solicitud recibida por mail", "Solicitud #" + s.getId(),
-                d.remitenteEmail() + " · " + recortar(d.asunto(), 100));
+        auditoria.registrar("correo", "SOLICITUD", conocido ? "Solicitud recibida por mail" : "Mail de un remitente sin autorizar",
+                "Solicitud #" + s.getId(), d.remitenteEmail() + " · " + recortar(d.asunto(), 100));
         return new Resultado(s, true);
     }
 
-    private Odontologo reconocerOdontologo(String email) {
-        if (email == null || email.isBlank()) return null;
-        List<Odontologo> coinciden = odontologoRepo.findByActivoTrueAndEmailIgnoreCase(email.trim());
-        // Si la casilla la comparten varios odontólogos no se adivina cuál es: lo elige quien revisa.
-        return coinciden.size() == 1 ? coinciden.get(0) : null;
+    /** De un remitente sin autorizar no se baja ni se abre nada: solo se anota qué traía. */
+    private static List<Adjunto> sinGuardar(List<Adjunto> adjuntos) {
+        return adjuntos.stream()
+                .map(a -> new Adjunto(a.nombre(), null, "no se guardó porque el remitente todavía no está autorizado"))
+                .toList();
     }
 
     // ── Adjuntos ─────────────────────────────────────────────────────

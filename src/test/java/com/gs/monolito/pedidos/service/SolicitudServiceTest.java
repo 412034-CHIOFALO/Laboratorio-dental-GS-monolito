@@ -1,6 +1,7 @@
 package com.gs.monolito.pedidos.service;
 
 import com.gs.monolito.auth.service.AuditoriaService;
+import com.gs.monolito.pedidos.dto.AceptarRemitenteRequest;
 import com.gs.monolito.pedidos.dto.PedidoRequest;
 import com.gs.monolito.pedidos.dto.PedidoResponse;
 import com.gs.monolito.pedidos.exception.BusinessException;
@@ -45,6 +46,7 @@ class SolicitudServiceTest {
     private DocumentoPedidoRepository documentoRepo;
     private OdontologoRepository odontologoRepo;
     private IPedidoService pedidoService;
+    private RemitenteService remitentes;
     private AuditoriaService auditoria;
     private SolicitudService servicio;
     private SolicitudEntrante solicitud;
@@ -58,7 +60,8 @@ class SolicitudServiceTest {
         odontologoRepo = mock(OdontologoRepository.class);
         pedidoService = mock(IPedidoService.class);
         auditoria = mock(AuditoriaService.class);
-        servicio = new SolicitudService(solicitudRepo, adjuntoRepo, escaneoRepo, documentoRepo, odontologoRepo, pedidoService, auditoria,
+        remitentes = mock(RemitenteService.class);
+        servicio = new SolicitudService(solicitudRepo, adjuntoRepo, escaneoRepo, documentoRepo, odontologoRepo, pedidoService, remitentes, auditoria,
                 Clock.fixed(Instant.parse("2026-10-21T15:00:00Z"), ZoneId.of("America/Argentina/Buenos_Aires")));
 
         solicitud = SolicitudEntrante.builder().id(7L).estado(SolicitudEntrante.Estado.NUEVA)
@@ -125,26 +128,14 @@ class SolicitudServiceTest {
     }
 
     @Test
-    void elOdontologoSinEmailAprendeElDelRemitenteParaLaProximaVez() {
+    void convertirNuncaCambiaElEmailDeLaFichaDelOdontologo() {
         pedidoCreado(5L);
         Odontologo sinEmail = Odontologo.builder().id(5L).nombre("Dr. Pérez").build();
         when(odontologoRepo.findById(5L)).thenReturn(Optional.of(sinEmail));
 
         servicio.convertir(7L, formulario());
 
-        assertThat(sinEmail.getEmail()).isEqualTo("perez@clinica.com");
-        verify(odontologoRepo).save(sinEmail);
-    }
-
-    @Test
-    void unOdontologoQueYaTieneEmailNoSePisa() {
-        pedidoCreado(5L);
-        Odontologo conEmail = Odontologo.builder().id(5L).nombre("Dr. Pérez").email("otro@clinica.com").build();
-        when(odontologoRepo.findById(5L)).thenReturn(Optional.of(conEmail));
-
-        servicio.convertir(7L, formulario());
-
-        assertThat(conEmail.getEmail()).isEqualTo("otro@clinica.com");
+        assertThat(sinEmail.getEmail()).as("autorizar una dirección es decisión de una persona, no un efecto de convertir").isNull();
         verify(odontologoRepo, never()).save(any());
     }
 
@@ -182,5 +173,125 @@ class SolicitudServiceTest {
         assertThat(d.adjuntos()).hasSize(2);
         assertThat(d.adjuntos().get(0).formato()).isEqualTo("STL_BINARIO");
         assertThat(d.identificado()).isFalse();
+    }
+
+    // ── Remitentes sin autorizar ─────────────────────────────────────
+
+    private SolicitudEntrante sinAutorizar(long id, String email, Boolean verificado) {
+        SolicitudEntrante s = SolicitudEntrante.builder().id(id).estado(SolicitudEntrante.Estado.SIN_AUTORIZAR)
+                .remitenteEmail(email).motivoCuarentena("Remitente desconocido").remitenteVerificado(verificado).build();
+        when(solicitudRepo.findById(id)).thenReturn(Optional.of(s));
+        return s;
+    }
+
+    private static Odontologo perez() {
+        return Odontologo.builder().id(5L).nombre("Dr. Carlos Pérez").activo(true).build();
+    }
+
+    @Test
+    void aceptarUnMailSinAutorizarLoPasaAPorRevisarConLaIdentidadQueElijioLaPersona() {
+        SolicitudEntrante s = sinAutorizar(20L, "laura@consultorio.com", true);
+        when(odontologoRepo.findById(5L)).thenReturn(Optional.of(perez()));
+
+        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.SECRETARIA, 5L, null, true));
+
+        assertThat(s.getEstado()).isEqualTo(SolicitudEntrante.Estado.NUEVA);
+        assertThat(s.getRemitenteTipo()).isEqualTo(SolicitudEntrante.RemitenteTipo.SECRETARIA);
+        assertThat(s.getRemitenteEtiqueta()).isEqualTo("Secretaria de Dr. Carlos Pérez");
+        assertThat(s.getOdontologoId()).isEqualTo(5L);
+        assertThat(s.getMotivoCuarentena()).isNull();
+        verify(remitentes).autorizar("laura@consultorio.com", SolicitudEntrante.RemitenteTipo.SECRETARIA, 5L, null);
+        verify(auditoria).registrar(anyString(), eq("SOLICITUD"), eq("Mail sin autorizar aceptado"), eq("Solicitud #20"), anyString());
+    }
+
+    @Test
+    void alRecordarLaDireccionPasanTambienLosDemasMailsDeEseRemitenteMenosLosQueFallaronLaVerificacion() {
+        SolicitudEntrante esta = sinAutorizar(20L, "laura@consultorio.com", true);
+        SolicitudEntrante otraBuena = SolicitudEntrante.builder().id(21L).estado(SolicitudEntrante.Estado.SIN_AUTORIZAR)
+                .remitenteEmail("laura@consultorio.com").remitenteVerificado(true).build();
+        SolicitudEntrante otraFalsa = SolicitudEntrante.builder().id(22L).estado(SolicitudEntrante.Estado.SIN_AUTORIZAR)
+                .remitenteEmail("laura@consultorio.com").remitenteVerificado(false).build();
+        when(solicitudRepo.findByRemitenteEmailAndEstado("laura@consultorio.com", SolicitudEntrante.Estado.SIN_AUTORIZAR))
+                .thenReturn(List.of(esta, otraBuena, otraFalsa));
+        when(odontologoRepo.findById(5L)).thenReturn(Optional.of(perez()));
+
+        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.ODONTOLOGO, 5L, null, true));
+
+        assertThat(otraBuena.getEstado()).isEqualTo(SolicitudEntrante.Estado.NUEVA);
+        assertThat(otraFalsa.getEstado()).as("un mail que no pasó la verificación se resuelve a mano").isEqualTo(SolicitudEntrante.Estado.SIN_AUTORIZAR);
+    }
+
+    @Test
+    void aceptarSoloEstaVezNoRecuerdaLaDireccion() {
+        SolicitudEntrante s = sinAutorizar(20L, "laura@consultorio.com", true);
+        when(odontologoRepo.findById(5L)).thenReturn(Optional.of(perez()));
+
+        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.ODONTOLOGO, 5L, null, false));
+
+        assertThat(s.getEstado()).isEqualTo(SolicitudEntrante.Estado.NUEVA);
+        verify(remitentes, never()).autorizar(any(), any(), any(), any());
+    }
+
+    @Test
+    void aceptarComoOdontologoOSecretariaExigeElegirElOdontologo() {
+        sinAutorizar(20L, "laura@consultorio.com", true);
+
+        assertThatThrownBy(() -> servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.SECRETARIA, null, null, true)))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("odontólogo");
+        verify(remitentes, never()).autorizar(any(), any(), any(), any());
+    }
+
+    @Test
+    void aceptarComoOtroNoNecesitaOdontologo() {
+        SolicitudEntrante s = sinAutorizar(20L, "contador@estudio.com", true);
+
+        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.OTRO, null, "Estudio contable", true));
+
+        assertThat(s.getEstado()).isEqualTo(SolicitudEntrante.Estado.NUEVA);
+        assertThat(s.getOdontologoId()).isNull();
+        assertThat(s.getRemitenteEtiqueta()).isEqualTo("Estudio contable");
+    }
+
+    @Test
+    void soloSePuedeAceptarUnMailQueEstaSinAutorizar() {
+        assertThatThrownBy(() -> servicio.aceptar(7L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.OTRO, null, null, true)))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("ya está nueva");
+    }
+
+    @Test
+    void bloquearRemitenteDelegaEnElServicioDeRemitentes() {
+        sinAutorizar(20L, "spam@raro.com", false);
+
+        servicio.bloquearRemitente(20L);
+
+        verify(remitentes).bloquear("spam@raro.com");
+    }
+
+    @Test
+    void unMailSinAutorizarSePuedeDescartarSoloEse() {
+        SolicitudEntrante s = sinAutorizar(20L, "spam@raro.com", false);
+
+        servicio.descartar(20L, "Es spam");
+
+        assertThat(s.getEstado()).isEqualTo(SolicitudEntrante.Estado.DESCARTADA);
+        verify(remitentes, never()).bloquear(any());
+    }
+
+    @Test
+    void unMailSinAutorizarNoSeConvierteEnPedidoSinAceptarloAntes() {
+        sinAutorizar(20L, "spam@raro.com", false);
+
+        assertThatThrownBy(() -> servicio.convertir(20L, formulario()))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("sin autorizar");
+        verify(pedidoService, never()).crear(any());
+    }
+
+    @Test
+    void lasCantidadesSeparanLasNuevasDeLasSinAutorizar() {
+        when(solicitudRepo.countByEstado(SolicitudEntrante.Estado.NUEVA)).thenReturn(2L);
+        when(solicitudRepo.countByEstado(SolicitudEntrante.Estado.SIN_AUTORIZAR)).thenReturn(5L);
+
+        assertThat(servicio.cantidadNuevas()).isEqualTo(2);
+        assertThat(servicio.cantidadSinAutorizar()).isEqualTo(5);
     }
 }

@@ -2,6 +2,7 @@ package com.gs.monolito.pedidos.service;
 
 import com.gs.monolito.auth.service.AuditoriaService;
 import com.gs.monolito.common.security.CurrentUser;
+import com.gs.monolito.pedidos.dto.AceptarRemitenteRequest;
 import com.gs.monolito.pedidos.dto.PedidoRequest;
 import com.gs.monolito.pedidos.dto.PedidoResponse;
 import com.gs.monolito.pedidos.dto.SolicitudResponse;
@@ -9,6 +10,7 @@ import com.gs.monolito.pedidos.exception.BusinessException;
 import com.gs.monolito.pedidos.exception.ResourceNotFoundException;
 import com.gs.monolito.pedidos.model.DocumentoPedido;
 import com.gs.monolito.pedidos.model.EscaneosPedido;
+import com.gs.monolito.pedidos.model.Odontologo;
 import com.gs.monolito.pedidos.model.SolicitudAdjunto;
 import com.gs.monolito.pedidos.model.SolicitudEntrante;
 import com.gs.monolito.pedidos.repository.DocumentoPedidoRepository;
@@ -40,6 +42,7 @@ public class SolicitudService {
     private final DocumentoPedidoRepository documentoRepo;
     private final OdontologoRepository odontologoRepo;
     private final IPedidoService pedidoService;
+    private final RemitenteService remitentes;
     private final AuditoriaService auditoria;
     private final Clock reloj;
 
@@ -58,6 +61,10 @@ public class SolicitudService {
         return solicitudRepo.countByEstado(SolicitudEntrante.Estado.NUEVA);
     }
 
+    public long cantidadSinAutorizar() {
+        return solicitudRepo.countByEstado(SolicitudEntrante.Estado.SIN_AUTORIZAR);
+    }
+
     public SolicitudAdjunto adjunto(Long solicitudId, Long adjuntoId) {
         return adjuntoRepo.findById(adjuntoId).filter(a -> a.getSolicitudId().equals(solicitudId))
                 .orElseThrow(() -> new ResourceNotFoundException("Adjunto no encontrado"));
@@ -65,7 +72,10 @@ public class SolicitudService {
 
     @Transactional
     public void descartar(Long id, String motivo) {
-        SolicitudEntrante s = getNueva(id);
+        SolicitudEntrante s = get(id);
+        if (s.getEstado() != SolicitudEntrante.Estado.NUEVA && s.getEstado() != SolicitudEntrante.Estado.SIN_AUTORIZAR) {
+            throw new BusinessException("La solicitud #" + id + " ya está " + s.getEstado().name().toLowerCase() + ".");
+        }
         s.setEstado(SolicitudEntrante.Estado.DESCARTADA);
         s.setMotivoDescarte(motivo == null || motivo.isBlank() ? "Sin motivo" : motivo.strip());
         cerrar(s);
@@ -73,9 +83,69 @@ public class SolicitudService {
     }
 
     /**
+     * Un mail de un remitente sin autorizar pasa a "Por revisar" porque una persona dijo quién es. Si se pide recordar
+     * la dirección, los próximos mails entran directo y los demás que esperaban de esa dirección (y que no fallaron la
+     * verificación) pasan juntos. Nunca se modifica la ficha del odontólogo: autorizar una dirección es una decisión
+     * de una persona, no algo que el sistema deduzca de lo que dice el mail.
+     */
+    @Transactional
+    public SolicitudResponse aceptar(Long id, AceptarRemitenteRequest req) {
+        SolicitudEntrante s = getEnEstado(id, SolicitudEntrante.Estado.SIN_AUTORIZAR);
+        boolean recordar = req.recordarDireccion();
+        String email = s.getRemitenteEmail();
+        if (recordar && (email == null || email.isBlank())) {
+            throw new BusinessException("Este mail no trae dirección de remitente, así que no se puede recordar. Aceptalo solo esta vez.");
+        }
+
+        Odontologo o = null;
+        if (req.tipo() != SolicitudEntrante.RemitenteTipo.OTRO) {
+            if (req.odontologoId() == null) throw new BusinessException("Elegí a qué odontólogo corresponde.");
+            o = odontologoRepo.findById(req.odontologoId()).filter(x -> Boolean.TRUE.equals(x.getActivo()))
+                    .orElseThrow(() -> new ResourceNotFoundException("Odontólogo", req.odontologoId()));
+        }
+        String etiqueta = RemitenteService.etiqueta(req.tipo(), o, req.aclaracion());
+
+        int juntas = 0;
+        if (recordar) {
+            remitentes.autorizar(email, req.tipo(), o == null ? null : o.getId(), req.aclaracion());
+            for (SolicitudEntrante otra : solicitudRepo.findByRemitenteEmailAndEstado(email, SolicitudEntrante.Estado.SIN_AUTORIZAR)) {
+                if (!otra.getId().equals(s.getId()) && !Boolean.FALSE.equals(otra.getRemitenteVerificado())) {
+                    promover(otra, req.tipo(), o, etiqueta);
+                    juntas++;
+                }
+            }
+        }
+        promover(s, req.tipo(), o, etiqueta);
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "SOLICITUD", "Mail sin autorizar aceptado", "Solicitud #" + id,
+                (email == null ? "?" : email) + " · " + etiqueta + (recordar ? " · dirección recordada" : " · solo esta vez")
+                        + (juntas > 0 ? " · pasaron " + juntas + " más" : ""));
+        log.info("[CORREO] Solicitud #{} aceptada como {} ({}){}.", id, req.tipo(), etiqueta, recordar ? ", dirección recordada" : "");
+        return detalle(id);
+    }
+
+    /** Bloquea al remitente de un mail sin autorizar: se descartan todos los suyos y los próximos se ignoran. */
+    @Transactional
+    public void bloquearRemitente(Long id) {
+        SolicitudEntrante s = getEnEstado(id, SolicitudEntrante.Estado.SIN_AUTORIZAR);
+        if (s.getRemitenteEmail() == null || s.getRemitenteEmail().isBlank()) {
+            throw new BusinessException("Este mail no trae dirección de remitente: solo se puede descartar.");
+        }
+        remitentes.bloquear(s.getRemitenteEmail());
+    }
+
+    private void promover(SolicitudEntrante s, SolicitudEntrante.RemitenteTipo tipo, Odontologo o, String etiqueta) {
+        s.setEstado(SolicitudEntrante.Estado.NUEVA);
+        s.setRemitenteTipo(tipo);
+        s.setRemitenteEtiqueta(etiqueta);
+        s.setOdontologoId(o == null ? null : o.getId());
+        s.setOdontologoNombre(o == null ? null : o.getNombre());
+        s.setMotivoCuarentena(null);
+        solicitudRepo.save(s);
+    }
+
+    /**
      * Crea el pedido con los datos que confirmó quien revisó, le pasa los adjuntos (sin copiar archivos: se reutiliza el
-     * objeto de MinIO) y cierra la solicitud. Si el odontólogo elegido no tenía email, se lo aprende del remitente: la
-     * próxima vez que escriba, se lo reconoce solo.
+     * objeto de MinIO) y cierra la solicitud.
      */
     @Transactional
     public PedidoResponse convertir(Long id, PedidoRequest datos) {
@@ -107,8 +177,6 @@ public class SolicitudService {
             }
         }
 
-        aprenderEmail(pedido.odontologoId(), s.getRemitenteEmail());
-
         s.setEstado(SolicitudEntrante.Estado.CONVERTIDA);
         s.setPedidoId(pedido.id());
         cerrar(s);
@@ -119,16 +187,6 @@ public class SolicitudService {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
-
-    private void aprenderEmail(Long odontologoId, String email) {
-        if (odontologoId == null || email == null || email.isBlank()) return;
-        odontologoRepo.findById(odontologoId).ifPresent(o -> {
-            if (o.getEmail() == null || o.getEmail().isBlank()) {
-                o.setEmail(email.strip().toLowerCase());
-                odontologoRepo.save(o);
-            }
-        });
-    }
 
     private void cerrar(SolicitudEntrante s) {
         s.setResueltoPor(CurrentUser.usernameOrSistema());
@@ -141,11 +199,19 @@ public class SolicitudService {
     }
 
     private SolicitudEntrante getNueva(Long id) {
+        return getEnEstado(id, SolicitudEntrante.Estado.NUEVA);
+    }
+
+    private SolicitudEntrante getEnEstado(Long id, SolicitudEntrante.Estado esperado) {
         SolicitudEntrante s = get(id);
-        if (s.getEstado() != SolicitudEntrante.Estado.NUEVA) {
-            throw new BusinessException("La solicitud #" + id + " ya está " + s.getEstado().name().toLowerCase() + ".");
+        if (s.getEstado() != esperado) {
+            throw new BusinessException("La solicitud #" + id + " ya está " + nombreEstado(s.getEstado()) + ".");
         }
         return s;
+    }
+
+    private static String nombreEstado(SolicitudEntrante.Estado e) {
+        return e == SolicitudEntrante.Estado.SIN_AUTORIZAR ? "sin autorizar" : e.name().toLowerCase();
     }
 
     private static String recortar(String s, int max) {

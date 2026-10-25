@@ -1,6 +1,7 @@
 package com.gs.monolito.finanzas.dto;
 
 import com.gs.monolito.finanzas.model.ManejoSobrante;
+import com.gs.monolito.finanzas.model.MedioPago;
 import com.gs.monolito.finanzas.model.OrigenPago;
 import com.gs.monolito.finanzas.model.PagoSueldo;
 
@@ -21,7 +22,9 @@ public record PagoSueldoResponse(
         String cargadoPorNombre,
         String emisor,
         String comprobanteUrl,
-        String grupoOrigen
+        String grupoOrigen,
+        /** Con qué se pagó (EFECTIVO / TRANSFERENCIA); null en los pagos anteriores. */
+        MedioPago medio
 ) {
     public static PagoSueldoResponse from(PagoSueldo p) {
         return new PagoSueldoResponse(
@@ -37,7 +40,8 @@ public record PagoSueldoResponse(
                 p.getCargadoPorNombre(),
                 p.getEmisor(),
                 p.getComprobanteUrl(),
-                p.getGrupoOrigen()
+                p.getGrupoOrigen(),
+                p.getMedio()
         );
     }
 }

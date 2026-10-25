@@ -300,14 +300,29 @@ un cambio de entidad a secas (la app no arrancaría: `ddl-auto=validate`).
 
 ## 11. Pedidos por mail (solicitudes entrantes)
 
-El sistema puede leer una casilla de correo y convertir cada mail de un odontólogo en una **solicitud**. No crea el
+El sistema puede leer una casilla de correo y convertir los mails de los odontólogos en **solicitudes**. No crea el
 pedido solo: queda en el menú **Solicitudes** con lo que se pudo leer del texto (paciente, trabajo, fecha de entrega,
-urgencia, precio) y sus adjuntos, y una persona la **convierte en pedido** o la **descarta**. Está apagado hasta que se
+urgencia, precio) y sus adjuntos, y una persona lo **convierte en pedido** o lo **descarta**. Está apagado hasta que se
 completan las variables.
 
-**Qué hace por su cuenta**
-- Reconoce al odontólogo por el email desde el que escribe (el campo *email* de Odontólogos). La primera vez que se
-  convierte una solicitud de alguien sin email cargado, el sistema aprende el email para la próxima.
+**A quién se le cree.** Que un mail diga venir de un odontólogo no prueba que lo sea (cualquiera puede escribir un
+«De:» falso), y una casilla de pedidos recibe spam. Por eso no todo mail entra a «Por revisar»:
+
+| Quién escribe | Qué pasa |
+|---|---|
+| El email cargado en la ficha de un odontólogo, o una dirección que el laboratorio autorizó (secretaria, otra casilla del mismo odontólogo) **y** Gmail confirmó que el mail es auténtico (SPF/DKIM/DMARC) | Entra directo a **Por revisar**, con sus adjuntos |
+| Una dirección que no conocemos | Queda aparte en **Remitentes nuevos**, sin adjuntos (solo se anota qué traía). Una persona dice quién es (odontólogo, secretaria u otro) o la bloquea |
+| Una dirección conocida pero cuyo mail **no** se pudo verificar (posible suplantación) | También queda en **Remitentes nuevos**, con una advertencia en rojo. Se puede aceptar solo ese mail, nunca recordar la dirección |
+| Una dirección bloqueada, un remitente que ya dejó 3 mails sin autorizar en 7 días, o más de 200 mails esperando | Se ignora sin guardar nada |
+
+- Al aceptar un mail de un remitente nuevo se puede **recordar la dirección**: los próximos entran directo. Las direcciones
+  autorizadas y bloqueadas se ven (y se deshacen) en **Solicitudes → Direcciones autorizadas**.
+- El sistema **nunca autoriza una dirección por su cuenta** ni modifica el email de la ficha de un odontólogo: antes
+  «aprendía» el email del remitente al convertir una solicitud, y eso dejaba que un mail falso se volviera de confianza.
+- No se puede bloquear la dirección de un odontólogo cargado en el sistema (evita bloquear a un cliente por error).
+- Los mails de «Remitentes nuevos» que nadie resuelve se **borran a los 30 días** (`GS_CORREO_DIAS_CUARENTENA`).
+
+**Qué más hace por su cuenta**
 - Los adjuntos STL, OBJ y PLY pasan por la misma revisión que los escaneos subidos a mano (se rechazan los cortados o
   corruptos); los PDF y las fotos se guardan como documentos. Al convertir en pedido pasan al pedido.
 - Ignora notificaciones automáticas, rebotes y listas de difusión sin guardarlas.
@@ -315,15 +330,33 @@ completan las variables.
   se guardó. Un mail que falla 5 veces seguidas se da por leído para no trabar a los demás y queda en el log.
 
 **Activarlo**
-1. Usar una casilla **dedicada** a pedidos (no la personal). En Gmail: activar la verificación en dos pasos y crear una
-   *contraseña de aplicación*; IMAP viene habilitado.
-2. En el `.env` del servidor: `GS_CORREO_HABILITADO=true`, `GS_CORREO_HOST=imap.gmail.com`, `GS_CORREO_USUARIO=...` y
-   `GS_CORREO_CLAVE=...` (la contraseña de aplicación). Opcional: `GS_CORREO_CONFIRMAR=true` y `GS_CORREO_SMTP_HOST=smtp.gmail.com`
-   para que el odontólogo reconocido reciba un acuse de recibo.
-3. `./deploy.sh --sin-bot` (o reiniciar `app`). En el menú **Solicitudes** se ve el estado de la casilla: cuándo se leyó por
-   última vez y si hubo un error (clave vencida, casilla inaccesible).
+1. Usar una casilla **dedicada** a pedidos (no la personal). En Gmail:
+   1. Entrar a <https://myaccount.google.com/security> con la cuenta de la casilla y activar la **Verificación en dos pasos**
+      (sin eso, Google no ofrece contraseñas de aplicación).
+   2. Entrar a <https://myaccount.google.com/apppasswords> (o buscar «contraseñas de aplicaciones» en el buscador de la
+      cuenta), ponerle un nombre como «Laboratorio GS» y copiar las 16 letras que muestra **una sola vez**. IMAP ya viene
+      habilitado en Gmail.
+2. Editar el `.env` **en el servidor** (`nano /opt/gs-monolito/.env`; la contraseña se escribe ahí y en ningún otro lado: ni
+   en chats, ni en el repositorio, ni en capturas):
+   ```
+   GS_CORREO_HABILITADO=true
+   GS_CORREO_HOST=imap.gmail.com
+   GS_CORREO_USUARIO=la-casilla@gmail.com
+   GS_CORREO_CLAVE=abcdefghijklmnop
+   ```
+   Opcional: `GS_CORREO_CONFIRMAR=true` y `GS_CORREO_SMTP_HOST=smtp.gmail.com` para que el remitente autorizado reciba un
+   acuse de recibo (nunca se le contesta a un remitente nuevo). Dejar `GS_CORREO_EXIGIR_VERIFICACION` sin tocar (`true`).
+3. `./deploy.sh --sin-bot` (o reiniciar `app`). En **Solicitudes** se ve el estado de la casilla: cuándo se leyó por última
+   vez y si hubo un error (clave vencida, casilla inaccesible).
+4. Antes de avisarle a los odontólogos: verificar que cada uno tenga su **email cargado** en su ficha (Odontólogos), porque
+   solo así entran directo. Para una secretaria, autorizarla en **Solicitudes → Direcciones autorizadas**.
+5. Probar: mandar un mail desde el email de un odontólogo (tiene que entrar a «Por revisar») y otro desde una dirección
+   cualquiera (tiene que quedar en «Remitentes nuevos», sin adjuntos).
 
-**Si no llegan solicitudes**: mirar el estado en la pantalla (último error), y los logs: `docker compose logs app | grep CORREO`.
+**Si no llegan solicitudes**: mirar el estado en la pantalla (último error) y los logs: `docker compose logs app | grep CORREO`.
+Si un odontólogo escribe y su mail queda en «Remitentes nuevos» con la advertencia roja, no es un error del sistema: Gmail no
+pudo comprobar que el mail sea suyo (suele pasar con dominios propios sin SPF/DKIM). Aceptá ese mail y pedile a quien
+administra su dominio que configure SPF/DKIM, o autorizá otra casilla suya.
 
 ## 12. Después de un reinicio del servidor
 

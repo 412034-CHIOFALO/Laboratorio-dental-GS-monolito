@@ -324,8 +324,10 @@ public class GestionSueldoController {
         @ApiResponse(responseCode = "400", description = "El registro no está en estado PENDIENTE")
     })
     @PostMapping("/registros-bot/{id}/confirmar")
-    public ResponseEntity<RegistroPagoBotResponse> confirmarEfectivo(@PathVariable @Positive Long id) {
-        return ResponseEntity.ok(service.confirmarEfectivo(id));
+    public ResponseEntity<RegistroPagoBotResponse> confirmarEfectivo(
+            @PathVariable @Positive Long id,
+            @RequestBody(required = false) com.gs.monolito.finanzas.dto.ConfirmarRegistroRequest decision) {
+        return ResponseEntity.ok(service.confirmarEfectivo(id, decision));
     }
 
     @Operation(summary = "Rechaza un pago en efectivo pendiente",

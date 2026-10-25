@@ -145,18 +145,23 @@ public class GestionSueldoService implements IGestionSueldoService {
                 OrigenPago.MANUAL,
                 req.getNota()
         );
+        // La plata sale de la caja que corresponde al medio con el que se pagó: antes salía siempre de la Física,
+        // aunque el pago fuera una transferencia.
+        MedioPago medio = req.getMedio() != null ? req.getMedio() : MedioPago.EFECTIVO;
+        TipoCaja caja = medio == MedioPago.TRANSFERENCIA ? TipoCaja.BANCARIA : TipoCaja.FISICA;
+        pago.setMedio(medio);
         PagoSueldo guardado = pagoRepo.save(pago);
         // Con la fecha del pago (puede ser anterior a hoy), no la de carga.
-        registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.FISICA, req.getMonto(),
-                "Sueldo (manual) a " + c.getEmpleadoNombre(), null,
+        registrarMovimiento(TipoMovimientoCaja.EGRESO, caja, req.getMonto(),
+                "Sueldo (" + (medio == MedioPago.TRANSFERENCIA ? "transferencia" : "efectivo") + ") a " + c.getEmpleadoNombre(), null,
                 CurrentUser.usernameOrSistema(), req.getFecha());
-        // Si se pagó de más y el empleado devuelve la diferencia, esa plata vuelve a la caja (el egreso de
+        // Si se pagó de más y el empleado devuelve la diferencia, esa plata vuelve a la misma caja (el egreso de
         // arriba fue por el monto completo). Con DESCONTAR_PROXIMO o CUBRE_LAB no vuelve nada.
         if (guardado.getManejoSobrante() == ManejoSobrante.DEVUELVE_EMPLEADO) {
-            registrarExcedenteEnCaja(guardado, TipoCaja.FISICA, null);
+            registrarExcedenteEnCaja(guardado, caja, null);
         }
         auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Pago de sueldo (manual)", "Empleado " + c.getEmpleadoNombre(),
-                "$" + req.getMonto());
+                "$" + req.getMonto() + (medio == MedioPago.TRANSFERENCIA ? " por transferencia" : " en efectivo"));
         return PagoSueldoResponse.from(guardado);
     }
 
@@ -220,8 +225,18 @@ public class GestionSueldoService implements IGestionSueldoService {
         List<String> motivos = new java.util.ArrayList<>(revision.motivos(req));
         parecidoA(req).ifPresent(otro -> motivos.add("Se parece a otro comprobante ya cargado (registro #" + otro.getId()
                 + ", " + hace(otro.getFechaHora()) + "): mismo monto y mismo receptor"));
-        if (!motivos.isEmpty()
-                && (resolverEmpleadoOpt(req).isPresent() || resolverProveedorOpt(req.getReceptorNombre()).isPresent())) {
+        boolean receptorConocido = resolverEmpleadoOpt(req).isPresent() || resolverProveedorOpt(req.getReceptorNombre()).isPresent();
+        if (receptorConocido) {
+            // Si no se sabe con certeza QUIÉN pagó (un odontólogo con deuda, o dos con nombre parecido), no se descuenta
+            // la deuda de nadie solo: lo decide una persona. Sin odontólogo posible, es un pago normal del laboratorio.
+            ResolucionEmisor quien = resolverEmisor(req.getEmisor(), req.getReceptorNombre());
+            if (quien.tipo() == Resolucion.AMBIGUO) {
+                motivos.add("No se sabe seguro quién pagó: «" + req.getEmisor() + "» puede ser "
+                        + NombresPersona.enumerar(quien.candidatos().stream().map(CandidatoEmisor::nombre).toList())
+                        + ". Elegí cuál fue al aprobar");
+            }
+        }
+        if (!motivos.isEmpty() && receptorConocido) {
             reg.setEstado(EstadoRegistroBot.PENDIENTE);
             reg.setFuente(FuentePago.TRANSFERENCIA);
             reg.setTipoReceptor(TipoReceptorBot.DESCONOCIDO);
@@ -233,7 +248,7 @@ public class GestionSueldoService implements IGestionSueldoService {
             return RegistroPagoBotResponse.from(registroRepo.save(reg));
         }
 
-        return aplicarTransferencia(reg, req, comprobanteRef);
+        return aplicarTransferencia(reg, req, comprobanteRef, DecisionEmisor.AUTOMATICA);
     }
 
     // ── Repetidos ────────────────────────────────────────────────────
@@ -328,17 +343,20 @@ public class GestionSueldoService implements IGestionSueldoService {
      * empleado o pago a un proveedor, triangulado si el emisor es un odontólogo con deuda. Si el receptor no es ni
      * empleado ni proveedor, queda RECHAZADA.
      */
-    private RegistroPagoBotResponse aplicarTransferencia(RegistroPagoBot reg, PagoAutomaticoRequest req, String comprobanteRef) {
+    private RegistroPagoBotResponse aplicarTransferencia(RegistroPagoBot reg, PagoAutomaticoRequest req, String comprobanteRef,
+                                                         DecisionEmisor decision) {
         // 1) ¿Es un empleado? → pago de sueldo
         Optional<ConfiguracionSueldo> empleado = resolverEmpleadoOpt(req);
         if (empleado.isPresent()) {
             ConfiguracionSueldo c = empleado.get();
+            // Fuera del try: si no se sabe quién pagó es un error para quien aprueba, no un rechazo del comprobante.
+            Optional<CandidatoEmisor> odo = odontologoQuePago(req.getEmisor(), c.getEmpleadoNombre(), decision);
             try {
-                Optional<Comprobante> odo = resolverOdontologoEmisor(req.getEmisor(), c.getEmpleadoNombre());
                 ManejoSobrante manejo = odo.isPresent() ? ManejoSobrante.DESCONTAR_PROXIMO : ManejoSobrante.DEVUELVE_EMPLEADO;
 
                 PagoSueldo pago = aplicarPago(c, req.getMonto(), manejo,
                         req.getFecha(), OrigenPago.BOT_WHATSAPP, req.getNota());
+                pago.setMedio(MedioPago.TRANSFERENCIA);
                 pago.setCargadoPorNombre(req.getCargadoPorNombre());
                 pago.setCargadoPorTelefono(req.getCargadoPorTelefono());
                 pago.setEmisor(req.getEmisor());
@@ -353,20 +371,20 @@ public class GestionSueldoService implements IGestionSueldoService {
                 reg.setReceptorResuelto(c.getEmpleadoNombre());
 
                 if (odo.isPresent()) {
-                    Comprobante oc = odo.get();
-                    BigDecimal settOdo = settleDeudaOdontologo(oc.getOdontologoId(), req.getMonto());
+                    CandidatoEmisor oc = odo.get();
+                    BigDecimal settOdo = settleDeudaOdontologo(oc.odontologoId(), req.getMonto());
                     registrarMovimiento(TipoMovimientoCaja.INGRESO, TipoCaja.COMPENSACION, req.getMonto(),
-                            "Triangulado: " + oc.getOdontologoNombre() + " paga el sueldo de " + c.getEmpleadoNombre(),
+                            "Pago directo: " + oc.nombre() + " pagó el sueldo de " + c.getEmpleadoNombre(),
                             req.getIdOperacion());
                     registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.COMPENSACION, req.getMonto(),
-                            "Triangulado: sueldo a " + c.getEmpleadoNombre() + " por cuenta de " + oc.getOdontologoNombre(),
+                            "Pago directo: sueldo de " + c.getEmpleadoNombre() + ", pagado por " + oc.nombre(),
                             req.getIdOperacion());
-                    reg.setMensaje("Triangulado: " + oc.getOdontologoNombre() + " → sueldo de " + c.getEmpleadoNombre()
-                            + " (odontólogo -$" + settOdo.toBigInteger() + ")");
-                    log.info("[BOT] Triangulado sueldo: {} pagó a {} por {}",
-                            oc.getOdontologoNombre(), c.getEmpleadoNombre(), req.getMonto());
-                    auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Pago de sueldo (bot, triangulado)", "Empleado " + c.getEmpleadoNombre(),
-                            oc.getOdontologoNombre() + " pagó $" + req.getMonto() + " por cuenta del laboratorio");
+                    reg.setMensaje("Pago directo de " + oc.nombre() + ": sueldo de " + c.getEmpleadoNombre()
+                            + ". Se descontaron $" + settOdo.toBigInteger() + " de lo que " + oc.nombre() + " debía");
+                    log.info("[BOT] Pago directo de sueldo: {} pagó a {} por {}",
+                            oc.nombre(), c.getEmpleadoNombre(), req.getMonto());
+                    auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Pago de sueldo (bot, pago directo del odontólogo)", "Empleado " + c.getEmpleadoNombre(),
+                            oc.nombre() + " pagó $" + req.getMonto() + " por cuenta del laboratorio");
                 } else {
                     registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.BANCARIA, req.getMonto(),
                             "Sueldo (transferencia) a " + c.getEmpleadoNombre(), req.getIdOperacion());
@@ -396,20 +414,21 @@ public class GestionSueldoService implements IGestionSueldoService {
             reg.setReceptorId(p.getId());
             reg.setReceptorResuelto(p.getNombre());
 
-            Optional<Comprobante> odo = resolverOdontologoEmisor(req.getEmisor(), p.getNombre());
+            Optional<CandidatoEmisor> odo = odontologoQuePago(req.getEmisor(), p.getNombre(), decision);
             if (odo.isPresent()) {
-                Comprobante oc = odo.get();
-                BigDecimal settOdo  = settleDeudaOdontologo(oc.getOdontologoId(), req.getMonto());
+                CandidatoEmisor oc = odo.get();
+                BigDecimal settOdo  = settleDeudaOdontologo(oc.odontologoId(), req.getMonto());
                 BigDecimal settProv = settleDeudaProveedor(p.getId(), req.getMonto());
                 registrarMovimiento(TipoMovimientoCaja.INGRESO, TipoCaja.COMPENSACION, req.getMonto(),
-                        "Triangulado: " + oc.getOdontologoNombre() + " paga a " + p.getNombre(), req.getIdOperacion());
+                        "Pago directo: " + oc.nombre() + " pagó a " + p.getNombre(), req.getIdOperacion());
                 registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.COMPENSACION, req.getMonto(),
-                        "Triangulado: a proveedor " + p.getNombre() + " por cuenta de " + oc.getOdontologoNombre(), req.getIdOperacion());
-                reg.setMensaje("Triangulado: " + oc.getOdontologoNombre() + " → " + p.getNombre()
-                        + " (odontólogo -$" + settOdo.toBigInteger() + ", proveedor -$" + settProv.toBigInteger() + ")");
-                log.info("[BOT] Triangulado: {} → {} por {}", oc.getOdontologoNombre(), p.getNombre(), req.getMonto());
-                auditoria.registrar(CurrentUser.usernameOrSistema(), "PROVEEDOR", "Pago a proveedor (bot, triangulado)", "Proveedor " + p.getNombre(),
-                        oc.getOdontologoNombre() + " pagó $" + req.getMonto() + " por cuenta del laboratorio");
+                        "Pago directo: a proveedor " + p.getNombre() + ", pagado por " + oc.nombre(), req.getIdOperacion());
+                reg.setMensaje("Pago directo de " + oc.nombre() + " a " + p.getNombre()
+                        + ". Se descontaron $" + settOdo.toBigInteger() + " de la deuda de " + oc.nombre()
+                        + " y $" + settProv.toBigInteger() + " de lo que se le debía a " + p.getNombre());
+                log.info("[BOT] Pago directo: {} → {} por {}", oc.nombre(), p.getNombre(), req.getMonto());
+                auditoria.registrar(CurrentUser.usernameOrSistema(), "PROVEEDOR", "Pago a proveedor (bot, pago directo del odontólogo)", "Proveedor " + p.getNombre(),
+                        oc.nombre() + " pagó $" + req.getMonto() + " por cuenta del laboratorio");
                 return RegistroPagoBotResponse.from(registroRepo.save(reg));
             }
 
@@ -570,9 +589,16 @@ public class GestionSueldoService implements IGestionSueldoService {
 
     private Optional<Proveedor> resolverProveedorOpt(String nombre) {
         if (nombre == null || nombre.isBlank()) return Optional.empty();
-        return proveedorRepo.findByActivoTrue().stream()
+        List<Proveedor> coinciden = proveedorRepo.findByActivoTrue().stream()
                 .filter(p -> coincideNombre(p.getNombre(), nombre))
-                .findFirst();
+                .toList();
+        if (coinciden.size() == 1) return Optional.of(coinciden.get(0));
+        // Antes se tomaba el primero que coincidiera: ante dos proveedores parecidos podía pagarse a otro. Ahora solo
+        // vale uno que coincida exacto y sea el único; si hay duda, no se elige al azar (el comprobante se rechaza).
+        List<Proveedor> exactos = coinciden.stream()
+                .filter(p -> NombresPersona.comparar(p.getNombre(), nombre) == NombresPersona.Parecido.EXACTO)
+                .toList();
+        return exactos.size() == 1 ? Optional.of(exactos.get(0)) : Optional.empty();
     }
 
     private static String normalizarNombre(String s) {
@@ -582,34 +608,90 @@ public class GestionSueldoService implements IGestionSueldoService {
         return sinAcentos.toLowerCase().trim().replaceAll("\\s+", " ");
     }
 
+    /** Por palabras completas (no por pedazos de texto): una palabra suelta como "de" o "juan" ya no alcanza. */
     private static boolean coincideNombre(String nombreGuardado, String query) {
-        String nombreNorm = normalizarNombre(nombreGuardado);
-        if (nombreNorm.isEmpty()) return false;
-        for (String palabra : normalizarNombre(query).split(" ")) {
-            if (!palabra.isBlank() && !nombreNorm.contains(palabra)) return false;
+        return NombresPersona.coincideReceptor(nombreGuardado, query);
+    }
+
+    // ── ¿Quién pagó? (odontólogo con deuda) ───────────────────────────
+
+    /** Qué se sabe de quién pagó un comprobante. */
+    private enum Resolucion { NINGUNO, UNICO, AMBIGUO }
+
+    private record ResolucionEmisor(Resolucion tipo, CandidatoEmisor elegido, List<CandidatoEmisor> candidatos) {}
+
+    /** Lo que decidió una persona al aprobar. {@code AUTOMATICA} = que el sistema resuelva solo. */
+    private record DecisionEmisor(Long odontologoId, boolean ninguno) {
+        static final DecisionEmisor AUTOMATICA = new DecisionEmisor(null, false);
+        static final DecisionEmisor NINGUN_ODONTOLOGO = new DecisionEmisor(null, true);
+
+        static DecisionEmisor de(ConfirmarRegistroRequest r) {
+            if (r == null) return AUTOMATICA;
+            if (Boolean.TRUE.equals(r.getSinOdontologo())) return NINGUN_ODONTOLOGO;
+            return r.getOdontologoId() != null ? new DecisionEmisor(r.getOdontologoId(), false) : AUTOMATICA;
         }
-        return true;
     }
 
     /**
-     * ¿El emisor es un odontólogo con DEUDA PENDIENTE O PARCIAL? Solo en ese caso
-     * tiene sentido un triangulado. Se excluye explícitamente al propio receptor:
-     * si una misma persona es a la vez receptor y odontólogo cliente, no se la
-     * triangula "contra sí misma".
+     * ¿El emisor es un odontólogo con DEUDA PENDIENTE O PARCIAL? Solo en ese caso tiene sentido un pago directo
+     * (triangulado). Se excluye al propio receptor: si una misma persona es a la vez receptor y odontólogo cliente,
+     * no se la triangula "contra sí misma".
+     *
+     * <p>Solo se da por resuelto (UNICO) cuando el nombre coincide EXACTO con un único odontólogo. Si coincide solo
+     * en parte (uno tiene palabras de más) o hay dos con el mismo nombre, es AMBIGUO: no se paga solo, lo decide
+     * una persona entre los candidatos. Antes se tomaba el primero que compartiera una palabra de más de tres letras
+     * y se le saldaba la deuda: "Juan Pérez" pagaba la deuda de "Juan Carlos Gómez".</p>
      */
-    private Optional<Comprobante> resolverOdontologoEmisor(String emisor, String receptorNombre) {
-        if (emisor == null || emisor.isBlank()) return Optional.empty();
-        String[] palabras = emisor.trim().toLowerCase().split("\\s+");
-        String prov = receptorNombre == null ? "" : receptorNombre.trim().toLowerCase();
-        return comprobanteRepo.findAll().stream()
-                .filter(c -> c.getEstadoPago() == EstadoPago.PENDIENTE || c.getEstadoPago() == EstadoPago.PARCIAL)
-                .filter(c -> {
-                    String nom = c.getOdontologoNombre() == null ? "" : c.getOdontologoNombre().toLowerCase();
-                    if (!prov.isBlank() && nom.contains(prov)) return false;
-                    for (String w : palabras) if (w.length() > 3 && nom.contains(w)) return true;
-                    return false;
-                })
-                .findFirst();
+    private ResolucionEmisor resolverEmisor(String emisor, String receptorNombre) {
+        if (emisor == null || emisor.isBlank()) return new ResolucionEmisor(Resolucion.NINGUNO, null, List.of());
+
+        // deuda por odontólogo (solo los que deben algo)
+        java.util.Map<Long, CandidatoEmisor> conDeuda = new java.util.LinkedHashMap<>();
+        for (Comprobante c : comprobanteRepo.findByEstadoPagoIn(List.of(EstadoPago.PENDIENTE, EstadoPago.PARCIAL))) {
+            if (c.getOdontologoId() == null) continue;
+            BigDecimal saldo = c.getSaldoPendiente() == null ? BigDecimal.ZERO : c.getSaldoPendiente();
+            conDeuda.merge(c.getOdontologoId(),
+                    new CandidatoEmisor(c.getOdontologoId(), c.getOdontologoNombre(), saldo),
+                    (a, b) -> new CandidatoEmisor(a.odontologoId(), a.nombre(), a.deuda().add(b.deuda())));
+        }
+
+        List<CandidatoEmisor> exactos = new ArrayList<>();
+        List<CandidatoEmisor> parciales = new ArrayList<>();
+        for (CandidatoEmisor o : conDeuda.values()) {
+            if (receptorNombre != null && !receptorNombre.isBlank()
+                    && NombresPersona.comparar(o.nombre(), receptorNombre) != NombresPersona.Parecido.NINGUNO) {
+                continue;   // el propio receptor no es "quien pagó"
+            }
+            switch (NombresPersona.comparar(o.nombre(), emisor)) {
+                case EXACTO -> exactos.add(o);
+                case CONTENIDO -> parciales.add(o);
+                default -> { }
+            }
+        }
+        if (exactos.size() == 1) return new ResolucionEmisor(Resolucion.UNICO, exactos.get(0), List.of());
+        if (exactos.size() > 1) return new ResolucionEmisor(Resolucion.AMBIGUO, null, exactos);
+        if (!parciales.isEmpty()) return new ResolucionEmisor(Resolucion.AMBIGUO, null, parciales);
+        return new ResolucionEmisor(Resolucion.NINGUNO, null, List.of());
+    }
+
+    /** El odontólogo que pagó, según lo que dice el sistema y lo que decidió quien aprobó. */
+    private Optional<CandidatoEmisor> odontologoQuePago(String emisor, String receptorNombre, DecisionEmisor decision) {
+        if (decision.ninguno()) return Optional.empty();
+        ResolucionEmisor r = resolverEmisor(emisor, receptorNombre);
+        if (decision.odontologoId() != null) {
+            return Optional.of(r.candidatos().stream().filter(c -> c.odontologoId().equals(decision.odontologoId()))
+                    .findFirst()
+                    .or(() -> Optional.ofNullable(r.elegido()).filter(c -> c.odontologoId().equals(decision.odontologoId())))
+                    .orElseThrow(() -> new BusinessException(
+                            "El odontólogo elegido no figura entre los posibles para «" + emisor + "» o ya no tiene deuda pendiente.")));
+        }
+        return switch (r.tipo()) {
+            case UNICO -> Optional.of(r.elegido());
+            case NINGUNO -> Optional.empty();
+            case AMBIGUO -> throw new BusinessException("No se sabe quién pagó: «" + emisor + "» puede ser "
+                    + NombresPersona.enumerar(r.candidatos().stream().map(CandidatoEmisor::nombre).toList())
+                    + ". Elegí cuál fue, o indicá que no fue un odontólogo.");
+        };
     }
 
     private BigDecimal settleDeudaOdontologo(Long odontologoId, BigDecimal monto) {
@@ -706,12 +788,13 @@ public class GestionSueldoService implements IGestionSueldoService {
         String ref = "manual-odo" + odontologoId + "-" + System.currentTimeMillis();
         String notaSufijo = (req.nota() != null && !req.nota().isBlank()) ? " · " + req.nota() : "";
         registrarMovimiento(TipoMovimientoCaja.INGRESO, TipoCaja.COMPENSACION, req.monto(),
-                "Triangulado manual: " + odontologoNombre + " paga a " + p.getNombre() + notaSufijo, ref, "panel");
+                "Pago directo (cargado a mano): " + odontologoNombre + " pagó a " + p.getNombre() + notaSufijo, ref, "panel");
         registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.COMPENSACION, req.monto(),
-                "Triangulado manual: a proveedor " + p.getNombre() + " por cuenta de " + odontologoNombre + notaSufijo, ref, "panel");
+                "Pago directo (cargado a mano): a proveedor " + p.getNombre() + ", pagado por " + odontologoNombre + notaSufijo, ref, "panel");
 
-        String mensajeLog = "Triangulado manual: " + odontologoNombre + " → " + p.getNombre()
-                + " (odontólogo -$" + settOdo.toBigInteger() + ", proveedor -$" + settProv.toBigInteger() + ")" + notaSufijo;
+        String mensajeLog = "Pago directo (cargado a mano) de " + odontologoNombre + " a " + p.getNombre()
+                + ". Se descontaron $" + settOdo.toBigInteger() + " de la deuda de " + odontologoNombre
+                + " y $" + settProv.toBigInteger() + " de lo que se le debía a " + p.getNombre() + notaSufijo;
         RegistroPagoBot reg = RegistroPagoBot.builder()
                 .monto(req.monto())
                 .emisor(odontologoNombre)
@@ -724,7 +807,7 @@ public class GestionSueldoService implements IGestionSueldoService {
                 .build();
         registroRepo.save(reg);
 
-        auditoria.registrar(CurrentUser.usernameOrSistema(), "PROVEEDOR", "Pago a proveedor (triangulado manual)", "Proveedor " + p.getNombre(),
+        auditoria.registrar(CurrentUser.usernameOrSistema(), "PROVEEDOR", "Pago a proveedor (pago directo del odontólogo, a mano)", "Proveedor " + p.getNombre(),
                 odontologoNombre + " pagó $" + req.monto() + " por cuenta del laboratorio" + notaSufijo);
 
         String mensajeUi = "Se imputaron $" + settOdo + " a la cuenta del odontólogo y $" + settProv
@@ -812,26 +895,29 @@ public class GestionSueldoService implements IGestionSueldoService {
 
     @Override
     @Transactional
-    public RegistroPagoBotResponse confirmarEfectivo(Long registroId) {
+    public RegistroPagoBotResponse confirmarEfectivo(Long registroId, ConfirmarRegistroRequest decisionReq) {
         RegistroPagoBot reg = registroRepo.findById(registroId)
                 .orElseThrow(() -> new ResourceNotFoundException("Registro", registroId));
         if (reg.getEstado() != EstadoRegistroBot.PENDIENTE) {
             throw new BusinessException("Solo se pueden confirmar registros en estado PENDIENTE");
         }
+        DecisionEmisor decision = DecisionEmisor.de(decisionReq);
         if (reg.getFuente() == FuentePago.TRANSFERENCIA) {
-            return confirmarTransferencia(reg);
+            return confirmarTransferencia(reg, decision);
         }
 
         // 1) Empleado
         Optional<ConfiguracionSueldo> empleado = resolverEmpleadoPorNombre(reg.getReceptorNombre());
         if (empleado.isPresent()) {
             ConfiguracionSueldo c = empleado.get();
+            // Fuera del try: si no se sabe quién pagó, quien aprueba tiene que elegir; no es un rechazo del registro.
+            Optional<CandidatoEmisor> odoEf = odontologoQuePago(reg.getEmisor(), c.getEmpleadoNombre(), decision);
             try {
-                Optional<Comprobante> odoEf = resolverOdontologoEmisor(reg.getEmisor(), c.getEmpleadoNombre());
                 ManejoSobrante manejo = odoEf.isPresent() ? ManejoSobrante.DESCONTAR_PROXIMO : ManejoSobrante.DEVUELVE_EMPLEADO;
 
                 PagoSueldo pago = aplicarPago(c, reg.getMonto(), manejo,
                         LocalDate.now(), OrigenPago.BOT_WHATSAPP, "Efectivo confirmado");
+                pago.setMedio(MedioPago.EFECTIVO);
                 pago.setCargadoPorNombre(reg.getCargadoPorNombre());
                 pago.setCargadoPorTelefono(reg.getCargadoPorTelefono());
                 pago.setGrupoOrigen(reg.getGrupoOrigen());
@@ -842,18 +928,18 @@ public class GestionSueldoService implements IGestionSueldoService {
                 reg.setReceptorResuelto(c.getEmpleadoNombre());
 
                 if (odoEf.isPresent()) {
-                    Comprobante oc = odoEf.get();
-                    BigDecimal settOdo = settleDeudaOdontologo(oc.getOdontologoId(), reg.getMonto());
+                    CandidatoEmisor oc = odoEf.get();
+                    BigDecimal settOdo = settleDeudaOdontologo(oc.odontologoId(), reg.getMonto());
                     registrarMovimiento(TipoMovimientoCaja.INGRESO, TipoCaja.COMPENSACION, reg.getMonto(),
-                            "Triangulado (efectivo): " + oc.getOdontologoNombre() + " paga el sueldo de " + c.getEmpleadoNombre(), null);
+                            "Pago directo (efectivo): " + oc.nombre() + " pagó el sueldo de " + c.getEmpleadoNombre(), null);
                     registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.COMPENSACION, reg.getMonto(),
-                            "Triangulado (efectivo): sueldo a " + c.getEmpleadoNombre() + " por cuenta de " + oc.getOdontologoNombre(), null);
-                    reg.setMensaje("Triangulado: " + oc.getOdontologoNombre() + " → sueldo de " + c.getEmpleadoNombre()
-                            + " (odontólogo -$" + settOdo.toBigInteger() + ")");
-                    log.info("[BOT-EFECTIVO] Triangulado sueldo: {} pagó a {} por ${}",
-                            oc.getOdontologoNombre(), c.getEmpleadoNombre(), reg.getMonto());
-                    auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Pago de sueldo (efectivo, triangulado)", "Empleado " + c.getEmpleadoNombre(),
-                            oc.getOdontologoNombre() + " pagó $" + reg.getMonto() + " en efectivo por cuenta del laboratorio");
+                            "Pago directo (efectivo): sueldo de " + c.getEmpleadoNombre() + ", pagado por " + oc.nombre(), null);
+                    reg.setMensaje("Pago directo de " + oc.nombre() + ": sueldo de " + c.getEmpleadoNombre()
+                            + ". Se descontaron $" + settOdo.toBigInteger() + " de lo que " + oc.nombre() + " debía");
+                    log.info("[BOT-EFECTIVO] Pago directo de sueldo: {} pagó a {} por ${}",
+                            oc.nombre(), c.getEmpleadoNombre(), reg.getMonto());
+                    auditoria.registrar(CurrentUser.usernameOrSistema(), "SUELDO", "Pago de sueldo (efectivo, pago directo del odontólogo)", "Empleado " + c.getEmpleadoNombre(),
+                            oc.nombre() + " pagó $" + reg.getMonto() + " en efectivo por cuenta del laboratorio");
                 } else {
                     registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.FISICA, reg.getMonto(),
                             "Efectivo confirmado: sueldo a " + c.getEmpleadoNombre(), null);
@@ -880,20 +966,21 @@ public class GestionSueldoService implements IGestionSueldoService {
             reg.setReceptorId(p.getId());
             reg.setReceptorResuelto(p.getNombre());
 
-            Optional<Comprobante> odo = resolverOdontologoEmisor(reg.getEmisor(), p.getNombre());
+            Optional<CandidatoEmisor> odo = odontologoQuePago(reg.getEmisor(), p.getNombre(), decision);
             if (odo.isPresent()) {
-                Comprobante oc = odo.get();
-                BigDecimal settOdo  = settleDeudaOdontologo(oc.getOdontologoId(), reg.getMonto());
+                CandidatoEmisor oc = odo.get();
+                BigDecimal settOdo  = settleDeudaOdontologo(oc.odontologoId(), reg.getMonto());
                 BigDecimal settProv = settleDeudaProveedor(p.getId(), reg.getMonto());
                 registrarMovimiento(TipoMovimientoCaja.INGRESO, TipoCaja.COMPENSACION, reg.getMonto(),
-                        "Triangulado (efectivo): " + oc.getOdontologoNombre() + " paga a " + p.getNombre(), null);
+                        "Pago directo (efectivo): " + oc.nombre() + " pagó a " + p.getNombre(), null);
                 registrarMovimiento(TipoMovimientoCaja.EGRESO, TipoCaja.COMPENSACION, reg.getMonto(),
-                        "Triangulado (efectivo): a proveedor " + p.getNombre() + " por cuenta de " + oc.getOdontologoNombre(), null);
-                reg.setMensaje("Triangulado: " + oc.getOdontologoNombre() + " → " + p.getNombre()
-                        + " (odontólogo -$" + settOdo.toBigInteger() + ", proveedor -$" + settProv.toBigInteger() + ")");
-                log.info("[BOT-EFECTIVO] Triangulado: {} → {} por ${}", oc.getOdontologoNombre(), p.getNombre(), reg.getMonto());
-                auditoria.registrar(CurrentUser.usernameOrSistema(), "PROVEEDOR", "Pago a proveedor (efectivo, triangulado)", "Proveedor " + p.getNombre(),
-                        oc.getOdontologoNombre() + " pagó $" + reg.getMonto() + " en efectivo por cuenta del laboratorio");
+                        "Pago directo (efectivo): a proveedor " + p.getNombre() + ", pagado por " + oc.nombre(), null);
+                reg.setMensaje("Pago directo de " + oc.nombre() + " a " + p.getNombre()
+                        + ". Se descontaron $" + settOdo.toBigInteger() + " de la deuda de " + oc.nombre()
+                        + " y $" + settProv.toBigInteger() + " de lo que se le debía a " + p.getNombre());
+                log.info("[BOT-EFECTIVO] Pago directo: {} → {} por ${}", oc.nombre(), p.getNombre(), reg.getMonto());
+                auditoria.registrar(CurrentUser.usernameOrSistema(), "PROVEEDOR", "Pago a proveedor (efectivo, pago directo del odontólogo)", "Proveedor " + p.getNombre(),
+                        oc.nombre() + " pagó $" + reg.getMonto() + " en efectivo por cuenta del laboratorio");
                 return RegistroPagoBotResponse.from(registroRepo.save(reg));
             }
 
@@ -932,19 +1019,26 @@ public class GestionSueldoService implements IGestionSueldoService {
     @Override
     public List<RegistroPagoBotResponse> listarPendientesEfectivo() {
         return registroRepo.findByEstadoAndFuenteOrderByFechaHoraDesc(EstadoRegistroBot.PENDIENTE, FuentePago.EFECTIVO).stream()
-                .map(RegistroPagoBotResponse::from)
+                .map(this::conCandidatos)
                 .toList();
     }
 
     @Override
     public List<RegistroPagoBotResponse> listarPendientesRevision() {
         return registroRepo.findByEstadoAndFuenteOrderByFechaHoraDesc(EstadoRegistroBot.PENDIENTE, FuentePago.TRANSFERENCIA).stream()
-                .map(RegistroPagoBotResponse::from)
+                .map(this::conCandidatos)
                 .toList();
     }
 
+    /** Si no se sabe con certeza quién pagó, el pendiente trae los posibles para que quien aprueba elija. */
+    private RegistroPagoBotResponse conCandidatos(RegistroPagoBot reg) {
+        RegistroPagoBotResponse base = RegistroPagoBotResponse.from(reg);
+        ResolucionEmisor quien = resolverEmisor(reg.getEmisor(), reg.getReceptorNombre());
+        return quien.tipo() == Resolucion.AMBIGUO ? base.conCandidatos(quien.candidatos()) : base;
+    }
+
     /** Un administrativo aprobó una transferencia que el semáforo había frenado: se aplica como si hubiera entrado limpia. */
-    private RegistroPagoBotResponse confirmarTransferencia(RegistroPagoBot reg) {
+    private RegistroPagoBotResponse confirmarTransferencia(RegistroPagoBot reg, DecisionEmisor decision) {
         // Entre que quedó pendiente y ahora, otro comprobante igual pudo haberse aplicado (por ejemplo, el que se
         // aprobó primero): se vuelve a mirar antes de pagar. Si lo hay, no se aplica nada.
         Optional<Duplicado> repetido = buscarDuplicado(reg.getIdOperacion(), reg.getHashComprobante(), reg.getId(), ESTADOS_APLICADOS);
@@ -962,7 +1056,7 @@ public class GestionSueldoService implements IGestionSueldoService {
         req.setNota("Aprobado tras revisión");
         auditoria.registrar(CurrentUser.usernameOrSistema(), "REVISION", "Comprobante aprobado", "Receptor " + reg.getReceptorNombre(),
                 "$" + reg.getMonto() + " — motivos de revisión: " + reg.getMotivosRevision());
-        return aplicarTransferencia(reg, req, reg.getComprobanteUrl());
+        return aplicarTransferencia(reg, req, reg.getComprobanteUrl(), decision);
     }
 
     @Override

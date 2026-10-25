@@ -35,6 +35,9 @@ public interface ComprobanteRepository extends JpaRepository<Comprobante, Long> 
     /** Comprobantes con saldo pendiente (PENDIENTE o PARCIAL) de un odontólogo. */
     List<Comprobante> findByOdontologoIdAndEstadoPagoIn(Long odontologoId, List<EstadoPago> estados);
 
+    /** Todas las deudas con alguno de esos estados (para ver qué odontólogos deben algo). Ya no se carga la tabla entera. */
+    List<Comprobante> findByEstadoPagoIn(List<EstadoPago> estados);
+
     /** Saldo pendiente total de un odontólogo (cuenta corriente) = Σ(monto − pagado). */
     @Query("SELECT COALESCE(SUM(c.monto - c.montoPagado), 0) FROM Comprobante c " +
            "WHERE c.odontologoId = :odontologoId AND c.estadoPago IN ('PENDIENTE', 'PARCIAL')")

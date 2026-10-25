@@ -4,6 +4,8 @@ import com.gs.monolito.pedidos.config.CorreoProperties;
 import com.gs.monolito.pedidos.model.SolicitudEntrante;
 import com.gs.monolito.pedidos.service.RecepcionSolicitudService.DatosCorreo;
 import com.gs.monolito.pedidos.service.RecepcionSolicitudService.Resultado;
+import com.gs.monolito.pedidos.service.RemitenteService.Clasificacion;
+import com.gs.monolito.pedidos.service.RemitenteService.Destino;
 import com.icegreen.greenmail.junit5.GreenMailExtension;
 import com.icegreen.greenmail.store.StoredMessage;
 import com.icegreen.greenmail.user.GreenMailUser;
@@ -46,6 +48,7 @@ class CorreoLectorTest {
             .withConfiguration(com.icegreen.greenmail.configuration.GreenMailConfiguration.aConfig().withUser("pedidos@lab.test", "pedidos", "clave"));
 
     private RecepcionSolicitudService recepcion;
+    private RemitenteService remitentes;
     private ConfirmacionCorreo confirmacion;
     private EstadoCorreo estado;
     private CorreoProperties props;
@@ -55,6 +58,9 @@ class CorreoLectorTest {
     @BeforeEach
     void preparar() {
         recepcion = mock(RecepcionSolicitudService.class);
+        remitentes = mock(RemitenteService.class);
+        when(remitentes.clasificar(any(), any())).thenReturn(
+                Clasificacion.conocido(SolicitudEntrante.RemitenteTipo.ODONTOLOGO, 5L, "Dr. Pérez", "Dr. Pérez", true));
         confirmacion = mock(ConfirmacionCorreo.class);
         estado = new EstadoCorreo();
         props = new CorreoProperties();
@@ -66,8 +72,8 @@ class CorreoLectorTest {
         props.setClave("clave");
         props.setMaxFallos(2);
         props.setMaxAdjuntoMb(1);
-        lector = new CorreoLector(props, recepcion, confirmacion, estado);
-        when(recepcion.registrar(any(DatosCorreo.class)))
+        lector = new CorreoLector(props, recepcion, remitentes, confirmacion, estado);
+        when(recepcion.registrar(any(DatosCorreo.class), any(Clasificacion.class)))
                 .thenAnswer(inv -> new Resultado(SolicitudEntrante.builder().id(1L).build(), true));
     }
 
@@ -118,7 +124,7 @@ class CorreoLectorTest {
 
     private DatosCorreo registrado() {
         ArgumentCaptor<DatosCorreo> c = ArgumentCaptor.forClass(DatosCorreo.class);
-        verify(recepcion).registrar(c.capture());
+        verify(recepcion).registrar(c.capture(), any());
         return c.getValue();
     }
 
@@ -195,9 +201,65 @@ class CorreoLectorTest {
 
         assertThat(lector.leerNuevos()).isZero();
 
-        verify(recepcion, never()).registrar(any());
+        verify(recepcion, never()).registrar(any(), any());
         assertThat(bandeja()).hasSize(3).allSatisfy(m -> assertThat(m.isSet(Flags.Flag.SEEN)).isTrue());
         assertThat(estado.vista().ignoradas()).isEqualTo(3);
+    }
+
+    // ── Según quién lo manda ─────────────────────────────────────────
+
+    @Test
+    void elMailDeUnRemitenteDesconocidoSeGuardaSinBajarSusAdjuntos() throws Exception {
+        when(remitentes.clasificar(any(), any())).thenReturn(Clasificacion.sinAutorizar("Remitente desconocido", null));
+        when(recepcion.registrar(any(DatosCorreo.class), any(Clasificacion.class))).thenAnswer(inv ->
+                new Resultado(SolicitudEntrante.builder().id(3L).estado(SolicitudEntrante.Estado.SIN_AUTORIZAR).build(), true));
+        entregar(conAdjunto("factura.pdf", new byte[]{'%', 'P', 'D', 'F', '-', 1}));
+
+        assertThat(lector.leerNuevos()).as("no cuenta como solicitud nueva").isZero();
+
+        DatosCorreo d = registrado();
+        assertThat(d.cuerpo()).isEqualTo("Les mando el escaneo");
+        assertThat(d.adjuntos()).hasSize(1);
+        assertThat(d.adjuntos().get(0).nombre()).isEqualTo("factura.pdf");
+        assertThat(d.adjuntos().get(0).datos()).as("el contenido de un desconocido no se baja").isNull();
+        assertThat(d.adjuntos().get(0).omitidoPor()).contains("no está autorizado");
+        assertThat(leido(0)).isTrue();
+        assertThat(estado.vista().sinAutorizar()).isEqualTo(1);
+        verify(confirmacion, never()).enviar(any());   // a un desconocido no se le contesta
+    }
+
+    @Test
+    void elMailDeUnRemitenteBloqueadoSeIgnoraSinLeerloNiGuardarlo() throws Exception {
+        when(remitentes.clasificar(any(), any())).thenReturn(Clasificacion.ignorar("Remitente bloqueado"));
+        entregar(mail("spam@raro.com", "Ganaste", "hacé clic"));
+
+        assertThat(lector.leerNuevos()).isZero();
+
+        verify(recepcion, never()).registrar(any(), any());
+        assertThat(leido(0)).isTrue();
+        assertThat(estado.vista().ignoradas()).isEqualTo(1);
+    }
+
+    @Test
+    void alClasificarSeLeLlevaElResultadoDeLaVerificacionDelServidor() throws Exception {
+        MimeMessage m = mail("perez@clinica.com", "Pedido", "hola");
+        m.setHeader("Authentication-Results", "mx.google.com; dkim=pass header.i=@clinica.com; dmarc=pass header.from=clinica.com");
+        entregar(m);
+
+        lector.leerNuevos();
+
+        verify(remitentes).clasificar("perez@clinica.com", true);
+    }
+
+    @Test
+    void unaCabeceraDeVerificacionFalsificadaPorElRemitenteNoEngania() throws Exception {
+        MimeMessage m = mail("perez@clinica.com", "Pedido", "hola");
+        m.setHeader("Authentication-Results", "otro.servidor.com; dmarc=pass header.from=clinica.com");
+        entregar(m);
+
+        lector.leerNuevos();
+
+        verify(remitentes).clasificar("perez@clinica.com", null);   // no es la cabecera de nuestro servidor
     }
 
     @Test
@@ -206,14 +268,14 @@ class CorreoLectorTest {
         lector.leerNuevos();
         lector.leerNuevos();
 
-        verify(recepcion, times(1)).registrar(any());
+        verify(recepcion, times(1)).registrar(any(), any());
     }
 
     // ── Cuando algo falla ────────────────────────────────────────────
 
     @Test
     void siFallaElGuardadoElMailSigueSinLeerParaReintentarlo() throws Exception {
-        when(recepcion.registrar(any(DatosCorreo.class))).thenThrow(new IllegalStateException("base caída"));
+        when(recepcion.registrar(any(DatosCorreo.class), any(Clasificacion.class))).thenThrow(new IllegalStateException("base caída"));
         entregar(mail("perez@clinica.com", "Pedido", "hola"));
 
         assertThat(lector.leerNuevos()).isZero();
@@ -223,7 +285,7 @@ class CorreoLectorTest {
 
     @Test
     void unMailQueSiempreFallaNoTrabaALosDemasYSeDaPorLeidoAlLlegarAlMaximo() throws Exception {
-        when(recepcion.registrar(any(DatosCorreo.class)))
+        when(recepcion.registrar(any(DatosCorreo.class), any(Clasificacion.class)))
                 .thenAnswer(inv -> {
                     DatosCorreo d = inv.getArgument(0);
                     if (d.asunto().equals("Venenoso")) throw new IllegalStateException("siempre falla");

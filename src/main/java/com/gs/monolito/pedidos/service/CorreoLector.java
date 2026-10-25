@@ -1,9 +1,12 @@
 package com.gs.monolito.pedidos.service;
 
 import com.gs.monolito.pedidos.config.CorreoProperties;
+import com.gs.monolito.pedidos.model.SolicitudEntrante;
 import com.gs.monolito.pedidos.service.RecepcionSolicitudService.Adjunto;
 import com.gs.monolito.pedidos.service.RecepcionSolicitudService.DatosCorreo;
 import com.gs.monolito.pedidos.service.RecepcionSolicitudService.Resultado;
+import com.gs.monolito.pedidos.service.RemitenteService.Clasificacion;
+import com.gs.monolito.pedidos.service.RemitenteService.Destino;
 import jakarta.annotation.PostConstruct;
 import jakarta.mail.Address;
 import jakarta.mail.Flags;
@@ -53,6 +56,8 @@ import java.util.regex.Pattern;
  *   <li>Un mail que falla siempre no traba a los demás: tras {@code maxFallos} intentos se lo da por leído y queda
  *       anotado como fallido (se ve en el estado del correo y en los logs).</li>
  *   <li>Notificaciones automáticas, rebotes y listas de difusión se descartan sin guardar ni bajar adjuntos.</li>
+ *   <li>Solo entra a "Por revisar" el mail de un remitente conocido y verificado ({@link RemitenteService}); el de un
+ *       desconocido se guarda aparte, sin adjuntos, y el de un bloqueado se ignora.</li>
  * </ul>
  */
 @Component
@@ -66,6 +71,7 @@ public class CorreoLector {
 
     private final CorreoProperties props;
     private final RecepcionSolicitudService recepcion;
+    private final RemitenteService remitentes;
     private final ConfirmacionCorreo confirmacion;
     private final EstadoCorreo estado;
 
@@ -142,11 +148,24 @@ public class CorreoLector {
                 marcarLeido(m);
                 return false;
             }
-            Resultado r = recepcion.registrar(leer(m, id, email));
+            Boolean verificado = Autenticacion.remitenteVerificado(m.getHeader("Authentication-Results"), email, props.getVerificador());
+            Clasificacion c = remitentes.clasificar(email, verificado);
+            if (c.destino() == Destino.IGNORAR) {
+                log.info("[CORREO] Se ignora un mail de {} (sin guardar): {}", email, c.motivo());
+                estado.ignorado();
+                marcarLeido(m);
+                return false;
+            }
+            Resultado r = recepcion.registrar(leer(m, id, email, c.destino() == Destino.CONOCIDO), c);
             marcarLeido(m);   // recién ahora: la solicitud ya está guardada
             fallos.remove(id);
-            if (r.nueva()) confirmacion.enviar(r.solicitud());
-            return r.nueva();
+            if (!r.nueva()) return false;
+            if (r.solicitud().getEstado() == SolicitudEntrante.Estado.SIN_AUTORIZAR) {
+                estado.sinAutorizar();
+                return false;
+            }
+            confirmacion.enviar(r.solicitud());
+            return true;
         } catch (Exception e) {
             int n = fallos.merge(id, 1, Integer::sum);
             if (n >= props.getMaxFallos()) {
@@ -218,10 +237,16 @@ public class CorreoLector {
         final StringBuilder texto = new StringBuilder();
         final StringBuilder html = new StringBuilder();
         final List<Adjunto> adjuntos = new ArrayList<>();
+        /** false = solo se anotan los nombres de los adjuntos, sin bajarlos (remitente sin autorizar). */
+        final boolean bajarAdjuntos;
+
+        Acumulador(boolean bajarAdjuntos) {
+            this.bajarAdjuntos = bajarAdjuntos;
+        }
     }
 
-    private DatosCorreo leer(MimeMessage m, String id, String email) throws MessagingException, IOException {
-        Acumulador acc = new Acumulador();
+    private DatosCorreo leer(MimeMessage m, String id, String email, boolean bajarAdjuntos) throws MessagingException, IOException {
+        Acumulador acc = new Acumulador(bajarAdjuntos);
         recolectar(m, acc);
         String cuerpo = acc.texto.toString().isBlank() ? htmlATexto(acc.html.toString()) : acc.texto.toString();
         LocalDateTime fecha = m.getSentDate() == null ? null
@@ -257,6 +282,10 @@ public class CorreoLector {
     }
 
     private void leerAdjunto(Part p, String nombre, Acumulador acc) throws MessagingException, IOException {
+        if (!acc.bajarAdjuntos) {
+            acc.adjuntos.add(new Adjunto(nombre, null, "no se guardó porque el remitente todavía no está autorizado"));
+            return;
+        }
         long max = props.getMaxAdjuntoMb() * 1024L * 1024L;
         int declarado = p.getSize();
         if (declarado > max) {

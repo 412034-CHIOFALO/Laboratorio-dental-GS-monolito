@@ -48,4 +48,23 @@ public class CorreoProperties {
 
     /** Expresiones (regex) de remitentes automáticos que se ignoran sin guardar. Se suman a las de siempre. */
     private List<String> remitentesIgnorados = List.of();
+    /** Cuántos mails sin autorizar se guardan por remitente en {@link #diasContadorCuarentena} días; el resto se ignora. */
+    private int maxCuarentenaPorRemitente = 3;
+    private int diasContadorCuarentena = 7;
+    /** Los mails sin autorizar que nadie resolvió se borran a los N días. */
+    private int diasCuarentena = 30;
+    /** Largo máximo del cuerpo que se guarda de un mail sin autorizar (solo hace falta para reconocer de qué se trata). */
+    private int maxCuerpoCuarentena = 5000;
+    /** Tope de mails sin autorizar esperando a la vez: pasado esto se ignoran (nadie puede llenar la base con spam). */
+    private int maxCuarentenaTotal = 200;
+    /**
+     * Nombre del servidor que escribe {@code Authentication-Results} (Gmail: mx.google.com). Solo se confía en la
+     * cabecera con ese nombre; vacío = se toma la primera que haya.
+     */
+    private String verificador = "mx.google.com";
+    /**
+     * true = un remitente conocido solo entra directo si el servidor de correo confirma que el mail es auténtico
+     * (SPF/DKIM/DMARC); si no puede confirmarlo, queda sin autorizar. Poner false solo con un servidor de pruebas.
+     */
+    private boolean exigirVerificacion = true;
 }

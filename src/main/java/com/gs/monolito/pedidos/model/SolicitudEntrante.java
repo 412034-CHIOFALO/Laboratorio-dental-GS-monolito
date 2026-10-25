@@ -24,7 +24,14 @@ public class SolicitudEntrante {
 
     public enum Canal { EMAIL, WEB, WHATSAPP }
 
-    public enum Estado { NUEVA, CONVERTIDA, DESCARTADA }
+    /**
+     * NUEVA = espera revisión; SIN_AUTORIZAR = llegó de un remitente que el laboratorio no conoce (o que no pudo
+     * verificarse) y queda aparte, sin adjuntos, hasta que alguien lo autoriza, lo bloquea o lo descarta.
+     */
+    public enum Estado { NUEVA, CONVERTIDA, DESCARTADA, SIN_AUTORIZAR }
+
+    /** Quién es el remitente para el laboratorio. */
+    public enum RemitenteTipo { ODONTOLOGO, SECRETARIA, OTRO }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -110,6 +117,26 @@ public class SolicitudEntrante {
 
     @Column(name = "fecha_resolucion")
     private LocalDateTime fechaResolucion;
+
+    /** Quién es el remitente (ODONTOLOGO, SECRETARIA…); null si es desconocido. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "remitente_tipo", length = 12)
+    private RemitenteTipo remitenteTipo;
+
+    /** Cómo se lo muestra: "Secretaria de Dr. Pérez". */
+    @Column(name = "remitente_etiqueta", length = 150)
+    private String remitenteEtiqueta;
+
+    /** Por qué quedó SIN_AUTORIZAR (remitente desconocido, o no se pudo verificar que el mail sea de quien dice). */
+    @Column(name = "motivo_cuarentena", length = 255)
+    private String motivoCuarentena;
+
+    /**
+     * Resultado de la verificación del remitente (SPF/DKIM/DMARC, que anota el servidor de correo):
+     * true = pasó, false = falló (posible suplantación), null = no hay dato.
+     */
+    @Column(name = "remitente_verificado")
+    private Boolean remitenteVerificado;
 
     @PrePersist
     protected void onCreate() {

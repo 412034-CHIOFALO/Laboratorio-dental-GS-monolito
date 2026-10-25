@@ -42,6 +42,11 @@ public class PagoSueldo {
     @Builder.Default
     private OrigenPago origen = OrigenPago.MANUAL;
 
+    /** Con qué se pagó (de qué caja salió). Null en los pagos anteriores a que se registrara. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 15)
+    private MedioPago medio;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "manejo_sobrante", length = 20)
     private ManejoSobrante manejoSobrante;

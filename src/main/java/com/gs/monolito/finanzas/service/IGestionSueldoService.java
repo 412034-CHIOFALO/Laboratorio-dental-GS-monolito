@@ -64,7 +64,15 @@ public interface IGestionSueldoService {
     /** De los IDs de mensajes de WhatsApp dados, devuelve los que el sistema ya registró (como mensaje o como pie). */
     java.util.List<String> mensajesConocidos(java.util.List<String> ids);
 
-    RegistroPagoBotResponse confirmarEfectivo(Long registroId);
+    default RegistroPagoBotResponse confirmarEfectivo(Long registroId) {
+        return confirmarEfectivo(registroId, null);
+    }
+
+    /**
+     * Aprueba un pendiente (efectivo, o transferencia que el semáforo frenó). Si el sistema no puede saber solo
+     * QUIÉN pagó (más de un odontólogo posible), {@code decision} dice cuál fue, o que no fue ninguno.
+     */
+    RegistroPagoBotResponse confirmarEfectivo(Long registroId, com.gs.monolito.finanzas.dto.ConfirmarRegistroRequest decision);
 
     RegistroPagoBotResponse rechazarEfectivo(Long registroId, String motivo);
 

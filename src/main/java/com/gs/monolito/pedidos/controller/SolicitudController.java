@@ -1,12 +1,16 @@
 package com.gs.monolito.pedidos.controller;
 
+import com.gs.monolito.pedidos.dto.AceptarRemitenteRequest;
 import com.gs.monolito.pedidos.dto.PedidoRequest;
 import com.gs.monolito.pedidos.dto.PedidoResponse;
+import com.gs.monolito.pedidos.dto.RemitenteRequest;
+import com.gs.monolito.pedidos.dto.RemitenteResponse;
 import com.gs.monolito.pedidos.dto.SolicitudResponse;
 import com.gs.monolito.pedidos.model.SolicitudAdjunto;
 import com.gs.monolito.pedidos.model.SolicitudEntrante;
 import com.gs.monolito.pedidos.service.EstadoCorreo;
 import com.gs.monolito.pedidos.service.PedidosDocumentoStorageService;
+import com.gs.monolito.pedidos.service.RemitenteService;
 import com.gs.monolito.pedidos.service.SolicitudService;
 import com.gs.monolito.pedidos.service.TiposArchivo;
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,6 +44,7 @@ import java.util.Map;
 public class SolicitudController {
 
     private final SolicitudService service;
+    private final RemitenteService remitentesService;
     private final EstadoCorreo estadoCorreo;
     private final PedidosDocumentoStorageService storage;
 
@@ -50,10 +55,32 @@ public class SolicitudController {
         return ResponseEntity.ok(service.listar(estado));
     }
 
-    @Operation(summary = "Cuántas solicitudes esperan revisión", description = "Para el aviso del menú.")
+    @Operation(summary = "Cuántas solicitudes esperan revisión", description = "Para el aviso del menú: las que esperan revisión y los mails de remitentes sin autorizar.")
     @GetMapping("/cantidad")
     public ResponseEntity<Map<String, Long>> cantidad() {
-        return ResponseEntity.ok(Map.of("nuevas", service.cantidadNuevas()));
+        return ResponseEntity.ok(Map.of("nuevas", service.cantidadNuevas(), "sinAutorizar", service.cantidadSinAutorizar()));
+    }
+
+    // ── Remitentes: quién puede escribir directo a "Por revisar" ─────
+
+    @Operation(summary = "Direcciones autorizadas y bloqueadas", description = "Las que el laboratorio decidió. Los emails de la ficha de cada odontólogo cuentan como autorizados sin figurar acá.")
+    @GetMapping("/remitentes")
+    public ResponseEntity<List<RemitenteResponse>> remitentes() {
+        return ResponseEntity.ok(remitentesService.listar().stream().map(RemitenteResponse::from).toList());
+    }
+
+    @Operation(summary = "Autoriza una dirección", description = "Por ejemplo, la secretaria de un odontólogo antes de que escriba. Sus mails entran directo a «Por revisar».")
+    @PostMapping("/remitentes")
+    public ResponseEntity<RemitenteResponse> autorizarRemitente(@Valid @RequestBody RemitenteRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(RemitenteResponse.from(remitentesService.autorizar(req.email(), req.tipo(), req.odontologoId(), req.aclaracion())));
+    }
+
+    @Operation(summary = "Quita una dirección de la lista", description = "Vuelve a ser un remitente desconocido. Si estaba bloqueada, la desbloquea.")
+    @DeleteMapping("/remitentes/{id}")
+    public ResponseEntity<Void> quitarRemitente(@PathVariable @Positive Long id) {
+        remitentesService.quitar(id);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Estado de la lectura de la casilla", description = "Cuándo se leyó por última vez, si hubo un error y cuántos mails se recibieron, ignoraron o fallaron.")
@@ -86,6 +113,20 @@ public class SolicitudController {
     @PostMapping("/{id}/convertir")
     public ResponseEntity<PedidoResponse> convertir(@PathVariable @Positive Long id, @Valid @RequestBody PedidoRequest pedido) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.convertir(id, pedido));
+    }
+
+    @Operation(summary = "Acepta el mail de un remitente sin autorizar",
+               description = "Una persona dice quién es el remitente (odontólogo, secretaria u otro). El mail pasa a «Por revisar» y, si se pide, la dirección queda autorizada para los próximos.")
+    @PostMapping("/{id}/aceptar")
+    public ResponseEntity<SolicitudResponse> aceptar(@PathVariable @Positive Long id, @Valid @RequestBody AceptarRemitenteRequest req) {
+        return ResponseEntity.ok(service.aceptar(id, req));
+    }
+
+    @Operation(summary = "Bloquea al remitente de un mail sin autorizar", description = "Se descartan todos sus mails que esperaban y los próximos se ignoran. No se puede bloquear la dirección de un odontólogo.")
+    @PostMapping("/{id}/bloquear-remitente")
+    public ResponseEntity<Void> bloquearRemitente(@PathVariable @Positive Long id) {
+        service.bloquearRemitente(id);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Descarta la solicitud", description = "Para lo que no es un pedido (consultas, spam). Queda registrado el motivo.")

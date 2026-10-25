@@ -6,6 +6,7 @@ import com.gs.monolito.finanzas.model.ConfiguracionSueldo;
 import com.gs.monolito.finanzas.model.EstadoRegistroBot;
 import com.gs.monolito.finanzas.model.FuentePago;
 import com.gs.monolito.finanzas.model.RegistroPagoBot;
+import com.gs.monolito.finanzas.repository.ComprobanteRepository;
 import com.gs.monolito.finanzas.repository.ConfiguracionSueldoRepository;
 import com.gs.monolito.finanzas.repository.PagoSueldoRepository;
 import com.gs.monolito.finanzas.repository.ProveedorRepository;
@@ -40,6 +41,7 @@ class GestionSueldoSemaforoTest {
     @Mock private ConfiguracionSueldoRepository configRepo;
     @Mock private ProveedorRepository proveedorRepo;
     @Mock private PagoSueldoRepository pagoRepo;
+    @Mock private ComprobanteRepository comprobanteRepo;   // sin deudas: nadie es "quien pagó"
     @Mock private AuditoriaService auditoria;
     @Mock private RevisionPago revision;
     @InjectMocks private GestionSueldoService service;

@@ -285,6 +285,22 @@ def solicitudes(base, clave, clave_tecnico):
     assert codigo(t, "POST", f"{ruta}/1/descartar", {"motivo": "x"}) == 403, "el técnico no debe poder descartar"
     assert codigo(t, "POST", f"{ruta}/1/convertir", {}) == 403, "el técnico no debe poder convertir en pedido"
 
+    # Quién puede escribir directo: la bandeja separa los mails de remitentes desconocidos de los pedidos.
+    assert api.call("GET", f"{ruta}/cantidad")["sinAutorizar"] >= 0
+    assert lista(api.call("GET", f"{ruta}?estado=SIN_AUTORIZAR")) is not None, "el listado de remitentes nuevos debe responder"
+    mail = f"e2e.secretaria.{SUFIJO}@consultorio-e2e.test"
+    alta = api.call("POST", f"{ruta}/remitentes", {"email": mail.upper(), "tipo": "OTRO", "odontologoId": None, "aclaracion": "E2E"})
+    assert alta["email"] == mail and alta["estado"] == "AUTORIZADO", alta
+    assert mail in {r["email"] for r in lista(api.call("GET", f"{ruta}/remitentes"))}, "la dirección autorizada debe figurar en la lista"
+    assert codigo(api, "POST", f"{ruta}/remitentes", {"email": "no-es-un-mail", "tipo": "OTRO"}) == 422, "una dirección inválida se rechaza"
+    assert codigo(api, "POST", f"{ruta}/remitentes", {"email": f"otra.{SUFIJO}@consultorio-e2e.test", "tipo": "SECRETARIA"}) == 422, "una secretaria exige elegir el odontólogo"
+    assert codigo(t, "POST", f"{ruta}/remitentes", {"email": f"tec.{SUFIJO}@consultorio-e2e.test", "tipo": "OTRO"}) == 403, "el técnico no autoriza direcciones"
+    assert codigo(t, "DELETE", f"{ruta}/remitentes/{alta['id']}") == 403, "el técnico no quita direcciones"
+    assert codigo(api, "POST", f"{ruta}/999999/aceptar", {"tipo": "OTRO", "recordar": False}) == 404
+    assert codigo(api, "POST", f"{ruta}/999999/bloquear-remitente") == 404
+    api.call("DELETE", f"{ruta}/remitentes/{alta['id']}")
+    assert mail not in {r["email"] for r in lista(api.call("GET", f"{ruta}/remitentes"))}, "la dirección quitada no debe seguir en la lista"
+
 
 # ───────────────────────────── 6. sueldos por mes calendario ─────────────────────────────
 def _tarifa(monto, dia):
@@ -372,6 +388,14 @@ def sueldos_calendario(base, clave):
     pago = api.call("POST", "/api/finanzas/sueldos/pago", {"usuarioId": uid, "monto": 1000, "manejoSobrante": "CUBRE_LAB", "fecha": ayer.isoformat(), "nota": "E2E liquidación"})
     assert pago["monto"] is not None, pago
     assert "PAGO" in {m["tipo"] for m in lista(api.call("GET", f"{ruta}/movimientos"))}, "el pago debía quedar en el libro"
+    # La plata sale de la caja que corresponde a cómo se pagó (antes un sueldo por transferencia salía siempre de la Física).
+    assert pago["medio"] == "EFECTIVO", "sin indicar medio, el pago es en efectivo"
+    antes = api.call("GET", "/api/finanzas/cajas/resumen")
+    por_transferencia = api.call("POST", "/api/finanzas/sueldos/pago", {"usuarioId": uid, "monto": 500, "medio": "TRANSFERENCIA", "manejoSobrante": "CUBRE_LAB", "fecha": ayer.isoformat(), "nota": "E2E transferencia"})
+    despues = api.call("GET", "/api/finanzas/cajas/resumen")
+    assert por_transferencia["medio"] == "TRANSFERENCIA", por_transferencia
+    assert round(antes["saldoBancaria"] - despues["saldoBancaria"], 2) == 500, "un sueldo por transferencia debe salir de la caja Bancaria"
+    assert round(antes["saldoFisica"] - despues["saldoFisica"], 2) == 0, "un sueldo por transferencia no debe tocar la caja Física"
     rea = api.call("POST", f"{ruta}/reactivar", {"desde": None})
     assert rea["activo"] is True and rea["fechaBaja"] is None, rea
 

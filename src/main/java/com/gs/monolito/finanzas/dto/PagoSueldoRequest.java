@@ -1,6 +1,7 @@
 package com.gs.monolito.finanzas.dto;
 
 import com.gs.monolito.finanzas.model.ManejoSobrante;
+import com.gs.monolito.finanzas.model.MedioPago;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -22,6 +23,9 @@ public class PagoSueldoRequest {
     private BigDecimal monto;
 
     private ManejoSobrante manejoSobrante = ManejoSobrante.DESCONTAR_PROXIMO;
+
+    /** Con qué se pagó: EFECTIVO sale de la Caja Física y TRANSFERENCIA de la Bancaria. Sin dato, se asume efectivo. */
+    private MedioPago medio = MedioPago.EFECTIVO;
 
     private LocalDate fecha;
 

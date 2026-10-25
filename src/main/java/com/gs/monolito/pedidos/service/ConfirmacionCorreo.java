@@ -23,7 +23,8 @@ public class ConfirmacionCorreo {
     private final CorreoProperties props;
 
     public void enviar(SolicitudEntrante s) {
-        if (!props.isConfirmar() || props.getSmtpHost().isBlank() || s.getOdontologoId() == null
+        if (!props.isConfirmar() || props.getSmtpHost().isBlank() || s.getRemitenteTipo() == null
+                || s.getEstado() != SolicitudEntrante.Estado.NUEVA
                 || s.getRemitenteEmail() == null || s.getRemitenteEmail().isBlank()) {
             return;
         }
@@ -43,7 +44,7 @@ public class ConfirmacionCorreo {
             m.setFrom(props.getRemitenteVisible().isBlank() ? sender.getUsername() : props.getRemitenteVisible());
             m.setTo(s.getRemitenteEmail());
             m.setSubject("Recibimos tu solicitud (#" + s.getId() + ")");
-            m.setText("Hola " + (s.getOdontologoNombre() == null ? "" : s.getOdontologoNombre()) + ",\n\n"
+            m.setText("Hola" + (s.getRemitenteNombre() == null || s.getRemitenteNombre().isBlank() ? "" : " " + s.getRemitenteNombre()) + ",\n\n"
                     + "Recibimos tu mail \"" + (s.getAsunto() == null ? "(sin asunto)" : s.getAsunto()) + "\" y quedó registrado como "
                     + "solicitud #" + s.getId() + ". Un técnico del laboratorio la revisa y te confirmamos el pedido.\n\n"
                     + "Si es urgente, comunicate directamente con el laboratorio.\n\nLaboratorio GS");

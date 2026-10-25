@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class EstadoCorreo {
 
     public record Vista(boolean habilitado, LocalDateTime ultimaLectura, LocalDateTime ultimoExito, String ultimoError,
-                        long recibidas, long ignoradas, long fallidas) {}
+                        long recibidas, long ignoradas, long fallidas, long sinAutorizar) {}
 
     private volatile boolean habilitado;
     private volatile LocalDateTime ultimaLectura;
@@ -22,6 +22,7 @@ public class EstadoCorreo {
     private final AtomicLong recibidas = new AtomicLong();
     private final AtomicLong ignoradas = new AtomicLong();
     private final AtomicLong fallidas = new AtomicLong();
+    private final AtomicLong sinAutorizar = new AtomicLong();
 
     public void habilitar() {
         habilitado = true;
@@ -47,7 +48,12 @@ public class EstadoCorreo {
         fallidas.incrementAndGet();
     }
 
+    public void sinAutorizar() {
+        sinAutorizar.incrementAndGet();
+    }
+
     public Vista vista() {
-        return new Vista(habilitado, ultimaLectura, ultimoExito, ultimoError, recibidas.get(), ignoradas.get(), fallidas.get());
+        return new Vista(habilitado, ultimaLectura, ultimoExito, ultimoError, recibidas.get(), ignoradas.get(), fallidas.get(),
+                sinAutorizar.get());
     }
 }

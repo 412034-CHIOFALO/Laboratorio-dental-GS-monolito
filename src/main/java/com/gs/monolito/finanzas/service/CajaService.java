@@ -54,16 +54,17 @@ public class CajaService implements ICajaService {
 
         List<String> alertas = new ArrayList<>();
         if (saldoFisica.compareTo(BigDecimal.ZERO) < 0)
-            alertas.add("Caja fisica en negativo: $" + saldoFisica);
+            alertas.add("La caja física está en negativo: $" + saldoFisica);
         if (saldoBancaria.compareTo(BigDecimal.ZERO) < 0)
-            alertas.add("Caja bancaria en negativo: $" + saldoBancaria);
+            alertas.add("La caja bancaria está en negativo: $" + saldoBancaria);
         if (!descuadres.isEmpty())
-            alertas.add("Caja compensacion desbalanceada: $" + saldoComp + " (" + descuadres.size()
-                + " triangulado(s) incompleto(s))");
+            alertas.add(descuadres.size() == 1
+                ? "Hay 1 pago directo sin completar: falta registrar una de sus dos partes. Revisalo."
+                : "Hay " + descuadres.size() + " pagos directos sin completar: falta registrar una de sus dos partes. Revisalos.");
         if (sueldosPendientes.compareTo(BigDecimal.ZERO) > 0)
-            alertas.add("Sueldos devengados a pagar: $" + sueldosPendientes);
+            alertas.add("Sueldos a pagar: $" + sueldosPendientes);
         if (deudaProveedores.compareTo(BigDecimal.ZERO) > 0)
-            alertas.add("Deuda total proveedores: $" + deudaProveedores);
+            alertas.add("Deuda con proveedores: $" + deudaProveedores);
 
         return new ResumenCajasResponse(saldoFisica, saldoBancaria, saldoComp, deudaProveedores, sueldosPendientes,
             alertas, descuadres);

@@ -28,7 +28,12 @@ public record RegistroPagoBotResponse(
         /** Motivos por los que quedó pendiente de revisión (separados por " | "), o null. */
         String motivosRevision,
         /** true si el bot reenvió un mensaje que el sistema ya había procesado: no se creó nada nuevo. */
-        boolean repetido
+        boolean repetido,
+        /**
+         * Solo en los pendientes: odontólogos con deuda que podrían ser quien pagó, cuando el nombre del emisor no
+         * alcanza para estar seguro. Vacío si no hace falta elegir.
+         */
+        java.util.List<CandidatoEmisor> candidatosEmisor
 ) {
     public static RegistroPagoBotResponse from(RegistroPagoBot r) {
         return new RegistroPagoBotResponse(
@@ -48,7 +53,8 @@ public record RegistroPagoBotResponse(
                 r.getComprobanteUrl() != null && !r.getComprobanteUrl().isBlank(),
                 r.getFuente(),
                 r.getMotivosRevision(),
-                false
+                false,
+                java.util.List.of()
         );
     }
 
@@ -57,6 +63,14 @@ public record RegistroPagoBotResponse(
         RegistroPagoBotResponse base = from(r);
         return new RegistroPagoBotResponse(base.id(), base.fechaHora(), base.monto(), base.idOperacion(), base.emisor(),
                 base.receptorNombre(), base.tipoReceptor(), base.receptorId(), base.receptorResuelto(), base.estado(),
-                base.mensaje(), base.cargadoPorNombre(), base.grupoOrigen(), base.tieneComprobante(), base.fuente(), base.motivosRevision(), true);
+                base.mensaje(), base.cargadoPorNombre(), base.grupoOrigen(), base.tieneComprobante(), base.fuente(),
+                base.motivosRevision(), true, java.util.List.of());
+    }
+
+    /** El mismo registro con los odontólogos que podrían ser quien pagó (para que quien aprueba elija). */
+    public RegistroPagoBotResponse conCandidatos(java.util.List<CandidatoEmisor> candidatos) {
+        return new RegistroPagoBotResponse(id, fechaHora, monto, idOperacion, emisor, receptorNombre, tipoReceptor,
+                receptorId, receptorResuelto, estado, mensaje, cargadoPorNombre, grupoOrigen, tieneComprobante, fuente,
+                motivosRevision, repetido, candidatos);
     }
 }
