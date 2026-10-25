@@ -6,6 +6,7 @@ import {
 } from '../../../services/stock.service';
 import { NotificationService } from '../../../services/notification.service';
 import { iniciarPolling } from '../../../shared/poll.util';
+import { PageHeaderComponent } from '../../../shared/page-header';
 
 type FiltroCategoria = CategoriaMaterial | 'TODOS';
 type SortDir = 'asc' | 'desc';
@@ -14,7 +15,7 @@ interface SortStock { campo: keyof MaterialResponse; dir: SortDir; }
 @Component({
   selector: 'app-stock',
   standalone: true,
-  imports: [FormsModule],
+  imports: [PageHeaderComponent, FormsModule],
   templateUrl: './stock.html',
   styleUrls: ['./stock.css'],
 })

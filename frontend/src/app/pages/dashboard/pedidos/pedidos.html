@@ -1,18 +1,17 @@
 <div class="ped-page">
 
   <!-- ── HEADER ── -->
-  <div class="page-header">
-    <div class="page-title">
-      <h1>Pedidos <span class="accent">del Laboratorio</span></h1>
-      <p>{{ pedidos.length }} pedidos en total · {{ countByEstado('LISTO') }} listos para entregar</p>
-    </div>
+  <app-page-header titulo="Pedidos" acento="del laboratorio">
+    <span subtitulo>{{ pedidos.length }} pedidos en total · {{ countByEstado('LISTO') }} listos para entregar</span>
+    <ng-container ngProjectAs="[acciones]">
     <button class="btn-create" (click)="abrirCrear()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-      Nuevo pedido
-    </button>
-  </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          Nuevo pedido
+        </button>
+    </ng-container>
+  </app-page-header>
 
   <!-- ── LOADING / ERROR ── -->
   @if (loading) {

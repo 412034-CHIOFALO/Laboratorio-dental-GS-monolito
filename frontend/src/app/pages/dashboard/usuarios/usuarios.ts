@@ -9,6 +9,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { environment } from '../../../../environments/environment';
 import { MOCK_USUARIOS, MockUsuario, clonar } from '../../../services/mock-data';
 import { TableSort } from '../../../shared/table-sort';
+import { PageHeaderComponent } from '../../../shared/page-header';
 
 /** Cada cuánto se refresca la lista en segundo plano (ms). Ver nota en ngOnInit. */
 const POLL_MS = 6000;
@@ -16,7 +17,7 @@ const POLL_MS = 6000;
 @Component({
   selector: 'app-usuarios',
   standalone: true,
-  imports: [NgClass, FormsModule],
+  imports: [PageHeaderComponent, NgClass, FormsModule],
   templateUrl: './usuarios.html',
   styleUrls: ['./usuarios.css']
 })

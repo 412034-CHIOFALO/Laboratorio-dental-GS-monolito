@@ -1,45 +1,9 @@
 <div class="fin-page">
 
-  <!-- ── HEADER ── -->
-  <div class="page-header">
-    <div class="page-title">
-      <h1>Finanzas <span class="accent">del Laboratorio</span></h1>
-      <p>Cajas, cuentas corrientes, pagos triangulados y sueldos</p>
-    </div>
-  </div>
+  <app-page-header titulo="Finanzas" acento="del laboratorio" [subtitulo]="subtituloSeccion" />
 
-  <!-- ── PILLS DE NAVEGACIÓN ── -->
-  <nav class="fin-pills chips-scroll">
-    @for (s of secciones; track s.id) {
-      <button class="fin-pill" [class.active]="seccionActiva === s.id"
-              [routerLink]="s.id === 'proveedores' ? '/dashboard/proveedores' : null"
-              (click)="s.id !== 'proveedores' && irA(s.id)">
-        <span class="pill-icon">
-          @switch (s.id) {
-            @case ('resumen') {
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
-            }
-            @case ('cajas') {
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
-            }
-            @case ('cuentas') {
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-            }
-            @case ('triangulados') {
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
-            }
-            @case ('proveedores') {
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></svg>
-            }
-            @case ('sueldos') {
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
-            }
-          }
-        </span>
-        {{ s.label }}
-      </button>
-    }
-  </nav>
+  <app-section-tabs [secciones]="secciones" [activa]="seccionActiva" etiquetaAria="Partes de Finanzas"
+                    (seleccionar)="elegirSeccion($event)" />
 
   <!-- ── LOADING / ERROR DEL RESUMEN ── -->
   @if (loadingResumen) {
@@ -52,7 +16,7 @@
     <div class="alert-error">{{ errorResumen }}</div>
   }
 
-  @if (resumen && !loadingResumen) {
+  @if (resumen && !loadingResumen && seccionActiva !== 'proveedores') {
     <div class="fin-body">
     @switch (seccionActiva) {
 
@@ -139,19 +103,20 @@
 
         </div>
 
-        <!-- Triangulados incompletos en Caja Compensación (alerta prominente) -->
+        <!-- Pagos directos incompletos (alerta prominente) -->
         @if (resumen.descuadresCompensacion.length > 0) {
           <div class="descuadre-box">
             <div class="alertas-head">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <strong>Caja Compensación no cierra en cero — {{ resumen.descuadresCompensacion.length }} triangulado{{ resumen.descuadresCompensacion.length !== 1 ? 's' : '' }} incompleto{{ resumen.descuadresCompensacion.length !== 1 ? 's' : '' }}</strong>
+              <strong>{{ resumen.descuadresCompensacion.length === 1 ? 'Hay 1 pago directo sin terminar de registrar' : 'Hay ' + resumen.descuadresCompensacion.length + ' pagos directos sin terminar de registrar' }}</strong>
             </div>
+            <p class="descuadre-ayuda">Un pago directo es cuando un odontólogo le paga a un empleado o a un proveedor por el laboratorio. Tiene que quedar completo; si no, las cuentas no cierran.</p>
             <ul class="descuadre-list">
               @for (d of resumen.descuadresCompensacion; track d.referencia + d.fecha) {
                 <li (click)="verDescuadre(d.referencia)">
                   <span class="descuadre-concepto">{{ d.concepto }}</span>
                   <span class="descuadre-monto">{{ formatMoney(d.monto) }}</span>
-                  <span class="descuadre-ver">Ver movimiento →</span>
+                  <span class="descuadre-ver">Revisarlo →</span>
                 </li>
               }
             </ul>
@@ -196,7 +161,7 @@
                 {{ formatMoney(saldo) }}
               </div>
               @if (c.tipo === 'COMPENSACION' && saldo !== 0) {
-                <span class="caja-warning">⚠ desbalanceada — debe ser $0</span>
+                <span class="caja-warning">⚠ no cierra: tendría que dar $0</span>
               }
             </div>
           }
@@ -204,7 +169,7 @@
 
         <!-- ── Efectivo declarado pendiente (el bot lo detecta, entra/sale por caja) ──
              Solo tiene sentido en Física: un pago en efectivo nunca puede afectar
-             la caja Bancaria ni la de Compensación. -->
+             la caja Bancaria ni los pagos directos. -->
         @if (cajaActiva === 'FISICA' && (pendientesEfectivo.length > 0 || loadingPendientes)) {
           <div class="efectivo-section">
             <div class="efectivo-header">
@@ -228,6 +193,18 @@
                         <span class="efectivo-monto">{{ formatMoney(r.monto ?? 0) }}</span>
                       </div>
                       @if (r.emisor) { <div class="muted">Pagó: {{ r.emisor }}</div> }
+                      @if (necesitaElegirEmisor(r)) {
+                        <label class="quien-pago">
+                          <span>No se sabe seguro quién pagó: <strong>{{ r.emisor }}</strong> puede ser…</span>
+                          <select [ngModel]="eleccionEmisor[r.id] ?? ''" (ngModelChange)="eleccionEmisor[r.id] = $event">
+                            <option value="">— Elegí uno —</option>
+                            @for (c of r.candidatosEmisor; track c.odontologoId) {
+                              <option [value]="c.odontologoId">{{ c.nombre }} (debe {{ formatMoney(c.deuda) }})</option>
+                            }
+                            <option value="NINGUNO">Ninguno: lo pagó el laboratorio</option>
+                          </select>
+                        </label>
+                      }
                       <div class="efectivo-meta">
                         <span class="muted">{{ r.cargadoPorNombre ?? '—' }}</span>
                         <span class="muted"> · {{ r.grupoOrigen ?? '' }}</span>
@@ -244,7 +221,7 @@
                           <button class="btn-config btn-sm" (click)="rechazandoId = null">Cancelar</button>
                         </div>
                       } @else {
-                        <button class="btn-pagar btn-sm" (click)="confirmarEfectivo(r.id)">✓ Confirmar</button>
+                        <button class="btn-pagar btn-sm" [disabled]="!puedeAprobar(r)" (click)="confirmarEfectivo(r.id)">✓ Confirmar</button>
                         <button class="btn-config btn-sm" (click)="abrirRechazo(r.id)">✗ Rechazar</button>
                       }
                     </div>
@@ -257,7 +234,7 @@
 
         <!-- ── Transferencias para revisar: el semáforo del bot (RevisionPago) no las dio por buenas ──
              No se registró nada todavía; se aprueban o rechazan viendo el comprobante. Se muestran
-             en cualquier caja porque, al aprobarse, el pago puede mover la Bancaria o la Compensación. -->
+             en cualquier caja porque, al aprobarse, el pago puede mover la Bancaria o un pago directo. -->
         @if (pendientesRevision.length > 0 || loadingRevision) {
           <div class="efectivo-section revision-section">
             <div class="efectivo-header">
@@ -278,6 +255,18 @@
                         <span class="efectivo-monto">{{ formatMoney(r.monto ?? 0) }}</span>
                       </div>
                       @if (r.emisor) { <div class="muted">Pagó: {{ r.emisor }}</div> }
+                      @if (necesitaElegirEmisor(r)) {
+                        <label class="quien-pago">
+                          <span>No se sabe seguro quién pagó: <strong>{{ r.emisor }}</strong> puede ser…</span>
+                          <select [ngModel]="eleccionEmisor[r.id] ?? ''" (ngModelChange)="eleccionEmisor[r.id] = $event">
+                            <option value="">— Elegí uno —</option>
+                            @for (c of r.candidatosEmisor; track c.odontologoId) {
+                              <option [value]="c.odontologoId">{{ c.nombre }} (debe {{ formatMoney(c.deuda) }})</option>
+                            }
+                            <option value="NINGUNO">Ninguno: lo pagó el laboratorio</option>
+                          </select>
+                        </label>
+                      }
                       <ul class="revision-motivos">
                         @for (m of motivosDe(r); track m) { <li>{{ m }}</li> }
                       </ul>
@@ -301,7 +290,7 @@
                         @if (r.tieneComprobante) {
                           <button class="btn-config btn-sm" (click)="verComprobanteRegistro(r)">Ver comprobante</button>
                         }
-                        <button class="btn-pagar btn-sm" (click)="aprobarRevision(r.id)">✓ Aprobar</button>
+                        <button class="btn-pagar btn-sm" [disabled]="!puedeAprobar(r)" (click)="aprobarRevision(r.id)">✓ Aprobar</button>
                         <button class="btn-config btn-sm" (click)="abrirRechazo(r.id)">✗ Rechazar</button>
                       }
                     </div>
@@ -539,13 +528,13 @@
         </section>
       }
 
-      <!-- ═══════════════════════ TRIANGULADOS / COMPROBANTES RECIBIDOS ═══════════════════════ -->
-      @case ('triangulados') {
+      <!-- ═══════════════════════ PAGOS REGISTRADOS (COMPROBANTES) ═══════════════════════ -->
+      @case ('pagos') {
         <section class="cuentas-section plain">
           <div class="cuentas-header">
             <div>
-              <h2>Comprobantes recibidos</h2>
-              <p class="cuentas-sub">Sueldos y pagos a proveedores (directos o triangulados) cargados por el bot o a mano · buscá por nombre o monto</p>
+              <h2>Pagos registrados</h2>
+              <p class="cuentas-sub">Sueldos y pagos a proveedores que registró el bot o cargaste a mano, incluidos los pagos directos de un odontólogo · buscá por nombre o monto</p>
             </div>
             <div class="cuentas-stats">
               <div class="stat-pill">
@@ -634,10 +623,6 @@
         </section>
       }
 
-      <!-- El pill "Proveedores" navega directo a /dashboard/proveedores (la página
-           real con toda la funcionalidad) en vez de mostrar un tab acá — evita
-           duplicar el componente en dos layouts de scroll distintos. -->
-
       <!-- ═══════════════════════ SUELDOS ═══════════════════════ -->
       @case ('sueldos') {
         <section class="sueldos-section">
@@ -656,8 +641,8 @@
                 <span class="stat-val">{{ empleadosConDeuda }}</span>
               </div>
               <button class="btn-recalcular" [disabled]="recalculandoDevengado" (click)="recalcularDevengado()"
-                      title="El devengado se actualiza solo al iniciar el sistema y cada hora — usá esto para verlo al día ahora mismo">
-                {{ recalculandoDevengado ? 'Recalculando...' : '↻ Recalcular devengado' }}
+                      title="Los sueldos se actualizan solos al iniciar el sistema y cada hora. Usá esto para verlos al día ahora mismo.">
+                {{ recalculandoDevengado ? 'Actualizando...' : '↻ Actualizar sueldos' }}
               </button>
               <button class="btn-cascada" (click)="abrirCascadaModal()">Distribuir cobro</button>
             </div>
@@ -667,11 +652,11 @@
             <div class="pendientes-alta">
               <div class="alertas-head">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                <h3>Pendientes de alta en sueldos</h3>
+                <h3>Falta dar de alta en Sueldos</h3>
               </div>
               <p class="sueldos-nota">
-                Se activaron en <strong>Usuarios</strong> antes de que esto quedara automático
-                (o el alta automática falló) — dales de alta acá para que cobren y el bot los reconozca.
+                Estas personas ya tienen usuario pero todavía no figuran en Sueldos.
+                Dalas de alta para poder pagarles y para que el bot reconozca sus pagos.
               </p>
               <div class="alta-tabla-wrap">
                 <table class="alta-tabla">
@@ -728,7 +713,7 @@
                     </div>
                     @if (e.activo && e.devengadoHasta) {
                       <div class="ed-row">
-                        <span>Devengado hasta</span>
+                        <span>Calculado hasta</span>
                         <strong>{{ formatFechaCortaSueldo(e.devengadoHasta) }}</strong>
                       </div>
                     }
@@ -768,6 +753,13 @@
       }
 
     }
+    </div>
+  }
+
+  <!-- Proveedores vive acá adentro (misma cabecera y pestañas que el resto de Finanzas); no depende del resumen de cajas. -->
+  @if (seccionActiva === 'proveedores') {
+    <div class="fin-body">
+      <app-proveedores />
     </div>
   }
 </div>
@@ -1003,6 +995,20 @@
           </div>
         </div>
 
+        <div class="mov-field">
+          <label>Cómo se pagó <span class="req">*</span></label>
+          <div class="medio-opciones" role="radiogroup" aria-label="Cómo se pagó">
+            <label class="medio-opcion" [class.activo]="pagoForm.medio === 'EFECTIVO'">
+              <input type="radio" name="medio-sueldo" value="EFECTIVO" [(ngModel)]="pagoForm.medio">
+              Efectivo <small>sale de la Caja Física</small>
+            </label>
+            <label class="medio-opcion" [class.activo]="pagoForm.medio === 'TRANSFERENCIA'">
+              <input type="radio" name="medio-sueldo" value="TRANSFERENCIA" [(ngModel)]="pagoForm.medio">
+              Transferencia <small>sale de la Caja Bancaria</small>
+            </label>
+          </div>
+        </div>
+
         @if (pagoExcede) {
           <div class="pago-exceso">
             <strong>Estás pagando {{ formatMoney(montoExcedente) }} de más.</strong>
@@ -1026,7 +1032,7 @@
 
         <div class="mov-field">
           <label>Nota <span class="opt">(opcional)</span></label>
-          <input type="text" [(ngModel)]="pagoForm.nota" placeholder="Ej: pago semana, triangulado con Dr. García...">
+          <input type="text" [(ngModel)]="pagoForm.nota" placeholder="Ej: pago de la semana">
         </div>
       </div>
       <div class="mov-modal-foot">

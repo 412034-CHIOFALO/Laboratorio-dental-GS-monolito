@@ -16,28 +16,6 @@
   overflow: hidden;
 }
 
-/* ── HEADER ── */
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-.page-title h1 {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--gs-text);
-  letter-spacing: -0.5px;
-  margin: 0;
-}
-.page-title h1 .accent { color: var(--gs-green); }
-.page-title p {
-  color: var(--gs-text-muted);
-  font-size: 0.85rem;
-  margin-top: 0.25rem;
-}
 .stat-warning { color: #d97706; font-weight: 700; }
 .stat-danger  { color: #dc2626; font-weight: 700; }
 
@@ -657,8 +635,6 @@ select.form-input { cursor: pointer; }
    ════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
   .stk-page { padding: 16px 12px; gap: 14px; }
-  .page-title h1 { font-size: 18px; }
-  .page-title p { font-size: 12px; }
 
   .search-input { width: 100%; }
   .search-wrap { width: 100%; }

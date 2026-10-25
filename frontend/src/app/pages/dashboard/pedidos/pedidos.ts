@@ -12,13 +12,14 @@ import { fechaLocal, comoLocalDate } from '../../../services/date-utils';
 import { PedidoDetalleModalComponent } from './pedido-detalle-modal/pedido-detalle-modal.component';
 import { iniciarPolling } from '../../../shared/poll.util';
 import { TableSort } from '../../../shared/table-sort';
+import { PageHeaderComponent } from '../../../shared/page-header';
 
 type FiltroEstado = EstadoPedido | 'TODOS';
 
 @Component({
   selector: 'app-pedidos',
   standalone: true,
-  imports: [FormsModule, PedidoDetalleModalComponent],
+  imports: [PageHeaderComponent, FormsModule, PedidoDetalleModalComponent],
   templateUrl: './pedidos.html',
   styleUrls: ['./pedidos.css'],
 })

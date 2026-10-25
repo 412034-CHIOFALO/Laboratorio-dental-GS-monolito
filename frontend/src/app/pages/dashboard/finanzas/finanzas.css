@@ -27,29 +27,6 @@
   gap: 1.5rem;
 }
 
-/* ── HEADER ── */
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-.page-title h1 {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--gs-text);
-  letter-spacing: -0.5px;
-  margin: 0;
-}
-.page-title h1 .accent { color: var(--gs-green); }
-.page-title p {
-  color: var(--gs-text-muted);
-  font-size: 0.85rem;
-  margin-top: 0.25rem;
-}
-
 /* ═══════════════════════════════════════════════════════════════
    3 CARDS GRANDES — UNA POR CAJA
    ═══════════════════════════════════════════════════════════════ */
@@ -153,6 +130,7 @@
   margin-bottom: 1rem;
 }
 .descuadre-box .alertas-head { color: #dc2626; }
+.descuadre-ayuda { margin: 0.25rem 0 0; font-size: 0.78rem; line-height: 1.4; color: var(--muted); }
 .descuadre-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .descuadre-list li {
   display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
@@ -695,44 +673,6 @@
   .table-wrap-scroll { max-height: 420px; }
 }
 
-/* ═════════════ PILLS DE NAVEGACIÓN ═════════════ */
-.fin-pills {
-  display: flex;
-  gap: 0.4rem;
-  flex-wrap: wrap;
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.85rem;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-.fin-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.5rem 0.95rem;
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  font-size: 0.84rem;
-  font-weight: 500;
-  color: var(--muted, #6b7280);
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  transition: all 0.15s;
-}
-.fin-pill:hover {
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--accent, #22c55e) 40%, var(--border));
-}
-.fin-pill.active {
-  background: var(--accent, #22c55e);
-  color: #fff;
-  border-color: var(--accent, #22c55e);
-  font-weight: 600;
-}
-.fin-pill .pill-icon { font-size: 0.95rem; }
-
 /* ═════════════ DASHBOARD DE WIDGETS ═════════════ */
 .dash-widgets {
   display: grid;
@@ -919,11 +859,6 @@
 }
 
 /* ═════════════ AJUSTES ICONOS SVG ═════════════ */
-.fin-pill .pill-icon {
-  display: inline-flex;
-  align-items: center;
-}
-.fin-pill .pill-icon svg { display: block; }
 
 .widget-title {
   display: inline-flex;
@@ -1663,3 +1598,48 @@
 .btn-baja.confirmar { background: var(--color-danger); color: #fff; border-color: var(--color-danger); }
 .btn-baja.confirmar:hover:not(:disabled) { background: color-mix(in srgb, var(--color-danger) 85%, black); }
 .baja-acciones { display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }
+
+/* ── ¿Quién pagó? (cuando el nombre del emisor no alcanza para estar seguro) ── */
+.quien-pago {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(234, 88, 12, 0.07);
+  border: 1px solid rgba(234, 88, 12, 0.25);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+.quien-pago select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.8rem;
+  max-width: 100%;
+}
+
+/* ── Cómo se pagó un sueldo (de qué caja sale) ── */
+.medio-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.medio-opcion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+}
+.medio-opcion input { position: absolute; opacity: 0; pointer-events: none; }
+.medio-opcion small { font-size: 0.7rem; font-weight: 400; color: var(--muted, #6b7280); }
+.medio-opcion.activo { border-color: var(--accent, #22c55e); background: color-mix(in srgb, var(--accent, #22c55e) 12%, var(--card-2)); }
+.medio-opcion:focus-within { outline: 2px solid var(--accent, #22c55e); outline-offset: 2px; }

@@ -1,49 +1,146 @@
 <div class="sol-page">
-  <header class="sol-head">
-    <div>
-      <h1>Solicitudes <span>por mail</span></h1>
-      <p class="sol-sub">Pedidos que llegaron a la casilla del laboratorio. Revisá los datos, corregí lo que haga falta y creá el pedido.</p>
-    </div>
-    <nav class="sol-tabs" aria-label="Estado de las solicitudes">
-      @for (e of estados; track e.valor) {
-        <button type="button" [class.activa]="estado() === e.valor" (click)="cambiarEstado(e.valor)">{{ e.etiqueta }}</button>
-      }
-    </nav>
-  </header>
+  <app-page-header titulo="Solicitudes" acento="por mail"
+                   subtitulo="Pedidos que llegaron a la casilla del laboratorio. Revisá los datos, corregí lo que haga falta y creá el pedido." />
+
+  <app-section-tabs [secciones]="pestanias()" [activa]="estado()" etiquetaAria="Qué mails ver" (seleccionar)="elegirVista($event)" />
 
   @if (correo(); as c) {
     @if (!c.habilitado) {
-      <div class="sol-aviso info" role="status">La lectura de la casilla de correo está <strong>apagada</strong>: las solicitudes no llegan solas. Se activa en la configuración del servidor (ver la guía de producción).</div>
+      <div class="sol-aviso info" role="status">Los mails todavía no se leen solos: la casilla de pedidos no está conectada. Pedile a quien administra el sistema que la active.</div>
     } @else if (c.ultimoError) {
       <div class="sol-aviso error" role="alert">
         <strong>No se pudo leer la casilla.</strong> {{ c.ultimoError }}
         @if (c.ultimoExito) { · Última lectura correcta: {{ c.ultimoExito | date:'dd/MM HH:mm' }} } @else { · Todavía no se pudo leer nunca. }
       </div>
     } @else if (c.ultimoExito) {
-      <p class="sol-estado">Casilla leída {{ c.ultimoExito | date:'dd/MM HH:mm' }} · {{ c.recibidas }} recibidas, {{ c.ignoradas }} ignoradas (automáticas)@if (c.fallidas > 0) { , <strong>{{ c.fallidas }} con error</strong> }</p>
+      <p class="sol-estado">Casilla leída {{ c.ultimoExito | date:'dd/MM HH:mm' }} · {{ c.recibidas }} {{ c.recibidas === 1 ? 'pedido recibido' : 'pedidos recibidos' }}, {{ c.sinAutorizar }} de remitentes nuevos, {{ c.ignoradas }} {{ c.ignoradas === 1 ? 'automático ignorado' : 'automáticos ignorados' }}@if (c.fallidas > 0) { , <strong>{{ c.fallidas }} con error</strong> }</p>
     }
   }
 
-  @if (cargando() && lista().length === 0) {
-    <div class="sol-vacio">Cargando solicitudes…</div>
+  @if (estado() === 'AUTORIZADOS') {
+    <section class="sol-aut">
+      <p class="sol-ayuda">Los mails de estas direcciones entran directo a «Por revisar». Los emails cargados en la ficha de cada odontólogo ya cuentan como autorizados y no hace falta repetirlos acá. Lo que escribe cualquier otra dirección queda en «Remitentes nuevos» hasta que alguien decida.</p>
+
+      @if (puedeResolver()) {
+        <form class="sol-form" [formGroup]="formRemitente" (ngSubmit)="agregarRemitente()">
+          <h3>Autorizar una dirección</h3>
+          <p class="sol-ayuda">Por ejemplo, la secretaria de un odontólogo, antes de que escriba por primera vez.</p>
+          <div class="fila dos">
+            <div class="campo">
+              <label for="rem-email">Mail <span class="req">*</span></label>
+              <input id="rem-email" type="email" formControlName="email" maxlength="150" autocomplete="off" placeholder="secretaria@consultorio.com">
+            </div>
+            <div class="campo">
+              <label for="rem-tipo">Quién es</label>
+              <select id="rem-tipo" formControlName="tipo">
+                @for (t of tiposRemitente; track t.valor) { <option [value]="t.valor">{{ t.corta }}</option> }
+              </select>
+            </div>
+          </div>
+          <div class="fila dos">
+            @if (formRemitente.controls.tipo.value !== 'OTRO') {
+              <div class="campo">
+                <label for="rem-odo">Odontólogo al que representa <span class="req">*</span></label>
+                <select id="rem-odo" formControlName="odontologoId">
+                  <option [ngValue]="null">— Elegir —</option>
+                  @for (o of odontologos(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}{{ o.clinica ? ' · ' + o.clinica : '' }}</option> }
+                </select>
+              </div>
+            }
+            <div class="campo">
+              <label for="rem-acl">Aclaración (opcional)</label>
+              <input id="rem-acl" type="text" formControlName="aclaracion" maxlength="100" placeholder="Laura, recepción">
+            </div>
+          </div>
+          <div class="sol-acciones">
+            <button type="submit" class="btn-primario" [disabled]="!puedeAgregarRemitente || agregando()">{{ agregando() ? 'Guardando…' : 'Autorizar dirección' }}</button>
+          </div>
+        </form>
+      }
+
+      @if (cargandoRemitentes() && remitentes().length === 0) {
+        <div class="sol-vacio">Cargando direcciones…</div>
+      } @else {
+        <div class="sol-tabla-caja">
+          <h3>Autorizadas</h3>
+          @if (autorizadas().length === 0) {
+            <p class="sol-ayuda">Todavía no autorizaste ninguna dirección aparte de las de la ficha de cada odontólogo.</p>
+          } @else {
+            <ul class="sol-rem-lista">
+              @for (r of autorizadas(); track r.id) {
+                <li>
+                  <div>
+                    <strong>{{ r.email }}</strong>
+                    <span class="sol-rem-det">{{ r.etiqueta || tipoCorto(r.tipo) }} · autorizada por {{ r.creadoPor }} el {{ r.fechaCreacion | date:'dd/MM/yyyy' }}</span>
+                  </div>
+                  @if (puedeQuitarRemitentes()) {
+                    @if (confirmandoQuitar() === r.id) {
+                      <span class="sol-rem-conf">
+                        <button type="button" class="btn-peligro chico" (click)="quitarRemitente(r)">Sí, quitar</button>
+                        <button type="button" class="btn-secundario chico" (click)="confirmandoQuitar.set(null)">No</button>
+                      </span>
+                    } @else {
+                      <button type="button" class="btn-secundario chico" (click)="confirmandoQuitar.set(r.id)" [attr.aria-label]="'Quitar ' + r.email">Quitar</button>
+                    }
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </div>
+
+        <div class="sol-tabla-caja">
+          <h3>Bloqueadas</h3>
+          @if (bloqueadas().length === 0) {
+            <p class="sol-ayuda">No bloqueaste ninguna dirección. Sus mails se ignoran sin guardarse.</p>
+          } @else {
+            <ul class="sol-rem-lista">
+              @for (r of bloqueadas(); track r.id) {
+                <li>
+                  <div>
+                    <strong>{{ r.email }}</strong>
+                    <span class="sol-rem-det">Bloqueada por {{ r.creadoPor }} el {{ r.fechaCreacion | date:'dd/MM/yyyy' }}</span>
+                  </div>
+                  @if (puedeQuitarRemitentes()) {
+                    @if (confirmandoQuitar() === r.id) {
+                      <span class="sol-rem-conf">
+                        <button type="button" class="btn-primario chico" (click)="quitarRemitente(r)">Sí, desbloquear</button>
+                        <button type="button" class="btn-secundario chico" (click)="confirmandoQuitar.set(null)">No</button>
+                      </span>
+                    } @else {
+                      <button type="button" class="btn-secundario chico" (click)="confirmandoQuitar.set(r.id)" [attr.aria-label]="'Desbloquear ' + r.email">Desbloquear</button>
+                    }
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+    </section>
+  } @else if (cargando() && lista().length === 0) {
+    <div class="sol-vacio">Cargando mails…</div>
   } @else if (lista().length === 0) {
-    <div class="sol-vacio">
-      @if (estado() === 'NUEVA') { No hay solicitudes por revisar. } @else { No hay solicitudes en este estado. }
-    </div>
+    <div class="sol-vacio">{{ textoVacio() }}</div>
   } @else {
     <div class="sol-cuerpo">
-      <ul class="sol-lista" aria-label="Solicitudes">
+      <ul class="sol-lista" aria-label="Mails">
         @for (s of lista(); track s.id) {
           <li>
             <button type="button" class="sol-item" [class.activa]="seleccionada()?.id === s.id" (click)="seleccionar(s)">
               <span class="sol-item-top">
-                <strong>{{ s.odontologoNombre ?? s.remitenteNombre ?? s.remitenteEmail }}</strong>
+                <strong>{{ quienEs(s) }}</strong>
                 <time>{{ s.fechaRecepcion | date:'dd/MM HH:mm' }}</time>
               </span>
+              @if (s.estado === 'SIN_AUTORIZAR') { <span class="sol-item-mail">{{ s.remitenteEmail }}</span> }
               <span class="sol-item-asunto">{{ s.asunto || '(sin asunto)' }}</span>
-              <span class="sol-item-resumen">{{ resumen(s) }}</span>
+              @if (s.estado !== 'SIN_AUTORIZAR') { <span class="sol-item-resumen">{{ resumen(s) }}</span> }
               <span class="sol-item-marcas">
-                @if (!s.identificado) { <span class="marca aviso">Remitente sin reconocer</span> }
+                @if (s.estado === 'SIN_AUTORIZAR') {
+                  @if (s.remitenteVerificado === false) { <span class="marca peligro">No se pudo verificar</span> } @else { <span class="marca aviso">Remitente nuevo</span> }
+                } @else if (s.remitenteTipo === 'SECRETARIA' || s.remitenteTipo === 'OTRO') {
+                  <span class="marca">{{ s.remitenteEtiqueta }}</span>
+                }
                 @if (s.sugerencia.prioridad === 'URGENTE') { <span class="marca urgente">Urgente</span> }
                 @if (s.adjuntos.length > 0) { <span class="marca">{{ s.adjuntos.length }} adjunto{{ s.adjuntos.length === 1 ? '' : 's' }}</span> }
               </span>
@@ -60,7 +157,11 @@
                 <h2>{{ s.asunto || '(sin asunto)' }}</h2>
                 <p>De <strong>{{ s.remitenteNombre || s.remitenteEmail }}</strong> &lt;{{ s.remitenteEmail }}&gt; · {{ s.fechaMensaje | date:'dd/MM/yyyy HH:mm' }}</p>
               </div>
-              @if (s.identificado) { <span class="marca ok">Odontólogo reconocido</span> } @else { <span class="marca aviso">Remitente sin reconocer</span> }
+              @if (s.estado === 'SIN_AUTORIZAR') {
+                <span class="marca aviso">Sin autorizar</span>
+              } @else if (s.remitenteEtiqueta) {
+                <span class="marca ok">{{ s.remitenteEtiqueta }}</span>
+              }
             </div>
             <pre class="sol-texto">{{ s.cuerpo }}</pre>
 
@@ -83,7 +184,88 @@
             }
           </section>
 
-          @if (s.estado === 'NUEVA') {
+          @if (s.estado === 'SIN_AUTORIZAR') {
+            <section class="sol-form">
+              <h3>¿Quién te escribió?</h3>
+              @if (s.remitenteVerificado === false) {
+                <p class="sol-aviso error" role="alert">
+                  <strong>Cuidado: no se pudo comprobar que este mail venga realmente de {{ s.remitenteEmail }}.</strong>
+                  Alguien podría estar usando el nombre de {{ s.odontologoNombre ?? 'esa persona' }}. Si no esperabas este mail, no lo aceptes y confirmalo por teléfono.
+                </p>
+              } @else {
+                <p class="sol-aviso info" role="note">{{ s.motivoCuarentena || 'Este mail quedó aparte porque no sabemos con certeza quién lo mandó.' }}</p>
+              }
+              <p class="sol-ayuda">Hasta que lo aceptes no se guardan sus archivos adjuntos, y el mail se borra solo a los 30 días si nadie lo toca. Si traía archivos y lo aceptás, pedile que lo reenvíe.</p>
+
+              @if (puedeResolver()) {
+                <form [formGroup]="formAceptar" (ngSubmit)="aceptar()" class="sol-aceptar">
+                  <fieldset class="sol-tipos">
+                    <legend>Quién es</legend>
+                    @for (t of tiposRemitente; track t.valor) {
+                      <label class="sol-tipo" [class.activa]="formAceptar.controls.tipo.value === t.valor">
+                        <input type="radio" formControlName="tipo" [value]="t.valor">
+                        <span><strong>{{ t.etiqueta }}</strong><small>{{ t.ayuda }}</small></span>
+                      </label>
+                    }
+                  </fieldset>
+
+                  @if (formAceptar.controls.tipo.value === 'ODONTOLOGO' || formAceptar.controls.tipo.value === 'SECRETARIA') {
+                    <div class="campo">
+                      <label for="acc-odo">{{ formAceptar.controls.tipo.value === 'SECRETARIA' ? 'Secretaria de' : 'Odontólogo' }} <span class="req">*</span></label>
+                      <select id="acc-odo" formControlName="odontologoId">
+                        <option [ngValue]="null">— Elegir —</option>
+                        @for (o of odontologos(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}{{ o.clinica ? ' · ' + o.clinica : '' }}</option> }
+                      </select>
+                    </div>
+                  }
+                  @if (formAceptar.controls.tipo.value) {
+                    <div class="campo">
+                      <label for="acc-acl">Aclaración (opcional)</label>
+                      <input id="acc-acl" type="text" formControlName="aclaracion" maxlength="100" placeholder="Laura, recepción del consultorio">
+                    </div>
+                  }
+                  @if (s.remitenteVerificado !== false) {
+                    <label class="sol-check">
+                      <input type="checkbox" formControlName="recordar">
+                      <span>Recordar esta dirección: sus próximos mails entran directo a «Por revisar»</span>
+                    </label>
+                  }
+
+                  <div class="sol-acciones">
+                    <button type="submit" class="btn-primario" [disabled]="!puedeAceptar || aceptando()">{{ aceptando() ? 'Aceptando…' : 'Aceptar este mail' }}</button>
+                    @if (!confirmandoDescarte() && !confirmandoBloqueo()) {
+                      <button type="button" class="btn-secundario" (click)="confirmandoDescarte.set(true)">Descartar solo este</button>
+                      @if (puedeBloquear(s)) {
+                        <button type="button" class="btn-secundario" (click)="confirmandoBloqueo.set(true)">Bloquear a este remitente</button>
+                      }
+                    }
+                  </div>
+                </form>
+
+                @if (confirmandoDescarte()) {
+                  <div class="sol-descartar">
+                    <label for="motivo-sa">Motivo (opcional)</label>
+                    <input id="motivo-sa" type="text" [formControl]="motivoDescarte" maxlength="255" placeholder="Es publicidad, no lo conozco…">
+                    <div class="sol-acciones">
+                      <button type="button" class="btn-peligro" [disabled]="descartando()" (click)="descartar()">{{ descartando() ? 'Descartando…' : 'Confirmar descarte' }}</button>
+                      <button type="button" class="btn-secundario" (click)="confirmandoDescarte.set(false)">No descartar</button>
+                    </div>
+                  </div>
+                }
+                @if (confirmandoBloqueo()) {
+                  <div class="sol-descartar">
+                    <p class="sol-ayuda"><strong>Bloquear a {{ s.remitenteEmail }}:</strong> se descartan todos sus mails que están esperando y los próximos se ignoran sin guardarse. Se puede deshacer desde «Direcciones autorizadas».</p>
+                    <div class="sol-acciones">
+                      <button type="button" class="btn-peligro" [disabled]="bloqueando()" (click)="bloquear()">{{ bloqueando() ? 'Bloqueando…' : 'Sí, bloquear' }}</button>
+                      <button type="button" class="btn-secundario" (click)="confirmandoBloqueo.set(false)">No bloquear</button>
+                    </div>
+                  </div>
+                }
+              } @else {
+                <p class="sol-ayuda">Solo Administración puede aceptar, descartar o bloquear estos mails.</p>
+              }
+            </section>
+          } @else if (s.estado === 'NUEVA') {
             <form class="sol-form" [formGroup]="form" (ngSubmit)="crearPedido()">
               <h3>Pedido a crear</h3>
               <p class="sol-ayuda">Lo que el sistema pudo leer del mail ya está cargado. <strong>Revisalo antes de confirmar</strong>: es una sugerencia, no un dato verificado.</p>
@@ -96,8 +278,9 @@
                 </select>
                 @if (form.controls.odontologoId.value == null) {
                   <input type="text" formControlName="odontologoNombre" placeholder="Nombre del odontólogo" aria-label="Nombre del odontólogo">
-                } @else if (!s.identificado && s.remitenteEmail) {
-                  <span class="ayuda">Se va a guardar {{ s.remitenteEmail }} como su email para reconocerlo la próxima vez.</span>
+                  @if (s.remitenteTipo === 'ODONTOLOGO' && s.odontologoId == null) {
+                    <span class="ayuda">Esta casilla la usan varios odontólogos: elegí de cuál es el pedido.</span>
+                  }
                 }
               </div>
 
@@ -158,7 +341,7 @@
                   </div>
                 }
               } @else {
-                <p class="sol-ayuda">Solo Administración puede crear el pedido o descartar la solicitud.</p>
+                <p class="sol-ayuda">Solo Administración puede crear el pedido o descartar el mail.</p>
               }
             </form>
           } @else {

@@ -7,13 +7,14 @@ import { fechaLocal, hoyComoLocalDate } from '../../../services/date-utils';
 import { PedidoDetalleModalComponent } from '../pedidos/pedido-detalle-modal/pedido-detalle-modal.component';
 import { iniciarPolling } from '../../../shared/poll.util';
 import { TableSort } from '../../../shared/table-sort';
+import { PageHeaderComponent } from '../../../shared/page-header';
 
 type Tab = 'PENDIENTES' | 'HISTORIAL';
 
 @Component({
   selector: 'app-entregas',
   standalone: true,
-  imports: [FormsModule, PedidoDetalleModalComponent],
+  imports: [PageHeaderComponent, FormsModule, PedidoDetalleModalComponent],
   templateUrl: './entregas.html',
   styleUrls: ['./entregas.css'],
 })

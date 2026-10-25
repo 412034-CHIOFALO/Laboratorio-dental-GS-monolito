@@ -1,7 +1,6 @@
 import { Component, OnInit, inject, signal, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { TableSort } from '../../../shared/table-sort';
 import {
   ProveedoresService, Proveedor, DeudaProveedor, ProveedorRequest, DeudaProveedorRequest, CajaPagoProveedor,
@@ -10,14 +9,14 @@ import { NotificationService } from '../../../services/notification.service';
 import { iniciarPolling } from '../../../shared/poll.util';
 
 /**
- * Pantalla de Proveedores: lista de proveedores con su deuda pendiente y, al
+ * Sección «Proveedores» de Finanzas: lista de proveedores con su deuda pendiente y, al
  * expandir, el detalle de sus deudas (incluidas las saldadas por el bot vía
  * pagos directos o triangulados). Permite dar de alta proveedores.
  */
 @Component({
   selector: 'app-proveedores',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule],
   templateUrl: './proveedores.html',
   styleUrl: './proveedores.css',
 })

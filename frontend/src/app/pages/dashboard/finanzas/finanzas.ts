@@ -1,6 +1,6 @@
 import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink, ActivatedRoute } from '@angular/router';
+import { RouterLink, ActivatedRoute, Router } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { iniciarPolling } from '../../../shared/poll.util';
 import { fechaLocal, hoyComoLocalDate } from '../../../services/date-utils';
@@ -11,13 +11,16 @@ import {
 } from '../../../services/finanzas.service';
 import {
   SueldosService, EmpleadoSueldo, FrecuenciaPago, ConfigSueldoRequest, PagoSueldoRequest,
-  PagoSueldoResponse, RegistroBot, DistribucionCascada, CrearEmpleadoRequest
+  PagoSueldoResponse, RegistroBot, DistribucionCascada, CrearEmpleadoRequest, DecisionEmisor
 } from '../../../services/sueldos.service';
 import { NotificationService } from '../../../services/notification.service';
 import { AuthService, UsuarioListado } from '../../../services/auth';
 import { ProveedoresService } from '../../../services/proveedores.service';
 import { PagoCuentaCorrienteModalComponent } from '../odontologos/pago-cuenta-corriente-modal/pago-cuenta-corriente-modal.component';
 import { AsistenciaModalComponent } from './asistencia-modal/asistencia-modal.component';
+import { PageHeaderComponent } from '../../../shared/page-header';
+import { SectionTabsComponent, SeccionTab } from '../../../shared/section-tabs';
+import { ProveedoresComponent } from '../proveedores/proveedores';
 
 export type FiltroMorosos = 'TODOS' | 'MOROSOS' | 'MAS_30' | 'MAS_60';
 export type FiltroMovimientos = 'TODOS' | 'INGRESO' | 'EGRESO';
@@ -29,9 +32,22 @@ const SEVERIDAD_PESO: Record<string, number> = {
   AL_DIA: 0, BAJA: 1, MEDIA: 2, ALTA: 3, CRITICA: 4,
 };
 
-/** Apartados (pills) del módulo de Finanzas. */
+/** Apartados del módulo de Finanzas. */
 export type SeccionFinanzas =
-  | 'resumen' | 'cajas' | 'cuentas' | 'triangulados' | 'proveedores' | 'sueldos';
+  | 'resumen' | 'cajas' | 'cuentas' | 'pagos' | 'proveedores' | 'sueldos';
+
+/** Qué dice la cabecera según el apartado: para qué sirve lo que se está viendo. */
+const SUBTITULO_SECCION: Record<SeccionFinanzas, string> = {
+  resumen: 'Cómo está la plata del laboratorio hoy: cajas, deudas de los odontólogos y avisos.',
+  cajas: 'La plata que hay en cada caja y todos sus movimientos.',
+  cuentas: 'Lo que debe cada odontólogo y los pagos que hizo.',
+  pagos: 'Sueldos y pagos a proveedores que registró el bot o cargaste a mano.',
+  proveedores: 'A quién le debe el laboratorio y qué pagos ya se hicieron.',
+  sueldos: 'Lo que se le debe a cada integrante del equipo y lo que ya se le pagó.',
+};
+
+/** Nombres con los que se llegaba antes a una sección (links guardados, avisos viejos). */
+const SECCION_ALIAS: Record<string, SeccionFinanzas> = { triangulados: 'pagos' };
 
 interface SortState<K> {
   campo: K;
@@ -61,7 +77,7 @@ interface ComprobanteRecibido {
 @Component({
   selector: 'app-finanzas',
   standalone: true,
-  imports: [FormsModule, RouterLink, PagoCuentaCorrienteModalComponent, AsistenciaModalComponent],
+  imports: [FormsModule, RouterLink, PagoCuentaCorrienteModalComponent, AsistenciaModalComponent, PageHeaderComponent, SectionTabsComponent, ProveedoresComponent],
   templateUrl: './finanzas.html',
   styleUrls: ['./finanzas.css'],
 })
@@ -70,22 +86,33 @@ export class FinanzasComponent implements OnInit {
   // ── Navegación por pills ─────────────────────────────────────────
   seccionActiva: SeccionFinanzas = 'resumen';
 
-  readonly secciones: { id: SeccionFinanzas; label: string }[] = [
-    { id: 'resumen',      label: 'Resumen' },
-    { id: 'cajas',        label: 'Cajas' },
-    { id: 'cuentas',      label: 'Cuentas corrientes' },
-    { id: 'triangulados', label: 'Triangulados' },
-    { id: 'proveedores',  label: 'Proveedores' },
-    { id: 'sueldos',      label: 'Sueldos' },
+  readonly secciones: SeccionTab[] = [
+    { id: 'resumen',     etiqueta: 'Resumen',            icono: 'resumen' },
+    { id: 'cajas',       etiqueta: 'Cajas',              icono: 'cajas' },
+    { id: 'cuentas',     etiqueta: 'Cuentas corrientes', icono: 'cuentas' },
+    { id: 'pagos',       etiqueta: 'Pagos registrados',  icono: 'pagos' },
+    { id: 'proveedores', etiqueta: 'Proveedores',        icono: 'proveedores' },
+    { id: 'sueldos',     etiqueta: 'Sueldos',            icono: 'sueldos' },
   ];
+
+  get subtituloSeccion(): string {
+    return SUBTITULO_SECCION[this.seccionActiva];
+  }
+
+  /** Lo que avisa la barra de secciones llega como texto: acá se vuelve una sección conocida. */
+  elegirSeccion(id: string): void {
+    if (id in SUBTITULO_SECCION) this.irA(id as SeccionFinanzas);
+  }
 
   irA(seccion: SeccionFinanzas): void {
     this.seccionActiva = seccion;
+    // La dirección sigue a la sección: al recargar o compartir el link se vuelve a la misma parte.
+    this.router.navigate([], { relativeTo: this.route, queryParams: { seccion }, replaceUrl: true });
     // Scroll al tope al cambiar de apartado
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  /** Va a Cajas → Compensación, filtrado por la referencia del triangulado incompleto. */
+  /** Va a Cajas, filtrado por la referencia del pago directo incompleto. */
   verDescuadre(referencia: string | null): void {
     this.irA('cajas');
     this.busquedaMovimiento = referencia ?? '';
@@ -130,6 +157,7 @@ export class FinanzasComponent implements OnInit {
   private notif = inject(NotificationService);
   private destroyRef = inject(DestroyRef);
   private route = inject(ActivatedRoute);
+  private router = inject(Router);
 
   readonly filtros: { valor: FiltroMorosos; label: string }[] = [
     { valor: 'TODOS',   label: 'Todos' },
@@ -189,7 +217,7 @@ export class FinanzasComponent implements OnInit {
   // Modal registrar pago
   showPagoModal = false;
   empleadoPagando: EmpleadoSueldo | null = null;
-  pagoForm: PagoSueldoRequest = { usuarioId: 0, monto: 0, manejoSobrante: 'DESCONTAR_PROXIMO' };
+  pagoForm: PagoSueldoRequest = { usuarioId: 0, monto: 0, manejoSobrante: 'DESCONTAR_PROXIMO', medio: 'EFECTIVO' };
   savingPago = false;
 
   // Modal cascada: sugiere como distribuir un cobro entre sueldos pendientes + caja
@@ -328,18 +356,15 @@ export class FinanzasComponent implements OnInit {
   }
 
   private cajaLabel(t: TipoCaja): string {
-    return this.cajas.find(c => c.tipo === t)?.label ?? t;
+    return this.cajas.find(c => c.tipo === t)?.label ?? (t === 'COMPENSACION' ? 'Pagos directos' : t);
   }
 
   ngOnInit(): void {
-    // 'proveedores' está en `secciones` solo para el ícono del pill, que
-    // redirige a /dashboard/proveedores en vez de renderizar contenido acá
-    // (el @switch de abajo no tiene @case para esa sección) — si un link
-    // viejo llega con ?seccion=proveedores, cae a 'resumen' en vez de dejar
-    // la pantalla en blanco para siempre.
-    const seccion = this.route.snapshot.queryParamMap.get('seccion') as SeccionFinanzas | null;
-    if (seccion && seccion !== 'proveedores' && this.secciones.some(s => s.id === seccion)) {
-      this.seccionActiva = seccion;
+    // La sección pedida por link (?seccion=cajas); los nombres viejos (triangulados) se traducen a los de ahora.
+    const pedida = this.route.snapshot.queryParamMap.get('seccion');
+    const seccion = pedida ? (SECCION_ALIAS[pedida] ?? pedida) : null;
+    if (seccion && this.secciones.some(s => s.id === seccion)) {
+      this.seccionActiva = seccion as SeccionFinanzas;
     }
     this.cargarResumen();
     this.cargarMovimientos();
@@ -437,7 +462,7 @@ export class FinanzasComponent implements OnInit {
       error: err => {
         if (!silencioso) {
           this.loadingComprobantes = false;
-          this.notif.errorHttp(err, 'No se pudieron cargar los comprobantes');
+          this.notif.errorHttp(err, 'No se pudieron cargar los pagos');
         }
       },
     });
@@ -497,12 +522,12 @@ export class FinanzasComponent implements OnInit {
     this.sueldosService.devengarAhora().subscribe({
       next: () => {
         this.recalculandoDevengado = false;
-        this.notif.exito('Devengado recalculado');
+        this.notif.exito('Sueldos actualizados');
         this.cargarEmpleados();
       },
       error: err => {
         this.recalculandoDevengado = false;
-        this.notif.errorHttp(err, 'No se pudo recalcular el devengado');
+        this.notif.errorHttp(err, 'No se pudieron actualizar los sueldos');
       },
     });
   }
@@ -532,14 +557,15 @@ export class FinanzasComponent implements OnInit {
         const yaDadosDeAlta = new Set(this.empleados.map(e => e.usuarioId));
         this.usuariosSinAlta = usuarios.filter(u =>
           !yaDadosDeAlta.has(u.id)
-          && u.username !== 'bot-pedidos'        // cuenta de servicio del bot, no un empleado
-          && !u.rol.includes('ODONTOLOGO'));      // cliente del labo, no cobra sueldo
+          && u.username !== 'bot-pedidos'                 // cuenta de servicio del bot, no un empleado
+          && u.rol.replace('ROLE_', '') !== 'ADMIN'       // quien administra el sistema no cobra sueldo (ojo: ADMINISTRATIVO sí)
+          && !u.rol.includes('ODONTOLOGO'));               // cliente del labo, no cobra sueldo
         if (!silencioso) this.loadingUsuariosSinAlta = false;
       },
       error: err => {
         if (silencioso) return;
         this.loadingUsuariosSinAlta = false;
-        this.notif.errorHttp(err, 'No se pudo cargar la lista de usuarios para dar de alta empleados');
+        this.notif.errorHttp(err, 'No se pudo cargar la lista de usuarios');
       },
     });
   }
@@ -657,7 +683,7 @@ export class FinanzasComponent implements OnInit {
         this.savingNuevoEmpleado = false;
         this.showNuevoEmpleadoModal = false;
         this.usuarioSeleccionado = null;
-        this.notif.exito(`${creado.nombre} dado de alta en sueldos`);
+        this.notif.exito(`${creado.nombre} ya figura en Sueldos`);
       },
       error: err => {
         this.savingNuevoEmpleado = false;
@@ -689,6 +715,7 @@ export class FinanzasComponent implements OnInit {
       usuarioId: e.usuarioId,
       monto: e.saldoDevengado,   // sugerimos pagar lo que se le debe
       manejoSobrante: 'DESCONTAR_PROXIMO',
+      medio: 'EFECTIVO',
       fecha: hoyComoLocalDate(),
     };
     this.showPagoModal = true;
@@ -772,6 +799,8 @@ export class FinanzasComponent implements OnInit {
       const l = lineas[i];
       this.sueldosService.registrarPago({
         usuarioId: l.empleadoId, monto: l.monto, manejoSobrante: 'DESCONTAR_PROXIMO',
+        // el cobro entró por la caja elegida: de ahí sale lo que se paga
+        medio: this.cascadaCaja === 'BANCARIA' ? 'TRANSFERENCIA' : 'EFECTIVO',
         fecha: new Date().toISOString().slice(0, 10),
         nota: 'Distribución de cobro (cascada)',
       }).subscribe({
@@ -795,7 +824,7 @@ export class FinanzasComponent implements OnInit {
         next: () => finalizar(),
         error: err => {
           this.confirmandoCascada = false;
-          this.notif.errorHttp(err, 'Los pagos se registraron, pero no se pudo cargar el remanente a la caja');
+          this.notif.errorHttp(err, 'Los pagos se registraron, pero no se pudo cargar el sobrante en la caja');
         },
       });
     };
@@ -1200,11 +1229,32 @@ export class FinanzasComponent implements OnInit {
     });
   }
 
+  // ── ¿Quién pagó? Cuando el nombre del emisor no alcanza para estar seguro, el sistema no descuenta la deuda de
+  //    nadie solo: quien aprueba elige entre los odontólogos posibles, o dice que no fue ninguno. ──
+
+  /** Lo que se eligió para cada pendiente: el id del odontólogo, 'NINGUNO', o vacío si todavía no eligió. */
+  eleccionEmisor: Record<number, string> = {};
+
+  necesitaElegirEmisor(r: RegistroBot): boolean {
+    return (r.candidatosEmisor?.length ?? 0) > 0;
+  }
+
+  puedeAprobar(r: RegistroBot): boolean {
+    return !this.necesitaElegirEmisor(r) || !!this.eleccionEmisor[r.id];
+  }
+
+  private decisionDe(r: RegistroBot | undefined): DecisionEmisor | undefined {
+    const e = r ? this.eleccionEmisor[r.id] : '';
+    if (!e) return undefined;
+    return e === 'NINGUNO' ? { sinOdontologo: true } : { odontologoId: Number(e) };
+  }
+
   aprobarRevision(id: number): void {
-    this.sueldosService.confirmarEfectivo(id).subscribe({
+    const decision = this.decisionDe(this.pendientesRevision.find(r => r.id === id));
+    this.sueldosService.confirmarEfectivo(id, decision).subscribe({
       next: reg => {
         this.pendientesRevision = this.pendientesRevision.filter(r => r.id !== id);
-        this.notif.exito(`Transferencia aprobada → ${reg.estado === 'REGISTRADO' ? reg.receptorResuelto ?? reg.receptorNombre : '(no resuelto)'}`);
+        this.notif.exito(`Transferencia aprobada${reg.estado === 'REGISTRADO' ? ': ' + (reg.receptorResuelto ?? reg.receptorNombre) : ''}`);
         this.cargarResumen(true);
         this.cargarMovimientos(true);
       },
@@ -1239,10 +1289,11 @@ export class FinanzasComponent implements OnInit {
   }
 
   confirmarEfectivo(id: number): void {
-    this.sueldosService.confirmarEfectivo(id).subscribe({
+    const decision = this.decisionDe(this.pendientesEfectivo.find(r => r.id === id));
+    this.sueldosService.confirmarEfectivo(id, decision).subscribe({
       next: reg => {
         this.pendientesEfectivo = this.pendientesEfectivo.filter(r => r.id !== id);
-        this.notif.exito(`Efectivo confirmado → ${reg.estado === 'REGISTRADO' ? reg.receptorResuelto ?? reg.receptorNombre : '(no resuelto)'}`);
+        this.notif.exito(`Efectivo confirmado${reg.estado === 'REGISTRADO' ? ': ' + (reg.receptorResuelto ?? reg.receptorNombre) : ''}`);
       },
       error: err => this.notif.errorHttp(err, 'No se pudo confirmar'),
     });

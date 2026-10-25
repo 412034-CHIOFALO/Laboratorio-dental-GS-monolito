@@ -7,6 +7,7 @@ import {
 import { StockService, MaterialResponse } from '../../../services/stock.service';
 import { NotificationService } from '../../../services/notification.service';
 import { iniciarPolling } from '../../../shared/poll.util';
+import { PageHeaderComponent } from '../../../shared/page-header';
 
 export type Categoria = 'FIJA' | 'REMOVIBLE' | 'ORTODONCIA' | 'ATM' | 'PERSONALIZADO';
 
@@ -37,7 +38,7 @@ interface RecetaFormItem {
 @Component({
   selector: 'app-catalogo',
   standalone: true,
-  imports: [FormsModule],
+  imports: [PageHeaderComponent, FormsModule],
   templateUrl: './catalogo.html',
   styleUrls: ['./catalogo.css']
 })

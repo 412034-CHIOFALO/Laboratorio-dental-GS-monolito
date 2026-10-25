@@ -1,24 +1,21 @@
 <div class="stk-page">
 
   <!-- ── HEADER ── -->
-  <div class="page-header">
-    <div class="page-title">
-      <h1>Stock <span class="accent">de materiales</span></h1>
-      <p>
-        {{ totalMateriales }} materiales
+  <app-page-header titulo="Stock" acento="de materiales">
+    <span subtitulo>{{ totalMateriales }} materiales
         @if (totalBajoStock > 0) {
           · <span class="stat-warning">{{ totalBajoStock }} bajo mínimo</span>
         }
         @if (totalAgotados > 0) {
           · <span class="stat-danger">{{ totalAgotados }} agotados</span>
-        }
-      </p>
-    </div>
+        }</span>
+    <ng-container ngProjectAs="[acciones]">
     <button class="btn-create" (click)="abrirCrear()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Nuevo material
-    </button>
-  </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuevo material
+        </button>
+    </ng-container>
+  </app-page-header>
 
   <!-- ── LOADING / ERROR ── -->
   @if (loading) {

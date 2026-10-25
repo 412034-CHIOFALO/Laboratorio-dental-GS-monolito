@@ -253,7 +253,7 @@ export const MOCK_AUDIT: MockAuditEvent[] = [
   { id: 10, timestamp: tsISO(25),   usuario: 'carlos',  accion: 'Estado de tarea avanzado', entidad: 'GS-2026-0036',       detalle: 'EN_PROCESO → CONTROL',                               tipo: 'ESTADO'   },
   { id: 11, timestamp: tsISO(26),   usuario: 'mariana', accion: 'Inicio de sesión',        entidad: 'Sesión',               detalle: 'Login exitoso desde 192.168.1.15',                   tipo: 'LOGIN'    },
   { id: 12, timestamp: tsISO(28),   usuario: 'admin',   accion: 'Trabajo desactivado',     entidad: 'Catálogo',             detalle: '"Modelo Diagnóstico" desactivado',                   tipo: 'ELIMINAR' },
-  { id: 13, timestamp: tsISO(36),   usuario: 'mariana', accion: 'Pago triangulado',        entidad: 'Dr. Suárez',           detalle: '$150.000 → Juan Pereyra (sueldo)',                    tipo: 'PAGO'     },
+  { id: 13, timestamp: tsISO(36),   usuario: 'mariana', accion: 'Pago directo',             entidad: 'Dr. Suárez',           detalle: '$150.000 → Juan Pereyra (sueldo)',                    tipo: 'PAGO'     },
   { id: 14, timestamp: tsISO(48),   usuario: 'admin',   accion: 'Stock ajustado',          entidad: 'Yeso Piedra Tipo IV',  detalle: 'Conteo físico: teórico 5 → real 3',                 tipo: 'EDITAR'   },
   { id: 15, timestamp: tsISO(4),    usuario: 'sistema', accion: 'Backup completado',       entidad: 'Backup diario',       detalle: '5 bases + archivos de MinIO subidos a Google Drive', tipo: 'BACKUP'   },
 ];
@@ -408,9 +408,9 @@ export const MOCK_MOVIMIENTOS_CAJA: CajaMovimientoResponse[] = [
   { id: 8, tipo: 'EGRESO',  tipoCaja: 'BANCARIA', concepto: 'Pago Dental Import SRL — Cerámica Vita',     monto: 25000,  referencia: 'PROV-001',      fechaMovimiento: hoyISO(-5), creadoPor: 'admin'   },
   { id: 9, tipo: 'INGRESO', tipoCaja: 'BANCARIA', concepto: 'Cobro COMP-2025-008 — Dr. Pérez',            monto: 320000, referencia: 'COMP-2025-008', fechaMovimiento: hoyISO(-6), creadoPor: 'mariana' },
 
-  // Compensación — pagos triangulados (debe quedar siempre en 0 neto)
-  { id: 10, tipo: 'INGRESO', tipoCaja: 'COMPENSACION', concepto: 'Triangulado: Dr. García paga a MetalDent SA', monto: 150000, referencia: 'COMP-2025-009', fechaMovimiento: hoyISO(-1), creadoPor: 'mariana' },
-  { id: 11, tipo: 'EGRESO',  tipoCaja: 'COMPENSACION', concepto: 'Triangulado: deuda MetalDent SA — Lote zirconia', monto: 150000, referencia: 'COMP-2025-009', fechaMovimiento: hoyISO(-1), creadoPor: 'mariana' },
+  // Pagos directos (caja de compensación): tienen que quedar siempre en 0 neto
+  { id: 10, tipo: 'INGRESO', tipoCaja: 'COMPENSACION', concepto: 'Pago directo: Dr. García paga a MetalDent SA', monto: 150000, referencia: 'COMP-2025-009', fechaMovimiento: hoyISO(-1), creadoPor: 'mariana' },
+  { id: 11, tipo: 'EGRESO',  tipoCaja: 'COMPENSACION', concepto: 'Pago directo: deuda con MetalDent SA — Lote zirconia', monto: 150000, referencia: 'COMP-2025-009', fechaMovimiento: hoyISO(-1), creadoPor: 'mariana' },
 ];
 
 // ── MATERIALES DE STOCK (alineados con MaterialResponse del backend) ─

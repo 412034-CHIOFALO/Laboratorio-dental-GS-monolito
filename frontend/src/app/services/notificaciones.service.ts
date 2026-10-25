@@ -75,7 +75,7 @@ export class NotificacionesService {
     const revision$ = this.auth.puedeVerFinanzas()
       ? this.sueldos.pendientesRevision().pipe(catchError(() => of([])))
       : of([]);
-    const nuevas$ = this.solicitudes.cantidadNuevas().pipe(catchError(() => of(0)));
+    const nuevas$ = this.solicitudes.cantidades().pipe(catchError(() => of({ nuevas: 0, sinAutorizar: 0 })));
     forkJoin({
       atrasados: this.pedidos.listarAtrasados().pipe(catchError(() => of([]))),
       listos:    this.pedidos.listarPorEstado('LISTO').pipe(catchError(() => of([]))),
@@ -127,14 +127,28 @@ export class NotificacionesService {
         });
       }
 
-      if (nuevas > 0) {
+      if (nuevas.nuevas > 0) {
+        const n = nuevas.nuevas;
         notis.push({
           id: 'solicitudes-nuevas',
           tipo: 'info',
           icono: 'alerta',
-          titulo: nuevas === 1 ? '1 solicitud por mail para revisar' : `${nuevas} solicitudes por mail para revisar`,
-          detalle: 'Un odontólogo escribió a la casilla del laboratorio: revisala y creá el pedido',
+          titulo: n === 1 ? '1 pedido por mail para revisar' : `${n} pedidos por mail para revisar`,
+          detalle: 'Un odontólogo escribió a la casilla del laboratorio: revisalo y creá el pedido',
           ruta: '/dashboard/solicitudes',
+        });
+      }
+
+      if (nuevas.sinAutorizar > 0) {
+        const n = nuevas.sinAutorizar;
+        notis.push({
+          id: 'solicitudes-sin-autorizar',
+          tipo: 'warning',
+          icono: 'alerta',
+          titulo: n === 1 ? '1 mail de alguien que no conocemos' : `${n} mails de gente que no conocemos`,
+          detalle: 'Quedaron aparte: decidí si los aceptás o los bloqueás',
+          ruta: '/dashboard/solicitudes',
+          queryParams: { ver: 'sin-autorizar' },
         });
       }
 

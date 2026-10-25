@@ -16,28 +16,6 @@
   overflow: hidden;
 }
 
-/* ── HEADER ── */
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  flex-shrink: 0;
-}
-.page-title h1 {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--gs-text);
-  letter-spacing: -0.5px;
-  margin: 0;
-}
-.page-title h1 .accent { color: var(--gs-green); }
-.page-title p {
-  color: var(--gs-text-muted);
-  font-size: 0.85rem;
-  margin-top: 0.25rem;
-}
 .vencido-stat { color: #dc2626; font-weight: 700; }
 
 .header-actions {

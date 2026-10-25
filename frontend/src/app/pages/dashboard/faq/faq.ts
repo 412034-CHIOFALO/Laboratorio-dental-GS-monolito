@@ -146,7 +146,7 @@ export class FaqComponent {
         {
           id: 'que-hace-bot',
           pregunta: '¿Qué hace exactamente el bot de WhatsApp?',
-          respuesta: 'Lee los comprobantes de pago que se mandan a los grupos monitoreados, extrae monto, número de operación, emisor y receptor con IA, evita duplicados y clasifica el pago (sueldo, proveedor o triangulado) para que lo confirmes en Bot WhatsApp.',
+          respuesta: 'Lee los comprobantes de pago que se mandan a los grupos monitoreados, extrae monto, número de operación, emisor y receptor con IA, evita duplicados y clasifica el pago (sueldo, proveedor o pago directo) para que lo confirmes en Bot WhatsApp.',
         },
         {
           id: 'bot-desconectado',

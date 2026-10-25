@@ -260,20 +260,20 @@ export class DashboardHomeComponent implements OnInit {
       });
     }
 
-    // 5. Caja compensación
+    // 5. Pagos directos (la caja de compensación del sistema)
     if (this.resumenCajas && this.resumenCajas.saldoCompensacion !== 0) {
       items.push({
         hue: 'var(--color-special)',
-        titulo: 'Caja compensación',
-        subtitulo: 'Debe quedar en $0',
+        titulo: 'Pagos directos',
+        subtitulo: 'Tienen que cerrar en $0',
         valor: this.formatMoney(this.resumenCajas.saldoCompensacion),
         to: '/dashboard/finanzas',
       });
     } else if (this.resumenCajas) {
       items.push({
         hue: 'var(--color-neutral)',
-        titulo: 'Caja compensación',
-        subtitulo: 'Cerrada en cero ✓',
+        titulo: 'Pagos directos',
+        subtitulo: 'Todo cerrado ✓',
         valor: '$0',
       });
     }

@@ -66,9 +66,13 @@ export interface PagoSueldoRequest {
   monto: number;
   /** Qué hacer si se paga de más respecto al devengado. */
   manejoSobrante: 'DESCONTAR_PROXIMO' | 'CUBRE_LAB' | 'DEVUELVE_EMPLEADO';
+  /** Con qué se pagó: EFECTIVO sale de la Caja Física y TRANSFERENCIA de la Bancaria. */
+  medio?: MedioPagoSueldo;
   fecha?: string | null;
   nota?: string | null;
 }
+
+export type MedioPagoSueldo = 'EFECTIVO' | 'TRANSFERENCIA';
 
 /** Una línea de la distribución sugerida por el algoritmo de cascada. */
 export interface LineaDistribucion {
@@ -174,6 +178,8 @@ export interface PagoSueldoResponse {
   emisor: string | null;
   comprobanteUrl: string | null;
   grupoOrigen: string | null;
+  /** Con qué se pagó; null en los pagos anteriores a que se registrara. */
+  medio?: MedioPagoSueldo | null;
 }
 
 /** Pago triangulado a proveedor cargado a mano desde Cuentas Corrientes: el odontólogo pagó directo al proveedor por el laboratorio. */
@@ -216,6 +222,22 @@ export interface RegistroBot {
   fuente: FuentePago;
   /** Por qué una transferencia quedó pendiente de revisión (motivos separados por " | "), o null. */
   motivosRevision?: string | null;
+  /** Solo en los pendientes: odontólogos con deuda que podrían ser quien pagó, cuando el nombre no alcanza para estar seguro. */
+  candidatosEmisor?: CandidatoEmisor[];
+}
+
+/** Un odontólogo con deuda que podría ser quien pagó un comprobante. */
+export interface CandidatoEmisor {
+  odontologoId: number;
+  nombre: string;
+  deuda: number;
+}
+
+/** Lo que decide quien aprueba cuando no se sabe seguro quién pagó. */
+export interface DecisionEmisor {
+  odontologoId?: number | null;
+  /** true = no fue un odontólogo: lo pagó el laboratorio. */
+  sinOdontologo?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -340,11 +362,11 @@ export class SueldosService {
   }
 
   /** Confirma un pago en efectivo pendiente: aplica el sueldo/deuda y egresa de caja física. */
-  confirmarEfectivo(id: number): Observable<RegistroBot> {
+  confirmarEfectivo(id: number, decision?: DecisionEmisor): Observable<RegistroBot> {
     if (environment.useMocks) {
       return of({} as RegistroBot).pipe(delay(200));
     }
-    return this.http.post<RegistroBot>(`${this.base}/registros-bot/${id}/confirmar`, {});
+    return this.http.post<RegistroBot>(`${this.base}/registros-bot/${id}/confirmar`, decision ?? {});
   }
 
   /** Rechaza un pago en efectivo pendiente con motivo opcional. */
@@ -401,6 +423,7 @@ export class SueldosService {
         emisor: null,
         comprobanteUrl: null,
         grupoOrigen: null,
+        medio: req.medio ?? 'EFECTIVO',
       });
       return of({ ...e }).pipe(delay(220));
     }
@@ -417,7 +440,7 @@ export class SueldosService {
     if (environment.useMocks) {
       const nombres: Record<number, string> = { 1: 'Dental Import SRL', 2: 'Luciano Giménez', 3: 'Protésica del Sur' };
       const proveedorNombre = nombres[req.proveedorId] ?? 'Proveedor';
-      // Sin esto el pago manual no aparecía en el mock de "Triangulados": esa
+      // Sin esto el pago manual no aparecía en el mock de "Pagos registrados": esa
       // tabla se arma leyendo registrosBot(), y este flujo no dejaba nada ahí.
       this.registrosBotMock.unshift({
         id: this.nextRegistroBotId++,
@@ -430,7 +453,7 @@ export class SueldosService {
         receptorId: req.proveedorId,
         receptorResuelto: proveedorNombre,
         estado: 'REGISTRADO',
-        mensaje: `Triangulado manual: Odontólogo #${odontologoId} → ${proveedorNombre}`,
+        mensaje: `Pago directo: Odontólogo #${odontologoId} → ${proveedorNombre}`,
         cargadoPorNombre: null,
         grupoOrigen: null,
         tieneComprobante: false,

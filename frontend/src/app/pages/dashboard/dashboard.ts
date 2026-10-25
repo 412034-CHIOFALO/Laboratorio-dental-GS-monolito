@@ -1,9 +1,11 @@
-import { Component, OnInit, HostListener, inject } from '@angular/core';
+import { Component, OnInit, HostListener, inject, signal } from '@angular/core';
+import { forkJoin } from 'rxjs';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../services/auth';
 import { ThemeService } from '../../services/theme.service';
 import { TutorialService } from '../../services/tutorial.service';
 import { NotificacionesService } from '../../services/notificaciones.service';
+import { SolicitudesService } from '../../services/solicitudes.service';
 
 interface NavItem {
   type: 'item';
@@ -13,6 +15,8 @@ interface NavItem {
   roles?: string[];
   tourId?: string;
   mobileOnly?: boolean;
+  /** Solo se muestra si la casilla de pedidos por mail está conectada o hay mails esperando. */
+  soloConCorreo?: boolean;
 }
 
 interface NavGroup {
@@ -43,7 +47,7 @@ export class DashboardComponent implements OnInit {
     { type: 'group', label: 'Operativo' },
     { type: 'item', label: 'Inicio',       icon: 'home',      route: '/dashboard',              tourId: 'nav-inicio' },
     { type: 'item', label: 'Pedidos',      icon: 'package',   route: '/dashboard/pedidos',      tourId: 'nav-pedidos' },
-    { type: 'item', label: 'Solicitudes',  icon: 'inbox',     route: '/dashboard/solicitudes' },
+    { type: 'item', label: 'Solicitudes',  icon: 'inbox',     route: '/dashboard/solicitudes', soloConCorreo: true },
     { type: 'item', label: 'Producción',   icon: 'layers',    route: '/dashboard/produccion',   tourId: 'nav-produccion' },
     { type: 'item', label: 'Entregas',     icon: 'truck',     route: '/dashboard/entregas',     tourId: 'nav-entregas' },
 
@@ -73,6 +77,10 @@ export class DashboardComponent implements OnInit {
   readonly themeService    = inject(ThemeService);
   readonly tutorialService = inject(TutorialService);
   readonly notis           = inject(NotificacionesService);
+  private readonly solicitudes = inject(SolicitudesService);
+
+  /** Hasta saberlo, «Solicitudes» no se muestra: sin casilla conectada y sin mails no hay nada para ver ahí. */
+  readonly hayCorreo = signal(false);
 
   constructor(private authService: AuthService, private router: Router) {}
 
@@ -111,6 +119,14 @@ export class DashboardComponent implements OnInit {
     this.roles = this.authService.getRoles();
     this.sidebarOpen = window.innerWidth >= 1024;
 
+    // Solo el personal del laboratorio puede ver las solicitudes: para otro rol el pedido daría 403 y lo sacaría de la pantalla.
+    if (this.authService.puedeVerOperativa()) {
+      forkJoin({ estado: this.solicitudes.estadoCorreo(), cantidades: this.solicitudes.cantidades() }).subscribe({
+        next: ({ estado, cantidades }) => this.hayCorreo.set(estado.habilitado || cantidades.nuevas > 0 || cantidades.sinAutorizar > 0),
+        error: () => this.hayCorreo.set(true),   // ante la duda se muestra: mejor un menú de más que esconder una función
+      });
+    }
+
     this.authService.miPerfil().subscribe({
       next: p => {
         const nombre = `${p.nombre ?? ''} ${p.apellido ?? ''}`.trim();
@@ -141,6 +157,9 @@ export class DashboardComponent implements OnInit {
       }
       if (entry.type === 'group') {
         return true;
+      }
+      if (entry.soloConCorreo && !this.hayCorreo()) {
+        return false;
       }
       return !entry.roles || entry.roles.some(r => this.roles.includes(r));
     });

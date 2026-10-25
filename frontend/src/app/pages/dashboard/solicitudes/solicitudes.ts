@@ -1,22 +1,34 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { ActivatedRoute } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { AdjuntoSolicitud, EstadoCorreo, EstadoSolicitud, Solicitud, SolicitudesService } from '../../../services/solicitudes.service';
+import {
+  AdjuntoSolicitud, CantidadesSolicitudes, EstadoCorreo, EstadoSolicitud, Remitente, RemitenteTipo, Solicitud, SolicitudesService,
+} from '../../../services/solicitudes.service';
 import { OdontologoResponse, OdontologosService } from '../../../services/odontologos.service';
 import { CatalogoService, TipoTrabajoResponse } from '../../../services/catalogo.service';
 import { PedidoRequest, Prioridad } from '../../../services/pedidos.service';
 import { AuthService } from '../../../services/auth';
 import { NotificationService } from '../../../services/notification.service';
 import { comoLocalDate } from '../../../services/date-utils';
+import { PageHeaderComponent } from '../../../shared/page-header';
+import { SectionTabsComponent, SeccionTab } from '../../../shared/section-tabs';
+
+/** Lo que se puede mirar en la pantalla: una bandeja de mails o la lista de direcciones autorizadas. */
+type Vista = EstadoSolicitud | 'AUTORIZADOS';
 
 /**
  * Pedidos que llegaron por mail y esperan que alguien los revise. El sistema adelanta el formulario con lo que pudo
- * leer del texto (paciente, trabajo, fecha, urgencia, precio) y reconoce al odontólogo por su email; una persona confirma
- * y recién ahí se crea el pedido, o descarta la solicitud (consultas, spam).
+ * leer del texto (paciente, trabajo, fecha, urgencia, precio); una persona confirma y recién ahí se crea el pedido, o
+ * descarta la solicitud (consultas, spam).
+ *
+ * Solo entran directo a «Por revisar» los mails de remitentes conocidos y verificados. Los de cualquier otra dirección
+ * quedan aparte en «Remitentes nuevos», sin adjuntos, hasta que una persona dice quién es (odontólogo, secretaria u
+ * otro) o los bloquea.
  */
 @Component({
   selector: 'app-solicitudes',
-  imports: [ReactiveFormsModule, DatePipe],
+  imports: [ReactiveFormsModule, DatePipe, PageHeaderComponent, SectionTabsComponent],
   templateUrl: './solicitudes.html',
   styleUrl: './solicitudes.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,14 +39,25 @@ export class SolicitudesComponent implements OnInit {
   private readonly catalogoSvc = inject(CatalogoService);
   private readonly auth = inject(AuthService);
   private readonly notif = inject(NotificationService);
+  private readonly ruta = inject(ActivatedRoute);
 
-  readonly estados: { valor: EstadoSolicitud; etiqueta: string }[] = [
-    { valor: 'NUEVA', etiqueta: 'Por revisar' },
-    { valor: 'CONVERTIDA', etiqueta: 'Convertidas' },
-    { valor: 'DESCARTADA', etiqueta: 'Descartadas' },
+  /** Las pestañas llevan el numerito de lo que espera a alguien (pedidos por revisar, remitentes nuevos). */
+  readonly pestanias = computed<SeccionTab[]>(() => [
+    { id: 'NUEVA', etiqueta: 'Por revisar', cantidad: this.cantidades().nuevas },
+    { id: 'SIN_AUTORIZAR', etiqueta: 'Remitentes nuevos', cantidad: this.cantidades().sinAutorizar, aviso: true },
+    { id: 'CONVERTIDA', etiqueta: 'Convertidas' },
+    { id: 'DESCARTADA', etiqueta: 'Descartadas' },
+    { id: 'AUTORIZADOS', etiqueta: 'Direcciones autorizadas' },
+  ]);
+
+  readonly tiposRemitente: { valor: RemitenteTipo; etiqueta: string; corta: string; ayuda: string }[] = [
+    { valor: 'ODONTOLOGO', etiqueta: 'Es el odontólogo', corta: 'Odontólogo', ayuda: 'Escribe él mismo, desde otra casilla o por primera vez.' },
+    { valor: 'SECRETARIA', etiqueta: 'Es su secretaria o asistente', corta: 'Secretaria o asistente', ayuda: 'Escribe en nombre de un odontólogo.' },
+    { valor: 'OTRO', etiqueta: 'Es otra persona', corta: 'Otra persona', ayuda: 'Un contador, un proveedor… Se acepta igual y no queda atada a ningún odontólogo.' },
   ];
 
-  readonly estado = signal<EstadoSolicitud>('NUEVA');
+  readonly estado = signal<Vista>('NUEVA');
+  readonly cantidades = signal<CantidadesSolicitudes>({ nuevas: 0, sinAutorizar: 0 });
   readonly lista = signal<Solicitud[]>([]);
   readonly cargando = signal(false);
   readonly seleccionada = signal<Solicitud | null>(null);
@@ -44,6 +67,13 @@ export class SolicitudesComponent implements OnInit {
   readonly guardando = signal(false);
   readonly descartando = signal(false);
   readonly confirmandoDescarte = signal(false);
+  readonly aceptando = signal(false);
+  readonly bloqueando = signal(false);
+  readonly confirmandoBloqueo = signal(false);
+  readonly remitentes = signal<Remitente[]>([]);
+  readonly cargandoRemitentes = signal(false);
+  readonly agregando = signal(false);
+  readonly confirmandoQuitar = signal<number | null>(null);
 
   /** Convertir y descartar: solo ADMIN y ADMINISTRATIVO (el técnico puede mirar). */
   puedeResolver(): boolean {
@@ -51,6 +81,12 @@ export class SolicitudesComponent implements OnInit {
     // antes de que termine de cargarse la sesión, y se quedaría con ese valor para siempre.
     return this.auth.puedeVerFinanzas();
   }
+
+  /** Quitar una dirección de la lista: solo Administración (los demás la ven pero no la tocan). */
+  puedeQuitarRemitentes(): boolean {
+    return this.auth.isAdmin();
+  }
+
   readonly minimaEntrega = comoLocalDate(new Date(Date.now() + 86_400_000));
 
   readonly form = new FormGroup({
@@ -66,8 +102,26 @@ export class SolicitudesComponent implements OnInit {
   });
   readonly motivoDescarte = new FormControl('', { nonNullable: true, validators: [Validators.maxLength(255)] });
 
+  /** Qué hacer con un mail de un remitente sin autorizar: quién es, y si se recuerda su dirección. */
+  readonly formAceptar = new FormGroup({
+    tipo: new FormControl<RemitenteTipo | null>(null, [Validators.required]),
+    odontologoId: new FormControl<number | null>(null),
+    aclaracion: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(100)] }),
+    recordar: new FormControl(true, { nonNullable: true }),
+  });
+
+  /** Alta a mano de una dirección autorizada (por ejemplo, la secretaria, antes de que escriba). */
+  readonly formRemitente = new FormGroup({
+    email: new FormControl('', { nonNullable: true, validators: [Validators.required, Validators.email, Validators.maxLength(150)] }),
+    tipo: new FormControl<RemitenteTipo>('SECRETARIA', { nonNullable: true }),
+    odontologoId: new FormControl<number | null>(null),
+    aclaracion: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(100)] }),
+  });
+
   ngOnInit(): void {
+    if (this.ruta.snapshot.queryParamMap.get('ver') === 'sin-autorizar') this.estado.set('SIN_AUTORIZAR');
     this.cargar();
+    this.refrescarCantidades();
     this.svc.estadoCorreo().subscribe({ next: e => this.correo.set(e), error: () => this.correo.set(null) });
     // Sin estas listas los selectores del formulario quedan vacíos: hay que decirlo, no dejar que parezca que no hay datos.
     this.odontologosSvc.buscar().subscribe({
@@ -80,9 +134,15 @@ export class SolicitudesComponent implements OnInit {
     });
   }
 
+  private refrescarCantidades(): void {
+    this.svc.cantidades().subscribe({ next: c => this.cantidades.set(c), error: () => { /* es solo el número de las pestañas */ } });
+  }
+
   cargar(): void {
+    const vista = this.estado();
+    if (vista === 'AUTORIZADOS') { this.cargarRemitentes(); return; }
     this.cargando.set(true);
-    this.svc.listar(this.estado()).subscribe({
+    this.svc.listar(vista).subscribe({
       next: l => {
         this.lista.set(l);
         this.cargando.set(false);
@@ -90,22 +150,32 @@ export class SolicitudesComponent implements OnInit {
         const sigue = actual ? l.find(s => s.id === actual.id) : null;
         this.seleccionar(sigue ?? l[0] ?? null);
       },
-      error: err => { this.cargando.set(false); this.notif.errorHttp(err, 'No se pudieron cargar las solicitudes'); },
+      error: err => { this.cargando.set(false); this.notif.errorHttp(err, 'No se pudieron cargar los mails'); },
     });
   }
 
-  cambiarEstado(e: EstadoSolicitud): void {
+  cambiarEstado(e: Vista): void {
     if (e === this.estado()) return;
     this.estado.set(e);
     this.seleccionada.set(null);
     this.cargar();
   }
 
+  /** Lo que avisa la barra de pestañas llega como texto: acá se vuelve una vista conocida. */
+  elegirVista(id: string): void {
+    if (this.pestanias().some(p => p.id === id)) this.cambiarEstado(id as Vista);
+  }
+
   /** Abre una solicitud y adelanta el formulario con lo que el sistema pudo leer. */
   seleccionar(s: Solicitud | null): void {
     this.seleccionada.set(s);
     this.confirmandoDescarte.set(false);
+    this.confirmandoBloqueo.set(false);
     this.motivoDescarte.reset('');
+    // Si no se pudo verificar el mail no se ofrece recordar la dirección: se acepta este mail y nada más.
+    this.formAceptar.reset({
+      tipo: s?.remitenteTipo ?? null, odontologoId: s?.odontologoId ?? null, aclaracion: '', recordar: s?.remitenteVerificado !== false,
+    });
     if (!s) return;
     const g = s.sugerencia;
     this.form.reset({
@@ -179,7 +249,7 @@ export class SolicitudesComponent implements OnInit {
     if (!s || this.descartando()) return;
     this.descartando.set(true);
     this.svc.descartar(s.id, this.motivoDescarte.value.trim() || null).subscribe({
-      next: () => { this.descartando.set(false); this.notif.alerta('Solicitud descartada'); this.quitar(s.id); },
+      next: () => { this.descartando.set(false); this.notif.alerta('Mail descartado'); this.quitar(s.id); },
       error: err => { this.descartando.set(false); this.notif.errorHttp(err, 'No se pudo descartar'); },
     });
   }
@@ -188,6 +258,115 @@ export class SolicitudesComponent implements OnInit {
     const resto = this.lista().filter(x => x.id !== id);
     this.lista.set(resto);
     this.seleccionar(resto[0] ?? null);
+    this.refrescarCantidades();
+  }
+
+  // ── Remitentes nuevos ─────────────────────────────────────────────
+
+  get puedeAceptar(): boolean {
+    const v = this.formAceptar.getRawValue();
+    return v.tipo != null && (v.tipo === 'OTRO' || v.odontologoId != null) && this.formAceptar.valid;
+  }
+
+  aceptar(): void {
+    const s = this.seleccionada();
+    if (!s || !this.puedeAceptar || this.aceptando()) return;
+    const v = this.formAceptar.getRawValue();
+    const recordar = v.recordar && s.remitenteVerificado !== false;
+    this.aceptando.set(true);
+    this.svc.aceptar(s.id, {
+      tipo: v.tipo as RemitenteTipo,
+      odontologoId: v.tipo === 'OTRO' ? null : v.odontologoId,
+      aclaracion: v.aclaracion.trim() || null,
+      recordar,
+    }).subscribe({
+      next: () => {
+        this.aceptando.set(false);
+        this.notif.exito(recordar
+          ? 'Mail aceptado. Los próximos de esa dirección entran directo a «Por revisar»'
+          : 'Mail aceptado: ya está en «Por revisar»');
+        this.quitar(s.id);
+      },
+      error: err => { this.aceptando.set(false); this.notif.errorHttp(err, 'No se pudo aceptar el mail'); },
+    });
+  }
+
+  bloquear(): void {
+    const s = this.seleccionada();
+    if (!s || this.bloqueando()) return;
+    this.bloqueando.set(true);
+    this.svc.bloquearRemitente(s.id).subscribe({
+      next: () => {
+        this.bloqueando.set(false);
+        this.confirmandoBloqueo.set(false);
+        this.notif.alerta(`Se bloqueó a ${s.remitenteEmail}: sus mails ya no llegan`);
+        this.cargar();
+        this.refrescarCantidades();
+      },
+      error: err => { this.bloqueando.set(false); this.notif.errorHttp(err, 'No se pudo bloquear al remitente'); },
+    });
+  }
+
+  /** Bloquear solo tiene sentido para direcciones que no son de un odontólogo: el sistema no deja bloquear a un cliente. */
+  puedeBloquear(s: Solicitud): boolean {
+    return !!s.remitenteEmail && s.odontologoId == null;
+  }
+
+  // ── Direcciones autorizadas ───────────────────────────────────────
+
+  private cargarRemitentes(): void {
+    this.cargandoRemitentes.set(true);
+    this.svc.remitentes().subscribe({
+      next: r => { this.remitentes.set(r); this.cargandoRemitentes.set(false); },
+      error: err => { this.cargandoRemitentes.set(false); this.notif.errorHttp(err, 'No se pudo cargar la lista de direcciones'); },
+    });
+  }
+
+  autorizadas(): Remitente[] { return this.remitentes().filter(r => r.estado === 'AUTORIZADO'); }
+  bloqueadas(): Remitente[] { return this.remitentes().filter(r => r.estado === 'BLOQUEADO'); }
+
+  get puedeAgregarRemitente(): boolean {
+    const v = this.formRemitente.getRawValue();
+    return this.formRemitente.valid && (v.tipo === 'OTRO' || v.odontologoId != null);
+  }
+
+  agregarRemitente(): void {
+    if (!this.puedeAgregarRemitente || this.agregando()) return;
+    const v = this.formRemitente.getRawValue();
+    this.agregando.set(true);
+    this.svc.autorizarRemitente({
+      email: v.email.trim(),
+      tipo: v.tipo,
+      odontologoId: v.tipo === 'OTRO' ? null : v.odontologoId,
+      aclaracion: v.aclaracion.trim() || null,
+    }).subscribe({
+      next: () => {
+        this.agregando.set(false);
+        this.notif.exito('Dirección autorizada');
+        this.formRemitente.reset({ email: '', tipo: 'SECRETARIA', odontologoId: null, aclaracion: '' });
+        this.cargarRemitentes();
+      },
+      error: err => { this.agregando.set(false); this.notif.errorHttp(err, 'No se pudo autorizar la dirección'); },
+    });
+  }
+
+  quitarRemitente(r: Remitente): void {
+    this.svc.quitarRemitente(r.id).subscribe({
+      next: () => {
+        this.confirmandoQuitar.set(null);
+        this.notif.exito(r.estado === 'BLOQUEADO' ? 'Dirección desbloqueada' : 'Dirección quitada de las autorizadas');
+        this.cargarRemitentes();
+      },
+      error: err => this.notif.errorHttp(err, 'No se pudo quitar la dirección'),
+    });
+  }
+
+  nombreOdontologo(id: number | null): string {
+    return id == null ? '' : (this.odontologos().find(o => o.id === id)?.nombre ?? '');
+  }
+
+  tipoCorto(t: RemitenteTipo | null): string {
+    return this.tiposRemitente.find(x => x.valor === t)?.corta ?? '';
   }
 
   descargar(s: Solicitud, a: AdjuntoSolicitud): void {
@@ -231,5 +410,18 @@ export class SolicitudesComponent implements OnInit {
   resumen(s: Solicitud): string {
     const c = s.sugerencia;
     return [c.trabajo, c.paciente ? `paciente ${c.paciente}` : null].filter(Boolean).join(' · ') || 'Sin datos reconocidos';
+  }
+
+  /** Quién dice ser el remitente, para mostrarlo en la lista y en el detalle. */
+  quienEs(s: Solicitud): string {
+    return s.remitenteEtiqueta ?? s.odontologoNombre ?? s.remitenteNombre ?? s.remitenteEmail ?? '';
+  }
+
+  textoVacio(): string {
+    switch (this.estado()) {
+      case 'NUEVA': return 'No hay pedidos por revisar.';
+      case 'SIN_AUTORIZAR': return 'No hay mails de remitentes nuevos. Los de alguien que no conocemos aparecen acá en vez de mezclarse con los pedidos.';
+      default: return 'No hay mails en este estado.';
+    }
   }
 }

@@ -1,20 +1,19 @@
 <div class="page-content">
 
   <!-- HEADER -->
-  <div class="page-header">
-    <div class="page-title">
-      <h1>Usuarios</h1>
-      <p>Gestioná las cuentas del sistema</p>
-    </div>
+  <app-page-header titulo="Usuarios">
+    <span subtitulo>Gestioná las cuentas del sistema</span>
+    <ng-container ngProjectAs="[acciones]">
     @if (puedeGestionar) {
-      <button class="btn-create" (click)="abrirModal()">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Nuevo usuario
-      </button>
-    }
-  </div>
+          <button class="btn-create" (click)="abrirModal()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Nuevo usuario
+          </button>
+        }
+    </ng-container>
+  </app-page-header>
 
   @if (error) {
     <div class="alert-error">

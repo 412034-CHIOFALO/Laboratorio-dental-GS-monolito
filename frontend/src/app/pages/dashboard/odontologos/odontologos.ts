@@ -11,11 +11,12 @@ import { NotificationService } from '../../../services/notification.service';
 import { PagoCuentaCorrienteModalComponent } from './pago-cuenta-corriente-modal/pago-cuenta-corriente-modal.component';
 import { AuthService } from '../../../services/auth';
 import { iniciarPolling } from '../../../shared/poll.util';
+import { PageHeaderComponent } from '../../../shared/page-header';
 
 @Component({
   selector: 'app-odontologos',
   standalone: true,
-  imports: [FormsModule, RouterLink, PagoCuentaCorrienteModalComponent],
+  imports: [PageHeaderComponent, FormsModule, RouterLink, PagoCuentaCorrienteModalComponent],
   templateUrl: './odontologos.html',
   styleUrls: ['./odontologos.css'],
 })

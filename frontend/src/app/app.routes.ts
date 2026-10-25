@@ -1,4 +1,5 @@
-import { Routes } from '@angular/router';
+import { Router, Routes } from '@angular/router';
+import { inject } from '@angular/core';
 import { LandingPage } from './pages/landing-page/landing-page';
 import { LoginComponent } from './pages/login/login';
 import { DashboardComponent } from './pages/dashboard/dashboard';
@@ -18,7 +19,6 @@ import { OdontologosComponent } from './pages/dashboard/odontologos/odontologos'
 import { OdontologoHistorialComponent } from './pages/dashboard/odontologos/historial/odontologo-historial';
 import { BotRegistrosComponent } from './pages/dashboard/bot-registros/bot-registros';
 import { SolicitudesComponent } from './pages/dashboard/solicitudes/solicitudes';
-import { ProveedoresComponent } from './pages/dashboard/proveedores/proveedores';
 import { ManualComponent } from './pages/dashboard/manual/manual';
 import { FaqComponent } from './pages/dashboard/faq/faq';
 import { MiPerfilComponent } from './pages/dashboard/mi-perfil/mi-perfil';
@@ -50,7 +50,8 @@ export const routes: Routes = [
       { path: 'catalogo',    loadComponent: () => import('./pages/dashboard/catalogo/catalogo').then(m => m.CatalogoComponent) },
       { path: 'stock',       loadComponent: () => import('./pages/dashboard/stock/stock').then(m => m.StockComponent) },
       { path: 'finanzas',    loadComponent: () => import('./pages/dashboard/finanzas/finanzas').then(m => m.FinanzasComponent) },
-      { path: 'proveedores', loadComponent: () => import('./pages/dashboard/proveedores/proveedores').then(m => m.ProveedoresComponent) },
+      // Proveedores es una sección de Finanzas; el link viejo sigue funcionando.
+      { path: 'proveedores', pathMatch: 'full', redirectTo: () => inject(Router).parseUrl('/dashboard/finanzas?seccion=proveedores') },
       { path: 'bot-registros', loadComponent: () => import('./pages/dashboard/bot-registros/bot-registros').then(m => m.BotRegistrosComponent) },
       { path: 'solicitudes', loadComponent: () => import('./pages/dashboard/solicitudes/solicitudes').then(m => m.SolicitudesComponent) },
       { path: 'reportes',    loadComponent: () => import('./pages/dashboard/reportes/reportes').then(m => m.ReportesComponent) },
