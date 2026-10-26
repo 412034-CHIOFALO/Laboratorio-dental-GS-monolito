@@ -45,6 +45,7 @@ class SolicitudServiceTest {
     private EscaneosPedidoRepository escaneoRepo;
     private DocumentoPedidoRepository documentoRepo;
     private OdontologoRepository odontologoRepo;
+    private IOdontologoService odontologos;
     private IPedidoService pedidoService;
     private RemitenteService remitentes;
     private AuditoriaService auditoria;
@@ -61,7 +62,8 @@ class SolicitudServiceTest {
         pedidoService = mock(IPedidoService.class);
         auditoria = mock(AuditoriaService.class);
         remitentes = mock(RemitenteService.class);
-        servicio = new SolicitudService(solicitudRepo, adjuntoRepo, escaneoRepo, documentoRepo, odontologoRepo, pedidoService, remitentes, auditoria,
+        odontologos = mock(IOdontologoService.class);
+        servicio = new SolicitudService(solicitudRepo, adjuntoRepo, escaneoRepo, documentoRepo, odontologoRepo, odontologos, pedidoService, remitentes, auditoria,
                 Clock.fixed(Instant.parse("2026-10-21T15:00:00Z"), ZoneId.of("America/Argentina/Buenos_Aires")));
 
         solicitud = SolicitudEntrante.builder().id(7L).estado(SolicitudEntrante.Estado.NUEVA)
@@ -193,7 +195,7 @@ class SolicitudServiceTest {
         SolicitudEntrante s = sinAutorizar(20L, "laura@consultorio.com", true);
         when(odontologoRepo.findById(5L)).thenReturn(Optional.of(perez()));
 
-        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.SECRETARIA, 5L, null, true));
+        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.SECRETARIA, 5L, null, true, null));
 
         assertThat(s.getEstado()).isEqualTo(SolicitudEntrante.Estado.NUEVA);
         assertThat(s.getRemitenteTipo()).isEqualTo(SolicitudEntrante.RemitenteTipo.SECRETARIA);
@@ -215,7 +217,7 @@ class SolicitudServiceTest {
                 .thenReturn(List.of(esta, otraBuena, otraFalsa));
         when(odontologoRepo.findById(5L)).thenReturn(Optional.of(perez()));
 
-        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.ODONTOLOGO, 5L, null, true));
+        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.ODONTOLOGO, 5L, null, true, null));
 
         assertThat(otraBuena.getEstado()).isEqualTo(SolicitudEntrante.Estado.NUEVA);
         assertThat(otraFalsa.getEstado()).as("un mail que no pasó la verificación se resuelve a mano").isEqualTo(SolicitudEntrante.Estado.SIN_AUTORIZAR);
@@ -226,7 +228,7 @@ class SolicitudServiceTest {
         SolicitudEntrante s = sinAutorizar(20L, "laura@consultorio.com", true);
         when(odontologoRepo.findById(5L)).thenReturn(Optional.of(perez()));
 
-        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.ODONTOLOGO, 5L, null, false));
+        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.ODONTOLOGO, 5L, null, false, null));
 
         assertThat(s.getEstado()).isEqualTo(SolicitudEntrante.Estado.NUEVA);
         verify(remitentes, never()).autorizar(any(), any(), any(), any());
@@ -236,7 +238,7 @@ class SolicitudServiceTest {
     void aceptarComoOdontologoOSecretariaExigeElegirElOdontologo() {
         sinAutorizar(20L, "laura@consultorio.com", true);
 
-        assertThatThrownBy(() -> servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.SECRETARIA, null, null, true)))
+        assertThatThrownBy(() -> servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.SECRETARIA, null, null, true, null)))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("odontólogo");
         verify(remitentes, never()).autorizar(any(), any(), any(), any());
     }
@@ -245,7 +247,7 @@ class SolicitudServiceTest {
     void aceptarComoOtroNoNecesitaOdontologo() {
         SolicitudEntrante s = sinAutorizar(20L, "contador@estudio.com", true);
 
-        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.OTRO, null, "Estudio contable", true));
+        servicio.aceptar(20L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.OTRO, null, "Estudio contable", true, null));
 
         assertThat(s.getEstado()).isEqualTo(SolicitudEntrante.Estado.NUEVA);
         assertThat(s.getOdontologoId()).isNull();
@@ -254,7 +256,7 @@ class SolicitudServiceTest {
 
     @Test
     void soloSePuedeAceptarUnMailQueEstaSinAutorizar() {
-        assertThatThrownBy(() -> servicio.aceptar(7L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.OTRO, null, null, true)))
+        assertThatThrownBy(() -> servicio.aceptar(7L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.OTRO, null, null, true, null)))
                 .isInstanceOf(BusinessException.class).hasMessageContaining("ya está nueva");
     }
 
@@ -293,5 +295,76 @@ class SolicitudServiceTest {
 
         assertThat(servicio.cantidadNuevas()).isEqualTo(2);
         assertThat(servicio.cantidadSinAutorizar()).isEqualTo(5);
+    }
+
+    // ── Odontólogo que todavía no está cargado ───────────────────────
+
+    private void creaAlOdontologo(long id, String nombre, String email) {
+        when(odontologos.crear(any(com.gs.monolito.pedidos.dto.OdontologoRequest.class)))
+                .thenAnswer(inv -> {
+                    var r = (com.gs.monolito.pedidos.dto.OdontologoRequest) inv.getArgument(0);
+                    odontologoNuevo = Odontologo.builder().id(id).nombre(r.getNombre()).email(r.getEmail()).clinica(r.getClinica()).activo(true).build();
+                    return mock(com.gs.monolito.pedidos.dto.OdontologoResponse.class, inv2 -> inv2.getMethod().getName().equals("id") ? (Object) id : null);
+                });
+        when(odontologoRepo.findById(id)).thenAnswer(inv -> Optional.of(odontologoNuevo));
+    }
+
+    private Odontologo odontologoNuevo;
+
+    @Test
+    void aceptarComoOdontologoNuevoLoDaDeAltaConElMailDeQuienEscribeYNoNecesitaOtraRegla() {
+        SolicitudEntrante s = sinAutorizar(30L, "Nuevo.Doc@clinica.com", true);
+        creaAlOdontologo(77L, "Dr. Nuevo", "nuevo.doc@clinica.com");
+
+        servicio.aceptar(30L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.ODONTOLOGO, null, null, true,
+                new AceptarRemitenteRequest.NuevoOdontologo("  Dr. Nuevo ", "Clínica Sur", "")));
+
+        ArgumentCaptor<com.gs.monolito.pedidos.dto.OdontologoRequest> ficha = ArgumentCaptor.forClass(com.gs.monolito.pedidos.dto.OdontologoRequest.class);
+        verify(odontologos).crear(ficha.capture());
+        assertThat(ficha.getValue().getNombre()).isEqualTo("Dr. Nuevo");
+        assertThat(ficha.getValue().getEmail()).as("la ficha lleva el mail con el que escribió").isEqualTo("nuevo.doc@clinica.com");
+        assertThat(ficha.getValue().getClinica()).isEqualTo("Clínica Sur");
+        assertThat(ficha.getValue().getTelefono()).isNull();
+        assertThat(s.getEstado()).isEqualTo(SolicitudEntrante.Estado.NUEVA);
+        assertThat(s.getOdontologoId()).isEqualTo(77L);
+        verify(remitentes, never()).autorizar(any(), any(), any(), any());
+    }
+
+    @Test
+    void aceptarComoSecretariaDeUnOdontologoNuevoNoLeCargaElMailDeLaSecretariaALaFicha() {
+        SolicitudEntrante s = sinAutorizar(31L, "laura@consultorio.com", true);
+        creaAlOdontologo(78L, "Dra. Nueva", null);
+
+        servicio.aceptar(31L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.SECRETARIA, null, null, true,
+                new AceptarRemitenteRequest.NuevoOdontologo("Dra. Nueva", null, null)));
+
+        ArgumentCaptor<com.gs.monolito.pedidos.dto.OdontologoRequest> ficha = ArgumentCaptor.forClass(com.gs.monolito.pedidos.dto.OdontologoRequest.class);
+        verify(odontologos).crear(ficha.capture());
+        assertThat(ficha.getValue().getEmail()).isNull();
+        verify(remitentes).autorizar("laura@consultorio.com", SolicitudEntrante.RemitenteTipo.SECRETARIA, 78L, null);
+        assertThat(s.getRemitenteEtiqueta()).isEqualTo("Secretaria de Dra. Nueva");
+    }
+
+    @Test
+    void unOdontologoNuevoSoloSeCargaComoOdontologoOSecretaria() {
+        sinAutorizar(32L, "contador@estudio.com", true);
+
+        assertThatThrownBy(() -> servicio.aceptar(32L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.OTRO, null, null, true,
+                new AceptarRemitenteRequest.NuevoOdontologo("Dr. X", null, null))))
+                .isInstanceOf(BusinessException.class).hasMessageContaining("odontólogo nuevo");
+        verify(odontologos, never()).crear(any());
+    }
+
+    @Test
+    void siElNombreYaExisteNoSeAceptaNiSeAutorizaNada() {
+        SolicitudEntrante s = sinAutorizar(33L, "otro@clinica.com", true);
+        when(odontologos.crear(any(com.gs.monolito.pedidos.dto.OdontologoRequest.class)))
+                .thenThrow(new com.gs.monolito.pedidos.exception.ConflictException("Ya existe un odontólogo con nombre: Dr. Pérez"));
+
+        assertThatThrownBy(() -> servicio.aceptar(33L, new AceptarRemitenteRequest(SolicitudEntrante.RemitenteTipo.ODONTOLOGO, null, null, true,
+                new AceptarRemitenteRequest.NuevoOdontologo("Dr. Pérez", null, null))))
+                .isInstanceOf(com.gs.monolito.pedidos.exception.ConflictException.class);
+        assertThat(s.getEstado()).isEqualTo(SolicitudEntrante.Estado.SIN_AUTORIZAR);
+        verify(remitentes, never()).autorizar(any(), any(), any(), any());
     }
 }

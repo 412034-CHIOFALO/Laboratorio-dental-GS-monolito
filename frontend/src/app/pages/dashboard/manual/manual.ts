@@ -329,7 +329,7 @@ export class ManualComponent {
       pasos: [
         'Para crear el pedido: elegí el mail, revisá y corregí los datos → "Crear pedido". Los archivos del mail pasan al pedido.',
         'Si no es un pedido (una consulta, publicidad): "Descartar", con un motivo si querés.',
-        'Si el mail es de alguien nuevo: en "Remitentes nuevos" elegí quién es (el odontólogo, su secretaria u otra persona) y "Aceptar este mail". Marcá "Recordar esta dirección" para que los próximos mails de esa persona entren directo. Si no lo conocés: "Descartar solo este" o "Bloquear a este remitente".',
+        'Si el mail es de alguien nuevo: en "Remitentes nuevos" elegí quién es (el odontólogo, su secretaria u otra persona) y "Aceptar este mail". Si el odontólogo todavía no está cargado, tocá "No está en la lista: es un odontólogo nuevo": se lo da de alta ahí mismo (con su mail, así los próximos pedidos entran directo). Marcá "Recordar esta dirección" para que los próximos mails de esa persona entren directo. Si no lo conocés: "Descartar solo este" o "Bloquear a este remitente".',
         'Para dar de alta a una secretaria antes de que escriba: Direcciones autorizadas → "Autorizar una dirección".',
       ],
       flujo: [

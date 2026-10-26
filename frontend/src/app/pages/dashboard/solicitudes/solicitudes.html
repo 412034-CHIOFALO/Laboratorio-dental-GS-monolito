@@ -127,7 +127,7 @@
       <ul class="sol-lista" aria-label="Mails">
         @for (s of lista(); track s.id) {
           <li>
-            <button type="button" class="sol-item" [class.activa]="seleccionada()?.id === s.id" (click)="seleccionar(s)">
+            <button type="button" class="sol-item" [class.activa]="seleccionada()?.id === s.id" (click)="abrir(s)">
               <span class="sol-item-top">
                 <strong>{{ quienEs(s) }}</strong>
                 <time>{{ s.fechaRecepcion | date:'dd/MM HH:mm' }}</time>
@@ -210,13 +210,46 @@
                   </fieldset>
 
                   @if (formAceptar.controls.tipo.value === 'ODONTOLOGO' || formAceptar.controls.tipo.value === 'SECRETARIA') {
-                    <div class="campo">
-                      <label for="acc-odo">{{ formAceptar.controls.tipo.value === 'SECRETARIA' ? 'Secretaria de' : 'Odontólogo' }} <span class="req">*</span></label>
-                      <select id="acc-odo" formControlName="odontologoId">
-                        <option [ngValue]="null">— Elegir —</option>
-                        @for (o of odontologos(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}{{ o.clinica ? ' · ' + o.clinica : '' }}</option> }
-                      </select>
-                    </div>
+                    @if (!formAceptar.controls.esNuevo.value) {
+                      <div class="campo">
+                        <label for="acc-odo">{{ formAceptar.controls.tipo.value === 'SECRETARIA' ? 'Secretaria de' : 'Odontólogo' }} <span class="req">*</span></label>
+                        <select id="acc-odo" formControlName="odontologoId">
+                          <option [ngValue]="null">— Elegir —</option>
+                          @for (o of odontologos(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}{{ o.clinica ? ' · ' + o.clinica : '' }}</option> }
+                        </select>
+                        <button type="button" class="sol-enlace" (click)="alternarNuevo()">
+                          {{ formAceptar.controls.tipo.value === 'SECRETARIA' ? 'Su odontólogo todavía no está cargado' : 'No está en la lista: es un odontólogo nuevo' }}
+                        </button>
+                      </div>
+                    } @else {
+                      <div class="sol-nuevo">
+                        <div class="sol-nuevo-cab">
+                          <strong>{{ formAceptar.controls.tipo.value === 'SECRETARIA' ? 'Cargar al odontólogo para el que trabaja' : 'Cargar al odontólogo nuevo' }}</strong>
+                          <button type="button" class="sol-enlace" (click)="alternarNuevo()">Elegir uno de la lista</button>
+                        </div>
+                        <div class="campo">
+                          <label for="acc-nuevo-nombre">Nombre <span class="req">*</span></label>
+                          <input id="acc-nuevo-nombre" type="text" formControlName="nuevoNombre" maxlength="150" placeholder="Dr. Nombre Apellido">
+                        </div>
+                        <div class="fila dos">
+                          <div class="campo">
+                            <label for="acc-nuevo-clinica">Clínica (opcional)</label>
+                            <input id="acc-nuevo-clinica" type="text" formControlName="nuevaClinica" maxlength="200">
+                          </div>
+                          <div class="campo">
+                            <label for="acc-nuevo-tel">Teléfono (opcional)</label>
+                            <input id="acc-nuevo-tel" type="tel" formControlName="nuevoTelefono" maxlength="30">
+                          </div>
+                        </div>
+                        <p class="sol-ayuda">
+                          @if (formAceptar.controls.tipo.value === 'ODONTOLOGO') {
+                            Se agrega a Odontólogos con el mail <strong>{{ s.remitenteEmail }}</strong>, así los próximos pedidos suyos entran directo. El resto de los datos (DNI, CUIT, matrícula) se completa después en su ficha.
+                          } @else {
+                            Se agrega a Odontólogos sin mail (el de la secretaria queda autorizado aparte). El resto de los datos se completa después en su ficha.
+                          }
+                        </p>
+                      </div>
+                    }
                   }
                   @if (formAceptar.controls.tipo.value) {
                     <div class="campo">

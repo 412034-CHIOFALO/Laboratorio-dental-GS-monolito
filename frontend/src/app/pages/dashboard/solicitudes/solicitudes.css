@@ -1,7 +1,7 @@
 /* Solicitudes por mail: lista a la izquierda, mail + formulario del pedido a la derecha. */
 :host { display: block; }
 
-.sol-page { display: flex; flex-direction: column; gap: 1rem; padding: 0 0 2rem; }
+.sol-page { display: flex; flex-direction: column; gap: 1rem; padding: 2rem 2.5rem; max-width: 1500px; }
 
 .sol-aviso { margin: 0; padding: 0.7rem 0.9rem; border-radius: 10px; font-size: 0.82rem; line-height: 1.45; border: 1px solid var(--border-med); background: var(--card-2); color: var(--text); }
 .sol-aviso.info { border-color: color-mix(in srgb, var(--color-info) 45%, transparent); background: color-mix(in srgb, var(--color-info) 10%, var(--card-2)); }
@@ -130,3 +130,24 @@
   .fila.dos { grid-template-columns: 1fr; }
   .sol-rem-lista li { flex-direction: column; align-items: flex-start; }
 }
+
+/* Margen de la página: igual que el resto de las pantallas (antes el contenido se pegaba al menú y a la barra de arriba). */
+@media (max-width: 768px) { .sol-page { padding: 1.25rem 1rem; } }
+
+/* En pantallas anchas las tres opciones de «quién es» van en una fila, para que el formulario no sea tan alto. */
+@media (min-width: 900px) {
+  .sol-tipos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+  .sol-tipos legend { grid-column: 1 / -1; }
+}
+
+.sol-enlace {
+  align-self: flex-start; padding: 0.2rem 0; background: none; border: none; cursor: pointer;
+  font: inherit; font-size: 0.78rem; font-weight: 600; color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+}
+.sol-enlace:hover { color: var(--accent-d, var(--accent)); }
+.sol-nuevo {
+  display: flex; flex-direction: column; gap: 0.7rem; padding: 0.9rem 1rem;
+  border: 1px dashed color-mix(in srgb, var(--accent) 50%, var(--border-med)); border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--card-2));
+}
+.sol-nuevo-cab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem; color: var(--text); }

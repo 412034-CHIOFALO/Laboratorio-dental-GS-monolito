@@ -107,6 +107,8 @@ export interface AceptarRemitenteRequest {
   aclaracion: string | null;
   /** true = los próximos mails de esa dirección entran directo a «Por revisar» */
   recordar: boolean;
+  /** Si el odontólogo todavía no está cargado: se lo da de alta en el mismo paso (en vez de elegir uno de la lista). */
+  nuevoOdontologo: { nombre: string; clinica: string | null; telefono: string | null } | null;
 }
 
 @Injectable({ providedIn: 'root' })

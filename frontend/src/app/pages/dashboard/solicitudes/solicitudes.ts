@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -40,6 +40,7 @@ export class SolicitudesComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly notif = inject(NotificationService);
   private readonly ruta = inject(ActivatedRoute);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /** Las pestañas llevan el numerito de lo que espera a alguien (pedidos por revisar, remitentes nuevos). */
   readonly pestanias = computed<SeccionTab[]>(() => [
@@ -108,6 +109,11 @@ export class SolicitudesComponent implements OnInit {
     odontologoId: new FormControl<number | null>(null),
     aclaracion: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(100)] }),
     recordar: new FormControl(true, { nonNullable: true }),
+    /** true = el odontólogo no está en la lista: se lo carga ahora con estos datos. */
+    esNuevo: new FormControl(false, { nonNullable: true }),
+    nuevoNombre: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(150)] }),
+    nuevaClinica: new FormControl('', { nonNullable: true, validators: [Validators.maxLength(200)] }),
+    nuevoTelefono: new FormControl('', { nonNullable: true, validators: [Validators.pattern(/^[0-9+()\-\s]{6,30}$|^$/)] }),
   });
 
   /** Alta a mano de una dirección autorizada (por ejemplo, la secretaria, antes de que escriba). */
@@ -166,6 +172,17 @@ export class SolicitudesComponent implements OnInit {
     if (this.pestanias().some(p => p.id === id)) this.cambiarEstado(id as Vista);
   }
 
+  /**
+   * Un toque en la lista abre el mail. En el celular el detalle queda debajo de la lista, así que se lo trae a la vista
+   * (si no, parece que no pasó nada).
+   */
+  abrir(s: Solicitud): void {
+    this.seleccionar(s);
+    if (window.innerWidth <= 860) {
+      setTimeout(() => this.host.nativeElement.querySelector('.sol-detalle')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    }
+  }
+
   /** Abre una solicitud y adelanta el formulario con lo que el sistema pudo leer. */
   seleccionar(s: Solicitud | null): void {
     this.seleccionada.set(s);
@@ -175,6 +192,7 @@ export class SolicitudesComponent implements OnInit {
     // Si no se pudo verificar el mail no se ofrece recordar la dirección: se acepta este mail y nada más.
     this.formAceptar.reset({
       tipo: s?.remitenteTipo ?? null, odontologoId: s?.odontologoId ?? null, aclaracion: '', recordar: s?.remitenteVerificado !== false,
+      esNuevo: false, nuevoNombre: this.nombreSugerido(s), nuevaClinica: '', nuevoTelefono: '',
     });
     if (!s) return;
     const g = s.sugerencia;
@@ -265,7 +283,22 @@ export class SolicitudesComponent implements OnInit {
 
   get puedeAceptar(): boolean {
     const v = this.formAceptar.getRawValue();
-    return v.tipo != null && (v.tipo === 'OTRO' || v.odontologoId != null) && this.formAceptar.valid;
+    if (v.tipo == null || !this.formAceptar.valid) return false;
+    if (v.tipo === 'OTRO') return true;
+    return v.esNuevo ? v.nuevoNombre.trim().length > 0 : v.odontologoId != null;
+  }
+
+  /** El nombre con el que escribió el remitente (sin comillas ni el mail), para no tener que tipearlo. */
+  private nombreSugerido(s: Solicitud | null): string {
+    const n = (s?.remitenteNombre ?? '').replace(/["<>]/g, '').trim();
+    return n.includes('@') ? '' : n;
+  }
+
+  /** Cambiar entre «elegir de la lista» y «es nuevo». */
+  alternarNuevo(): void {
+    const c = this.formAceptar.controls;
+    c.esNuevo.setValue(!c.esNuevo.value);
+    if (c.esNuevo.value) c.odontologoId.setValue(null);
   }
 
   aceptar(): void {
@@ -276,12 +309,16 @@ export class SolicitudesComponent implements OnInit {
     this.aceptando.set(true);
     this.svc.aceptar(s.id, {
       tipo: v.tipo as RemitenteTipo,
-      odontologoId: v.tipo === 'OTRO' ? null : v.odontologoId,
+      odontologoId: v.tipo === 'OTRO' || v.esNuevo ? null : v.odontologoId,
       aclaracion: v.aclaracion.trim() || null,
       recordar,
+      nuevoOdontologo: v.tipo !== 'OTRO' && v.esNuevo
+        ? { nombre: v.nuevoNombre.trim(), clinica: v.nuevaClinica.trim() || null, telefono: v.nuevoTelefono.trim() || null }
+        : null,
     }).subscribe({
       next: () => {
         this.aceptando.set(false);
+        if (v.tipo !== 'OTRO' && v.esNuevo) this.recargarOdontologos();
         this.notif.exito(recordar
           ? 'Mail aceptado. Los próximos de esa dirección entran directo a «Por revisar»'
           : 'Mail aceptado: ya está en «Por revisar»');
@@ -289,6 +326,11 @@ export class SolicitudesComponent implements OnInit {
       },
       error: err => { this.aceptando.set(false); this.notif.errorHttp(err, 'No se pudo aceptar el mail'); },
     });
+  }
+
+  /** Después de dar de alta a un odontólogo hay que volver a pedir la lista: si no, el formulario del pedido no lo ofrece. */
+  private recargarOdontologos(): void {
+    this.odontologosSvc.buscar().subscribe({ next: o => this.odontologos.set(o), error: () => { /* se vuelve a pedir al recargar */ } });
   }
 
   bloquear(): void {

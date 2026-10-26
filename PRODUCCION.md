@@ -315,6 +315,7 @@ completan las variables.
 | Una dirección conocida pero cuyo mail **no** se pudo verificar (posible suplantación) | También queda en **Remitentes nuevos**, con una advertencia en rojo. Se puede aceptar solo ese mail, nunca recordar la dirección |
 | Una dirección bloqueada, un remitente que ya dejó 3 mails sin autorizar en 7 días, o más de 200 mails esperando | Se ignora sin guardar nada |
 
+- **Odontólogo nuevo:** si quien escribe es un odontólogo que todavía no está en el sistema, al aceptar el mail se lo puede **dar de alta en el mismo paso** (nombre, clínica y teléfono opcionales); su ficha queda con el mail con el que escribió y sus próximos pedidos entran directo. Si es su secretaria, se carga al odontólogo sin mail y la dirección de ella queda autorizada aparte.
 - Al aceptar un mail de un remitente nuevo se puede **recordar la dirección**: los próximos entran directo. Las direcciones
   autorizadas y bloqueadas se ven (y se deshacen) en **Solicitudes → Direcciones autorizadas**.
 - El sistema **nunca autoriza una dirección por su cuenta** ni modifica el email de la ficha de un odontólogo: antes

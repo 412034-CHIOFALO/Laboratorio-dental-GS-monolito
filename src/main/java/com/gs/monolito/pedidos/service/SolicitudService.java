@@ -3,6 +3,7 @@ package com.gs.monolito.pedidos.service;
 import com.gs.monolito.auth.service.AuditoriaService;
 import com.gs.monolito.common.security.CurrentUser;
 import com.gs.monolito.pedidos.dto.AceptarRemitenteRequest;
+import com.gs.monolito.pedidos.dto.OdontologoRequest;
 import com.gs.monolito.pedidos.dto.PedidoRequest;
 import com.gs.monolito.pedidos.dto.PedidoResponse;
 import com.gs.monolito.pedidos.dto.SolicitudResponse;
@@ -41,6 +42,7 @@ public class SolicitudService {
     private final EscaneosPedidoRepository escaneoRepo;
     private final DocumentoPedidoRepository documentoRepo;
     private final OdontologoRepository odontologoRepo;
+    private final IOdontologoService odontologos;
     private final IPedidoService pedidoService;
     private final RemitenteService remitentes;
     private final AuditoriaService auditoria;
@@ -85,8 +87,9 @@ public class SolicitudService {
     /**
      * Un mail de un remitente sin autorizar pasa a "Por revisar" porque una persona dijo quién es. Si se pide recordar
      * la dirección, los próximos mails entran directo y los demás que esperaban de esa dirección (y que no fallaron la
-     * verificación) pasan juntos. Nunca se modifica la ficha del odontólogo: autorizar una dirección es una decisión
-     * de una persona, no algo que el sistema deduzca de lo que dice el mail.
+     * verificación) pasan juntos. Nunca se modifica la ficha de un odontólogo que ya existe: autorizar una dirección
+     * es una decisión de una persona, no algo que el sistema deduzca de lo que dice el mail. Si el odontólogo todavía
+     * no está cargado, la persona lo da de alta en este mismo paso ({@code nuevoOdontologo}).
      */
     @Transactional
     public SolicitudResponse aceptar(Long id, AceptarRemitenteRequest req) {
@@ -98,16 +101,26 @@ public class SolicitudService {
         }
 
         Odontologo o = null;
-        if (req.tipo() != SolicitudEntrante.RemitenteTipo.OTRO) {
-            if (req.odontologoId() == null) throw new BusinessException("Elegí a qué odontólogo corresponde.");
+        boolean odontologoCreado = false;
+        if (req.tipo() == SolicitudEntrante.RemitenteTipo.OTRO) {
+            if (req.nuevoOdontologo() != null) {
+                throw new BusinessException("Un odontólogo nuevo se carga al aceptar como odontólogo o como su secretaria.");
+            }
+        } else if (req.nuevoOdontologo() != null) {
+            o = crearOdontologo(req, email);
+            odontologoCreado = true;
+        } else {
+            if (req.odontologoId() == null) throw new BusinessException("Elegí a qué odontólogo corresponde, o cargalo como nuevo.");
             o = odontologoRepo.findById(req.odontologoId()).filter(x -> Boolean.TRUE.equals(x.getActivo()))
                     .orElseThrow(() -> new ResourceNotFoundException("Odontólogo", req.odontologoId()));
         }
         String etiqueta = RemitenteService.etiqueta(req.tipo(), o, req.aclaracion());
+        // Un odontólogo recién cargado con el mail de quien escribe ya queda reconocido por su ficha: no hace falta una regla aparte.
+        boolean cubreLaFicha = odontologoCreado && req.tipo() == SolicitudEntrante.RemitenteTipo.ODONTOLOGO && o.getEmail() != null;
 
         int juntas = 0;
         if (recordar) {
-            remitentes.autorizar(email, req.tipo(), o == null ? null : o.getId(), req.aclaracion());
+            if (!cubreLaFicha) remitentes.autorizar(email, req.tipo(), o == null ? null : o.getId(), req.aclaracion());
             for (SolicitudEntrante otra : solicitudRepo.findByRemitenteEmailAndEstado(email, SolicitudEntrante.Estado.SIN_AUTORIZAR)) {
                 if (!otra.getId().equals(s.getId()) && !Boolean.FALSE.equals(otra.getRemitenteVerificado())) {
                     promover(otra, req.tipo(), o, etiqueta);
@@ -118,9 +131,24 @@ public class SolicitudService {
         promover(s, req.tipo(), o, etiqueta);
         auditoria.registrar(CurrentUser.usernameOrSistema(), "SOLICITUD", "Mail sin autorizar aceptado", "Solicitud #" + id,
                 (email == null ? "?" : email) + " · " + etiqueta + (recordar ? " · dirección recordada" : " · solo esta vez")
+                        + (odontologoCreado ? " · odontólogo nuevo cargado" : "")
                         + (juntas > 0 ? " · pasaron " + juntas + " más" : ""));
         log.info("[CORREO] Solicitud #{} aceptada como {} ({}){}.", id, req.tipo(), etiqueta, recordar ? ", dirección recordada" : "");
         return detalle(id);
+    }
+
+    /** Da de alta al odontólogo que todavía no estaba cargado; si quien escribe es él, su ficha lleva ese mail. */
+    private Odontologo crearOdontologo(AceptarRemitenteRequest req, String emailRemitente) {
+        AceptarRemitenteRequest.NuevoOdontologo n = req.nuevoOdontologo();
+        OdontologoRequest ficha = new OdontologoRequest();
+        ficha.setNombre(n.nombre().strip());
+        ficha.setClinica(n.clinica() == null || n.clinica().isBlank() ? null : n.clinica().strip());
+        ficha.setTelefono(n.telefono() == null || n.telefono().isBlank() ? null : n.telefono().strip());
+        if (req.tipo() == SolicitudEntrante.RemitenteTipo.ODONTOLOGO && emailRemitente != null && emailRemitente.length() <= 100) {
+            ficha.setEmail(emailRemitente.strip().toLowerCase());
+        }
+        Long creadoId = odontologos.crear(ficha).id();
+        return odontologoRepo.findById(creadoId).orElseThrow(() -> new ResourceNotFoundException("Odontólogo", creadoId));
     }
 
     /** Bloquea al remitente de un mail sin autorizar: se descartan todos los suyos y los próximos se ignoran. */

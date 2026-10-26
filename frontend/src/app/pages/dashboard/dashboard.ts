@@ -151,7 +151,7 @@ export class DashboardComponent implements OnInit {
 
   visibleNavEntries(): NavEntry[] {
     const mobile = this.isMobile();
-    return this.navEntries.filter(entry => {
+    const visibles = this.navEntries.filter(entry => {
       if (entry.mobileOnly && !mobile) {
         return false;
       }
@@ -163,6 +163,8 @@ export class DashboardComponent implements OnInit {
       }
       return !entry.roles || entry.roles.some(r => this.roles.includes(r));
     });
+    // Un título de grupo sin ninguna opción debajo (por ejemplo «Administración» para quien no administra) no se muestra.
+    return visibles.filter((entry, i) => entry.type !== 'group' || visibles[i + 1]?.type === 'item');
   }
 
   isItem(entry: NavEntry): entry is NavItem {
