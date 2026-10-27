@@ -116,8 +116,13 @@
 
         @if (sinConexionBot()) {
           <div class="offline-msg">
-            <strong>No llegamos al bot.</strong>
-            <p>Verificá que esté corriendo: <code>node index.js</code> en dev, o <code>docker compose ps gs-bot</code> en prod.</p>
+            <strong>El bot de WhatsApp no está activo en este momento.</strong>
+            <p>Mientras siga apagado, los comprobantes que lleguen por WhatsApp no se registran solos. Los pagos de sueldos y de proveedores se pueden cargar a mano desde Finanzas.</p>
+            <p>Si tendría que estar funcionando, avisale a quien administra el sistema.</p>
+            <details class="offline-tec">
+              <summary>Para quien administra el sistema</summary>
+              <p>El servidor no llega al servicio del bot. Si se desplegó con <code>./deploy.sh --sin-bot</code> es lo esperado. Si no, revisá que esté corriendo: <code>docker compose ps gs-bot</code> en producción, o <code>node index.js</code> en desarrollo.</p>
+            </details>
           </div>
 
         } @else if (estado(); as e) {
@@ -183,9 +188,11 @@
           Actualizando cada 3 s
         </span>
         <div class="footer-actions">
-          <button class="btn-regen" (click)="regenerarQr()" [disabled]="regenerandoQr()">
-            {{ regenerandoQr() ? 'Regenerando…' : 'Regenerar QR' }}
-          </button>
+          @if (!sinConexionBot()) {
+            <button class="btn-regen" (click)="regenerarQr()" [disabled]="regenerandoQr()">
+              {{ regenerandoQr() ? 'Regenerando…' : 'Regenerar QR' }}
+            </button>
+          }
           <button class="btn-cerrar" (click)="cerrarModal()">Cerrar</button>
         </div>
       </div>

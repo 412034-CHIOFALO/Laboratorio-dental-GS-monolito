@@ -1,0 +1,79 @@
+/* Estilos compartidos por las pestañas de Reportes (clientes, producción, cobranzas, caja). */
+:host { display: flex; flex-direction: column; gap: 1.1rem; }
+
+.rep-barra { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.rep-barra-texto { margin: 0; font-size: 0.82rem; color: var(--gs-text-muted); }
+
+.rep-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.85rem; }
+.rep-kpi { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.95rem 1rem; background: var(--gs-card); border: 1px solid var(--gs-border); border-radius: 12px; min-width: 0; }
+.rep-kpi-valor { font-size: 1.3rem; font-weight: 700; color: var(--gs-text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.rep-kpi-etiqueta { font-size: 0.76rem; font-weight: 600; color: var(--gs-text-muted); }
+.rep-kpi-sub { font-size: 0.7rem; color: var(--gs-text-dim); line-height: 1.35; }
+.rep-kpi.ok .rep-kpi-valor { color: var(--color-success); }
+.rep-kpi.aviso .rep-kpi-valor { color: var(--color-warning); }
+.rep-kpi.malo .rep-kpi-valor { color: var(--color-danger); }
+
+.rep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .rep-grid { grid-template-columns: 1fr; } }
+
+.rep-card { background: var(--gs-card); border: 1px solid var(--gs-border); border-radius: 12px; padding: 1.1rem; min-width: 0; }
+.rep-card h3 { margin: 0 0 0.25rem; font-size: 0.9rem; font-weight: 600; color: var(--gs-text); }
+.rep-card .rep-ayuda { margin: 0 0 0.85rem; font-size: 0.76rem; line-height: 1.45; color: var(--gs-text-muted); }
+.rep-card h3:last-child { margin-bottom: 0; }
+.rep-card .rep-ayuda.despues { margin: 0.6rem 0 0; }
+
+.rep-vacio { margin: 0; padding: 1.25rem 0; font-size: 0.84rem; text-align: center; color: var(--gs-text-muted); }
+.rep-aviso { margin: 0; padding: 0.7rem 0.9rem; font-size: 0.82rem; line-height: 1.45; color: var(--gs-text); border-radius: 10px; background: var(--gs-amber-soft); border: 1px solid color-mix(in srgb, var(--color-warning) 45%, transparent); }
+
+.rep-btn {
+  display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.9rem; font: inherit; font-size: 0.8rem; font-weight: 600;
+  color: var(--gs-text); background: var(--gs-card-2); border: 1px solid var(--gs-border-md); border-radius: 8px; cursor: pointer;
+}
+.rep-btn:hover:not(:disabled) { border-color: var(--gs-green-border); }
+.rep-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.rep-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Tablas */
+.rep-tabla { overflow-x: auto; }
+.rep-tabla table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.rep-tabla th { padding: 0.55rem 0.7rem; text-align: left; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--gs-text-muted); border-bottom: 1.5px solid var(--gs-border-md); white-space: nowrap; }
+.rep-tabla td { padding: 0.6rem 0.7rem; color: var(--gs-text); border-bottom: 1px solid var(--gs-border); }
+.rep-tabla tbody tr:last-child td { border-bottom: none; }
+.rep-tabla tbody tr:hover { background: var(--gs-card-2); }
+.rep-tabla .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rep-tabla .muted { color: var(--gs-text-muted); }
+.rep-tabla tfoot td { font-weight: 700; border-top: 1.5px solid var(--gs-border-md); border-bottom: none; }
+
+.rep-chip { display: inline-block; padding: 0.1rem 0.5rem; font-size: 0.68rem; font-weight: 700; border-radius: 999px; white-space: nowrap; background: var(--gs-card-2); color: var(--gs-text-muted); }
+.rep-chip.ok { background: var(--gs-green-soft); color: var(--color-success); }
+.rep-chip.aviso { background: var(--gs-amber-soft); color: var(--color-warning); }
+.rep-chip.malo { background: var(--gs-rose-soft); color: var(--color-danger); }
+
+.rep-pago-dias { color: var(--color-danger); font-weight: 700; }
+
+/* Celular: cada fila de una tabla pasa a ser una tarjeta (lo principal y el monto arriba, el resto en una línea de apoyo) */
+@media (max-width: 700px) {
+  .rep-tabla { overflow: visible; }
+  .rep-tabla table, .rep-tabla tbody, .rep-tabla tfoot { display: block; width: 100%; }
+  .rep-tabla thead { display: none; }
+  .rep-tabla tbody tr, .rep-tabla tfoot tr {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 12px 2px; border-bottom: 1px solid var(--gs-border);
+  }
+  .rep-tabla tbody tr:last-child { border-bottom: none; }
+  .rep-tabla tbody tr::before { content: ''; order: 2; flex: 0 0 100%; height: 0; }
+  .rep-tabla td { padding: 0; border: 0; order: 3; font-size: 0.78rem; text-align: left; }
+  .rep-tabla td[data-label]::before { content: attr(data-label) ': '; color: var(--gs-text-muted); font-size: 0.72rem; font-weight: 500; }
+  .rep-tabla td.col-principal { order: 1; flex: 1 1 0; min-width: 0; font-size: 0.92rem; font-weight: 600; white-space: normal; }
+  .rep-tabla td.col-valor { order: 1; margin-left: auto; font-size: 1rem; font-weight: 700; white-space: nowrap; }
+  .rep-tabla td.col-principal::before, .rep-tabla td.col-valor::before { content: none; }
+  .rep-tabla tfoot td { font-size: 0.85rem; border: 0; }
+}
+
+/* Celular: los indicadores van de a dos, para no ocupar tres pantallas con cuatro números */
+@media (max-width: 560px) {
+  .rep-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .rep-kpi { padding: 0.75rem 0.8rem; }
+  .rep-kpi-valor { font-size: 1.1rem; }
+  .rep-kpi-etiqueta { font-size: 0.72rem; }
+  .rep-card { padding: 0.9rem; }
+}

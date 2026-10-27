@@ -72,7 +72,7 @@ export class FaqComponent {
         {
           id: 'permisos-rol',
           pregunta: '¿Por qué no veo Finanzas, Proveedores o Reportes en el menú?',
-          respuesta: 'Esas secciones son solo para ADMIN y ADMINISTRATIVO (Reportes es exclusivo de ADMIN). Si tu rol es Técnico u Odontólogo no las vas a ver, es esperado.',
+          respuesta: 'Esas secciones son solo para ADMIN y ADMINISTRATIVO. Si tu rol es Técnico u Odontólogo no las vas a ver, es esperado.',
         },
       ],
     },
@@ -146,7 +146,7 @@ export class FaqComponent {
         {
           id: 'que-hace-bot',
           pregunta: '¿Qué hace exactamente el bot de WhatsApp?',
-          respuesta: 'Lee los comprobantes de pago que se mandan a los grupos monitoreados, extrae monto, número de operación, emisor y receptor con IA, evita duplicados y clasifica el pago (sueldo, proveedor o pago directo) para que lo confirmes en Bot WhatsApp.',
+          respuesta: 'Lee los comprobantes de pago que se mandan a los grupos monitoreados, extrae monto, número de operación, emisor y receptor, evita duplicados y clasifica el pago (sueldo, proveedor o pago directo) para que lo confirmes en Bot WhatsApp. Si no está seguro de algo que leyó, el pago queda pendiente de revisión en vez de registrarse solo.',
         },
         {
           id: 'bot-desconectado',

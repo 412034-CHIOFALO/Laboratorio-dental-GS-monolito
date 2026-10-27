@@ -1,5 +1,4 @@
-import { Component, OnInit, inject, DestroyRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { forkJoin, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -11,74 +10,74 @@ import { NotificationService } from '../../../../services/notification.service';
 import { AuthService } from '../../../../services/auth';
 import { PagoCuentaCorrienteModalComponent } from '../pago-cuenta-corriente-modal/pago-cuenta-corriente-modal.component';
 import { PedidoDetalleModalComponent } from '../../pedidos/pedido-detalle-modal/pedido-detalle-modal.component';
+import { OdontologoArchivosComponent } from './odontologo-archivos';
+import { SectionTabsComponent, SeccionTab } from '../../../../shared/section-tabs';
 import { iniciarPolling } from '../../../../shared/poll.util';
 
-type Tab = 'resumen' | 'pedidos' | 'finanzas' | 'escaneres' | 'documentos';
+type Tab = 'resumen' | 'pedidos' | 'finanzas' | 'escaneos' | 'documentos';
 
 /**
- * Vista 360° del odontólogo — agrega info de varios MS en una sola pantalla:
- *   - ms-pedidos: datos básicos y listado de pedidos
- *   - ms-finanzas: cuenta corriente, comprobantes pendientes y deuda
- *   - (futuro) ms-mail: escáneres 3D y documentos asociados
+ * Vista 360° del odontólogo: todo lo suyo en una sola pantalla, repartido en pestañas que quedan siempre a la vista.
+ *   - Resumen y Pedidos: sus datos y el listado de sus pedidos
+ *   - Finanzas: cuenta corriente, comprobantes y pagos (solo ADMIN y ADMINISTRATIVO)
+ *   - Escaneos 3D y Documentos: los archivos de todos sus pedidos
  *
- * Pattern: el frontend hace un forkJoin de los services y arma la vista.
- * Cada MS responde independiente; si uno falla, el resto sigue (catchError).
+ * El frontend junta varias consultas (forkJoin); si una falla, el resto sigue y lo que ya se veía no se pisa.
  */
 @Component({
   selector: 'app-odontologo-historial',
-  standalone: true,
-  imports: [CommonModule, RouterLink, PagoCuentaCorrienteModalComponent, PedidoDetalleModalComponent],
+  imports: [RouterLink, SectionTabsComponent, PagoCuentaCorrienteModalComponent, PedidoDetalleModalComponent, OdontologoArchivosComponent],
   templateUrl: './odontologo-historial.html',
-  styleUrls: ['./odontologo-historial.css'],
+  styleUrl: './odontologo-historial.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OdontologoHistorialComponent implements OnInit {
 
-  private route = inject(ActivatedRoute);
-  private odontologosService = inject(OdontologosService);
-  private pedidosService = inject(PedidosService);
-  private finanzasService = inject(FinanzasService);
-  private notif = inject(NotificationService);
-  private auth = inject(AuthService);
-  private destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
+  private readonly odontologosService = inject(OdontologosService);
+  private readonly pedidosService = inject(PedidosService);
+  private readonly finanzasService = inject(FinanzasService);
+  private readonly notif = inject(NotificationService);
+  private readonly auth = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  /** Técnicos no ven deuda/facturación — solo ADMIN y ADMINISTRATIVO manejan plata. */
-  get puedeVerFinanzas(): boolean {
+  /**
+   * Técnicos no ven deuda/facturación: solo ADMIN y ADMINISTRATIVO manejan plata. Es un método y no un computed porque
+   * el rol sale de la sesión, que no es una señal.
+   */
+  puedeVerFinanzas(): boolean {
     return this.auth.puedeVerFinanzas();
   }
 
-  loading = true;
-  errorCarga = '';
+  readonly loading = signal(true);
+  readonly errorCarga = signal('');
 
-  odontologo: OdontologoResponse | null = null;
-  pedidos: PedidoResponse[] = [];
-  saldoDeuda = 0;
-  comprobantes: ComprobanteResponse[] = [];
-  historialPagos: PagoCuentaCorrienteResponse[] = [];
+  readonly odontologo = signal<OdontologoResponse | null>(null);
+  readonly pedidos = signal<PedidoResponse[]>([]);
+  readonly saldoDeuda = signal(0);
+  readonly comprobantes = signal<ComprobanteResponse[]>([]);
+  readonly historialPagos = signal<PagoCuentaCorrienteResponse[]>([]);
 
-  tabActiva: Tab = 'resumen';
+  readonly tabActiva = signal<Tab>('resumen');
+  readonly showModalPago = signal(false);
+  readonly detalleAbiertoId = signal<number | null>(null);
 
-  // Modal registrar pago
-  showModalPago = false;
-
-  // Modal detalle de pedido
-  detalleAbiertoId: number | null = null;
-
-  // ─── Tabs disponibles (los últimos 2 son placeholders por ahora) ────
-  get tabs(): { id: Tab; label: string; count?: () => number }[] {
+  /** Las pestañas llevan la cantidad de pedidos; Finanzas solo aparece para quien puede ver plata. */
+  tabs(): SeccionTab[] {
     return [
-      { id: 'resumen',    label: 'Resumen' },
-      { id: 'pedidos',    label: 'Pedidos', count: () => this.pedidos.length },
-      ...(this.puedeVerFinanzas ? [{ id: 'finanzas' as Tab, label: 'Finanzas' }] : []),
-      { id: 'escaneres',  label: 'Escáneres 3D' },
-      { id: 'documentos', label: 'Documentos' },
+      { id: 'resumen', etiqueta: 'Resumen' },
+      { id: 'pedidos', etiqueta: 'Pedidos', cantidad: this.pedidos().length },
+      ...(this.puedeVerFinanzas() ? [{ id: 'finanzas', etiqueta: 'Finanzas' }] : []),
+      { id: 'escaneos', etiqueta: 'Escaneos 3D' },
+      { id: 'documentos', etiqueta: 'Documentos' },
     ];
   }
 
   ngOnInit(): void {
     const id = Number(this.route.snapshot.paramMap.get('id'));
     if (!id) {
-      this.errorCarga = 'ID de odontólogo no válido';
-      this.loading = false;
+      this.errorCarga.set('ID de odontólogo no válido');
+      this.loading.set(false);
       return;
     }
     this.cargar(id);
@@ -86,8 +85,8 @@ export class OdontologoHistorialComponent implements OnInit {
   }
 
   private cargar(id: number, silencioso = false): void {
-    if (silencioso && this.showModalPago) return; // no pisar mientras hay un pago en curso
-    if (!silencioso) this.loading = true;
+    if (silencioso && this.showModalPago()) return; // no pisar mientras hay un pago en curso
+    if (!silencioso) this.loading.set(true);
     // Si una consulta falla NO se reemplaza lo que ya se ve por "0" o una lista vacía: eso mostraría "no debe nada"
     // cuando en realidad no se pudo consultar. Se conserva lo anterior y, si el usuario recién entró, se le avisa.
     let fallo = false;
@@ -100,95 +99,81 @@ export class OdontologoHistorialComponent implements OnInit {
         })
       ),
       pedidos: this.pedidosService.listarTodos().pipe(catchError(sinDatos)),
-      saldo: this.puedeVerFinanzas
+      saldo: this.puedeVerFinanzas()
         ? this.finanzasService.saldoPorOdontologo(id).pipe(catchError(sinDatos))
         : of(0),
-      comprobantes: this.puedeVerFinanzas
+      comprobantes: this.puedeVerFinanzas()
         ? this.finanzasService.comprobantesPorOdontologo(id).pipe(catchError(sinDatos))
         : of([] as ComprobanteResponse[]),
-      historialPagos: this.puedeVerFinanzas
+      historialPagos: this.puedeVerFinanzas()
         ? this.finanzasService.historialPagosOdontologo(id).pipe(catchError(sinDatos))
         : of([] as PagoCuentaCorrienteResponse[]),
     }).subscribe(({ odontologo, pedidos, saldo, comprobantes, historialPagos }) => {
-      this.odontologo = odontologo;
+      this.odontologo.set(odontologo);
       if (pedidos !== null) {
-        this.pedidos = pedidos.filter(p => p.odontologoId === id)
-                              .sort((a, b) => new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime());
+        this.pedidos.set(pedidos.filter(p => p.odontologoId === id)
+                                .sort((a, b) => new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime()));
       }
-      if (saldo !== null) this.saldoDeuda = saldo;
-      if (comprobantes !== null) this.comprobantes = comprobantes;
-      if (historialPagos !== null) this.historialPagos = historialPagos;
-      if (!silencioso) this.loading = false;
+      if (saldo !== null) this.saldoDeuda.set(saldo);
+      if (comprobantes !== null) this.comprobantes.set(comprobantes);
+      if (historialPagos !== null) this.historialPagos.set(historialPagos);
+      if (!silencioso) this.loading.set(false);
       if (fallo && !silencioso) {
         this.notif.alerta('No se pudo cargar parte de la cuenta corriente: los montos que ves pueden estar desactualizados.', 'Datos incompletos');
       }
     });
   }
 
-  cambiarTab(t: Tab): void {
-    this.tabActiva = t;
+  /** La barra de pestañas avisa con texto: acá se vuelve una pestaña conocida (y que la persona pueda ver). */
+  cambiarTab(id: string): void {
+    if (this.tabs().some(t => t.id === id)) this.tabActiva.set(id as Tab);
   }
 
   abrirModalPago(): void {
-    this.showModalPago = true;
+    this.showModalPago.set(true);
   }
 
   cerrarModalPago(): void {
-    this.showModalPago = false;
+    this.showModalPago.set(false);
   }
 
   onPagoRegistrado(): void {
-    this.showModalPago = false;
-    if (!this.odontologo) return;
-    const id = this.odontologo.id;
+    this.showModalPago.set(false);
+    const o = this.odontologo();
+    if (!o) return;
     // Un solo mensaje para las tres: si fallan juntas (sin conexión) el aviso se muestra una vez (preventDuplicates).
     const avisar = () => this.notif.alerta('El pago se registró, pero no se pudo actualizar la cuenta corriente. Recargá la página para ver los montos al día.', 'Datos desactualizados');
-    this.finanzasService.saldoPorOdontologo(id).subscribe({
-      next: saldo => this.saldoDeuda = saldo,
+    this.finanzasService.saldoPorOdontologo(o.id).subscribe({
+      next: saldo => this.saldoDeuda.set(saldo),
       error: avisar,
     });
-    this.finanzasService.comprobantesPorOdontologo(id).subscribe({
-      next: comps => this.comprobantes = comps,
+    this.finanzasService.comprobantesPorOdontologo(o.id).subscribe({
+      next: comps => this.comprobantes.set(comps),
       error: avisar,
     });
-    this.finanzasService.historialPagosOdontologo(id).subscribe({
-      next: pagos => this.historialPagos = pagos,
+    this.finanzasService.historialPagosOdontologo(o.id).subscribe({
+      next: pagos => this.historialPagos.set(pagos),
       error: avisar,
     });
   }
 
   abrirDetallePedido(pedidoId: number): void {
-    this.detalleAbiertoId = pedidoId;
+    this.detalleAbiertoId.set(pedidoId);
   }
 
   cerrarDetallePedido(): void {
-    this.detalleAbiertoId = null;
+    this.detalleAbiertoId.set(null);
   }
 
   // ─── Stats derivadas ────────────────────────────────────────────────
 
-  get pedidosActivos(): PedidoResponse[] {
-    return this.pedidos.filter(p => p.estado !== 'ENTREGADO' && p.estado !== 'CANCELADO');
-  }
-
-  get pedidosEntregados(): PedidoResponse[] {
-    return this.pedidos.filter(p => p.estado === 'ENTREGADO');
-  }
-
-  get subtotalActivos(): number {
-    return this.pedidosActivos.reduce((sum, p) => sum + (p.precioAcordado ?? 0), 0);
-  }
-
-  get totalFacturado(): number {
-    return this.pedidos
-      .filter(p => p.estado === 'ENTREGADO' || p.estado === 'LISTO')
-      .reduce((sum, p) => sum + (p.precioAcordado ?? 0), 0);
-  }
-
-  get fechaUltimoPedido(): string | null {
-    if (this.pedidos.length === 0) return null;
-    return this.pedidos[0].fechaCreacion;
-  }
+  readonly pedidosActivos = computed(() => this.pedidos().filter(p => p.estado !== 'ENTREGADO' && p.estado !== 'CANCELADO'));
+  readonly pedidosEntregados = computed(() => this.pedidos().filter(p => p.estado === 'ENTREGADO'));
+  readonly subtotalActivos = computed(() => this.pedidosActivos().reduce((sum, p) => sum + (p.precioAcordado ?? 0), 0));
+  readonly totalFacturado = computed(() => this.pedidos()
+    .filter(p => p.estado === 'ENTREGADO' || p.estado === 'LISTO')
+    .reduce((sum, p) => sum + (p.precioAcordado ?? 0), 0));
+  readonly fechaUltimoPedido = computed(() => this.pedidos()[0]?.fechaCreacion ?? null);
 
   // ─── Helpers de vista ───────────────────────────────────────────────
 

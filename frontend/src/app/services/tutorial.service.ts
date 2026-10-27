@@ -49,7 +49,7 @@ export class TutorialService {
         paso('nav-finanzas', '/dashboard/finanzas', 'Finanzas',
           'Las <b>3 cajas</b>, los <b>sueldos</b> y los <b>cobros</b> del laboratorio. El bot registra los pagos automáticamente acá. <b>Sirve para</b> tener todo el control financiero en un solo lugar.'),
         paso('nav-bot', '/dashboard/bot-registros', 'Bot de WhatsApp',
-          'El bot <b>lee los comprobantes</b> del grupo y registra los pagos solo (con IA). Acá <b>confirmás o rechazás</b> lo detectado. <b>Sirve para</b> no cargar los pagos a mano.'),
+          'El bot <b>lee los comprobantes</b> del grupo y registra los pagos solo cuando los lee con seguridad. Acá <b>confirmás o rechazás</b> lo detectado y lo dudoso. <b>Sirve para</b> no cargar los pagos a mano.'),
         paso('nav-reportes', '/dashboard/reportes', 'Reportes',
           'Resúmenes y <b>KPIs</b> del laboratorio: facturación, cobranzas, cajas. <b>Sirve para</b> ver cómo viene el negocio y exportar un cierre mensual.'),
         {

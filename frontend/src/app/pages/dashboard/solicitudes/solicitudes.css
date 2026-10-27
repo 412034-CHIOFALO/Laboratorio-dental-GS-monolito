@@ -43,17 +43,26 @@
   background: var(--card-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); max-height: 300px; overflow-y: auto;
 }
 
-.sol-adjuntos { list-style: none; margin: 0.8rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
-.adj {
-  width: 100%; display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.7rem; text-align: left; cursor: pointer;
-  background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 0.8rem;
+/* Archivos que trajo el mail: cada uno con lo que se sabe de él y lo que se puede hacer (mirar el escaneo, bajarlo) */
+.sol-archivos { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.sol-archivos h3 { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; font-size: 0.85rem; color: var(--text); }
+.sol-archivos-n { font-size: 0.75rem; font-weight: 500; color: var(--muted); }
+.sol-adjuntos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.sol-adjuntos li {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; padding: 0.6rem 0.75rem;
+  background: var(--card-2); border: 1px solid var(--border); border-radius: 10px;
 }
-.adj:hover { border-color: var(--border-strong); }
-.adj-tipo { padding: 0.1rem 0.4rem; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; border-radius: 6px; background: color-mix(in srgb, var(--color-info) 18%, transparent); color: var(--color-info); }
-.adj-tipo.escaneo { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
-.adj-nombre { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.adj-meta { margin-left: auto; font-size: 0.72rem; color: var(--muted); text-align: right; }
-.adj-aviso { display: block; margin: 0.15rem 0 0 0.3rem; font-size: 0.72rem; line-height: 1.35; color: var(--color-warning); }
+.sol-adjuntos li.escaneo { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.adj-icono {
+  flex-shrink: 0; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px;
+  background: color-mix(in srgb, var(--color-info) 14%, transparent); color: var(--color-info);
+}
+.sol-adjuntos li.escaneo .adj-icono { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.adj-datos { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; flex: 1 1 200px; }
+.adj-nombre { font-size: 0.85rem; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.adj-meta { font-size: 0.74rem; color: var(--muted); line-height: 1.4; }
+.adj-aviso { font-size: 0.72rem; line-height: 1.35; color: var(--color-warning); }
+.adj-acciones { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-left: auto; }
 
 /* Formulario */
 .sol-form { display: flex; flex-direction: column; gap: 0.85rem; }
@@ -151,3 +160,15 @@
   background: color-mix(in srgb, var(--accent) 5%, var(--card-2));
 }
 .sol-nuevo-cab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem; color: var(--text); }
+
+/* Formulario del pedido: bloques cortos (para quién, trabajo, entrega) en vez de una columna larga de campos sueltos */
+.sol-form-cab { display: flex; flex-direction: column; gap: 0.3rem; }
+.sol-bloque { display: flex; flex-direction: column; gap: 0.6rem; padding-top: 0.85rem; border-top: 1px solid var(--border); }
+.sol-bloque h4 { margin: 0; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+.sol-incluye {
+  display: flex; align-items: flex-start; gap: 0.5rem; margin: 0; padding: 0.6rem 0.8rem; font-size: 0.8rem; line-height: 1.45; color: var(--text);
+  background: color-mix(in srgb, var(--accent) 7%, var(--card-2)); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border)); border-radius: 10px;
+}
+.sol-incluye svg { flex-shrink: 0; margin-top: 0.15rem; color: var(--accent); }
+@media (max-width: 560px) { .adj-acciones { margin-left: 0; width: 100%; } }
+.btn-secundario:disabled { opacity: 0.5; cursor: not-allowed; }

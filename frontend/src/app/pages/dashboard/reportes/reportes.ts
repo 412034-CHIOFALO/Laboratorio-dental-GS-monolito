@@ -1,10 +1,29 @@
-import { Component, OnInit, inject, DestroyRef, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { forkJoin } from 'rxjs';
+import { Component, OnInit, inject, DestroyRef, signal, computed } from '@angular/core';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { PedidosService, PedidoResponse } from '../../../services/pedidos.service';
-import { FinanzasService, CuentaCorrienteOdontologoResponse, ReporteMensualResponse } from '../../../services/finanzas.service';
+import {
+  FinanzasService, CuentaCorrienteOdontologoResponse, ReporteMensualResponse, ResumenCajasResponse, ComprobanteResponse,
+  CajaMovimientoResponse,
+} from '../../../services/finanzas.service';
 import { AuthService } from '../../../services/auth';
+import { comoLocalDate } from '../../../services/date-utils';
 import { iniciarPolling } from '../../../shared/poll.util';
+import { PageHeaderComponent } from '../../../shared/page-header';
+import { SectionTabsComponent, SeccionTab } from '../../../shared/section-tabs';
+import { PERIODOS, PeriodoId, mesesDeLaSerie, rangoDe } from './reportes.calculos';
+import { fecha } from './reportes.formato';
+import { ReportesClientesComponent } from './reportes-clientes';
+import { ReportesProduccionComponent } from './reportes-produccion';
+import { ReportesCobranzasComponent } from './reportes-cobranzas';
+import { ReportesCajaComponent } from './reportes-caja';
+
+/** Las partes de la pantalla. «Resumen» es la vista de siempre; las demás son reportes con período elegible. */
+type Vista = 'resumen' | 'clientes' | 'produccion' | 'cobranzas' | 'caja' | 'archivo';
+const VISTAS_CON_PERIODO: Vista[] = ['clientes', 'produccion', 'cobranzas', 'caja'];
+
+/** Los reportes no necesitan refrescarse cada pocos segundos como una bandeja: traen mucho y cambian despacio. */
+const REFRESCO_MS = 60_000;
 
 interface BarData  { mes: string; valor: number; }
 interface LineData { mes: string; facturacion: number; }
@@ -16,10 +35,12 @@ const MES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct',
 
 @Component({
   selector: 'app-reportes',
-  standalone: true,
-  imports: [CommonModule],
+  imports: [
+    PageHeaderComponent, SectionTabsComponent,
+    ReportesClientesComponent, ReportesProduccionComponent, ReportesCobranzasComponent, ReportesCajaComponent,
+  ],
   templateUrl: './reportes.html',
-  styleUrls: ['./reportes.css'],
+  styleUrl: './reportes.css',
 })
 export class ReportesComponent implements OnInit {
   private pedidosService = inject(PedidosService);
@@ -39,7 +60,7 @@ export class ReportesComponent implements OnInit {
   errorReportes      = signal('');
   generandoReporte   = signal(false);
 
-  resumen: any = null;
+  resumen: ResumenCajasResponse | null = null;
 
   kpis: { label: string; value: string; sub: string; color: string; icon: string }[] = [];
   barData: BarData[] = [];
@@ -48,9 +69,50 @@ export class ReportesComponent implements OnInit {
   tipoData: TipoBar[] = [];
   morosos: CuentaCorrienteOdontologoResponse[] = [];
 
+  // ── Reportes con período elegible ─────────────────────────────────────────
+
+  readonly vista = signal<Vista>('resumen');
+  readonly periodo = signal<PeriodoId>('mes');
+  readonly periodos = PERIODOS;
+  readonly hoy = signal(new Date());
+  readonly rango = computed(() => rangoDe(this.periodo(), this.hoy()));
+  readonly meses = computed(() => mesesDeLaSerie(this.rango(), this.hoy()));
+  readonly usaPeriodo = computed(() => VISTAS_CON_PERIODO.includes(this.vista()));
+
+  /** «Este mes (01/10/2026 al 26/10/2026)»; para todo el historial no hay fecha de inicio que mostrar. */
+  readonly etiquetaPeriodo = computed(() => {
+    const p = PERIODOS.find(x => x.id === this.periodo())!;
+    const r = this.rango();
+    return this.periodo() === 'todo' ? p.etiqueta : `${p.etiqueta} (${fecha(r.desde)} al ${fecha(r.hasta)})`;
+  });
+
+  readonly secciones = computed<SeccionTab[]>(() => [
+    { id: 'resumen', etiqueta: 'Resumen' },
+    { id: 'clientes', etiqueta: 'Clientes' },
+    { id: 'produccion', etiqueta: 'Producción' },
+    { id: 'cobranzas', etiqueta: 'Cobranzas' },
+    { id: 'caja', etiqueta: 'Caja' },
+    ...(this.esAdmin ? [{ id: 'archivo', etiqueta: 'Archivo mensual' }] : []),
+  ]);
+
+  readonly pedidosTodos = signal<PedidoResponse[]>([]);
+  /** null = no se pudieron traer: cada reporte lo avisa en vez de mostrar ceros. */
+  readonly comprobantes = signal<ComprobanteResponse[] | null>(null);
+  readonly morososTodos = signal<CuentaCorrienteOdontologoResponse[] | null>(null);
+  readonly movimientos = signal<CajaMovimientoResponse[] | null>(null);
+  readonly resumenCajas = signal<ResumenCajasResponse | null>(null);
+
+  elegirVista(id: string): void {
+    if (this.secciones().some(s => s.id === id)) this.vista.set(id as Vista);
+  }
+
+  elegirPeriodo(valor: string): void {
+    if (PERIODOS.some(p => p.id === valor)) this.periodo.set(valor as PeriodoId);
+  }
+
   ngOnInit(): void {
     this.cargar();
-    iniciarPolling(() => this.cargar(true), this.destroyRef);
+    iniciarPolling(() => this.cargar(true), this.destroyRef, REFRESCO_MS);
     if (this.esAdmin) this.cargarReportesArchivados();
   }
 
@@ -99,12 +161,24 @@ export class ReportesComponent implements OnInit {
   private cargar(silencioso = false): void {
     if (silencioso && this.generandoPdf) return; // no cambiar los datos mientras se exporta el PDF
     if (!silencioso) this.loading = true;
+    const hoy = new Date();
+    // Los movimientos de caja se piden de los últimos 12 meses y cada reporte recorta el período que se eligió.
+    const desde = comoLocalDate(new Date(hoy.getFullYear(), hoy.getMonth() - 11, 1));
     forkJoin({
       pedidos: this.pedidosService.listarTodos(),
       resumen: this.finanzasService.obtenerResumen(),
       morosos:  this.finanzasService.rankingMorosos(),
+      // Estos dos solo alimentan los reportes nuevos: si fallan, el resumen de siempre se sigue viendo.
+      comprobantes: this.finanzasService.comprobantes().pipe(catchError(() => of(null))),
+      movimientos: this.finanzasService.movimientosPorPeriodo(desde, comoLocalDate(hoy)).pipe(catchError(() => of(null))),
     }).subscribe({
-      next: ({ pedidos, resumen, morosos }) => {
+      next: ({ pedidos, resumen, morosos, comprobantes, movimientos }) => {
+        this.hoy.set(hoy);
+        this.pedidosTodos.set(pedidos);
+        this.comprobantes.set(comprobantes);
+        this.movimientos.set(movimientos);
+        this.resumenCajas.set(resumen);
+        this.morososTodos.set(morosos);
         this.calcular(pedidos, resumen, morosos);
         if (!silencioso) this.loading = false;
       },
@@ -120,7 +194,7 @@ export class ReportesComponent implements OnInit {
 
   private calcular(
     pedidos: PedidoResponse[],
-    resumen: any,
+    resumen: ResumenCajasResponse,
     morosos: CuentaCorrienteOdontologoResponse[],
   ): void {
     this.resumen = resumen;
@@ -375,13 +449,13 @@ export class ReportesComponent implements OnInit {
       doc.text('ESTADO DE CAJA Y OBLIGACIONES', MARGIN, y);
       y += 6;
 
-      const r = this.resumen ?? {};
-      const saldoFisica       = r.saldoFisica        ?? 0;
-      const saldoBancaria     = r.saldoBancaria       ?? 0;
-      const saldoCompensacion = r.saldoCompensacion   ?? 0;
+      const r = this.resumen;
+      const saldoFisica       = r?.saldoFisica        ?? 0;
+      const saldoBancaria     = r?.saldoBancaria       ?? 0;
+      const saldoCompensacion = r?.saldoCompensacion   ?? 0;
       const totalCajas        = saldoFisica + saldoBancaria + saldoCompensacion;
-      const sueldosPend       = r.totalSueldosPendientes ?? 0;
-      const deudaProv         = r.totalDeudaProveedores  ?? 0;
+      const sueldosPend       = r?.totalSueldosPendientes ?? 0;
+      const deudaProv         = r?.totalDeudaProveedores  ?? 0;
 
       const finFilas = [
         { label: 'Caja física',          valor: saldoFisica,       color: [40,  50,  65] as [number,number,number] },

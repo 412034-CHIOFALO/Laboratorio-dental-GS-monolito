@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -13,6 +13,14 @@ import { NotificationService } from '../../../services/notification.service';
 import { comoLocalDate } from '../../../services/date-utils';
 import { PageHeaderComponent } from '../../../shared/page-header';
 import { SectionTabsComponent, SeccionTab } from '../../../shared/section-tabs';
+import { describirMalla, describirTamanio } from '../../../shared/malla.util';
+import { Visor3dComponent } from '../escaneos/visor3d.component';
+
+/** Formatos de escaneo que el visor 3D sabe mostrar. */
+const VISUALIZABLES_3D = ['.stl', '.obj', '.ply'];
+
+/** Valor del selector de trabajo para escribirlo a mano cuando no está en el catálogo. */
+const OTRO_TRABAJO = 'OTRO';
 
 /** Lo que se puede mirar en la pantalla: una bandeja de mails o la lista de direcciones autorizadas. */
 type Vista = EstadoSolicitud | 'AUTORIZADOS';
@@ -28,12 +36,12 @@ type Vista = EstadoSolicitud | 'AUTORIZADOS';
  */
 @Component({
   selector: 'app-solicitudes',
-  imports: [ReactiveFormsModule, DatePipe, PageHeaderComponent, SectionTabsComponent],
+  imports: [ReactiveFormsModule, DatePipe, PageHeaderComponent, SectionTabsComponent, Visor3dComponent],
   templateUrl: './solicitudes.html',
   styleUrl: './solicitudes.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SolicitudesComponent implements OnInit {
+export class SolicitudesComponent implements OnInit, OnDestroy {
   private readonly svc = inject(SolicitudesService);
   private readonly odontologosSvc = inject(OdontologosService);
   private readonly catalogoSvc = inject(CatalogoService);
@@ -75,6 +83,9 @@ export class SolicitudesComponent implements OnInit {
   readonly cargandoRemitentes = signal(false);
   readonly agregando = signal(false);
   readonly confirmandoQuitar = signal<number | null>(null);
+  readonly cargandoAdjunto = signal<number | null>(null);
+  readonly visor = signal<{ url: string; nombre: string } | null>(null);
+  private urlVisor: string | null = null;
 
   /** Convertir y descartar: solo ADMIN y ADMINISTRATIVO (el técnico puede mirar). */
   puedeResolver(): boolean {
@@ -89,6 +100,14 @@ export class SolicitudesComponent implements OnInit {
   }
 
   readonly minimaEntrega = comoLocalDate(new Date(Date.now() + 86_400_000));
+
+  readonly otroTrabajo = OTRO_TRABAJO;
+
+  /**
+   * Lo que se eligió en el selector de trabajo: uno del catálogo, «otro» (se escribe) o nada. Es solo de pantalla: lo que
+   * viaja en el pedido son `catalogoTrabajoId` y `trabajo`, y así el nombre del trabajo se muestra una sola vez.
+   */
+  readonly eleccionTrabajo = new FormControl<number | typeof OTRO_TRABAJO | null>(null);
 
   readonly form = new FormGroup({
     odontologoId: new FormControl<number | null>(null),
@@ -207,16 +226,25 @@ export class SolicitudesComponent implements OnInit {
       precio: g.precio,
       observaciones: g.observaciones ?? '',
     });
+    this.eleccionTrabajo.reset(g.catalogoTrabajoId ?? (g.trabajo ? OTRO_TRABAJO : null));
   }
 
-  /** Al elegir un trabajo del catálogo se completa su nombre (y el precio, si todavía no hay uno). */
+  /**
+   * Al elegir un trabajo del catálogo se completa su nombre (y el precio, si todavía no hay uno). Con «otro» se deja
+   * escribir; si venía de un trabajo del catálogo se vacía el nombre, para que no quede el anterior por error.
+   */
   alElegirTrabajo(): void {
-    const id = this.form.controls.catalogoTrabajoId.value;
-    const t = this.trabajos().find(x => x.id === Number(id));
-    if (!t) { this.form.controls.catalogoTrabajoId.setValue(null); return; }
-    this.form.controls.catalogoTrabajoId.setValue(t.id);
-    this.form.controls.trabajo.setValue(t.nombre);
-    if (this.form.controls.precio.value == null) this.form.controls.precio.setValue(t.precio);
+    const eleccion = this.eleccionTrabajo.value;
+    const c = this.form.controls;
+    const t = typeof eleccion === 'number' ? this.trabajos().find(x => x.id === eleccion) : undefined;
+    if (t) {
+      c.catalogoTrabajoId.setValue(t.id);
+      c.trabajo.setValue(t.nombre);
+      if (c.precio.value == null) c.precio.setValue(t.precio);
+      return;
+    }
+    if (c.catalogoTrabajoId.value != null) c.trabajo.setValue('');
+    c.catalogoTrabajoId.setValue(null);
   }
 
   /** Al elegir un odontólogo de la lista se usa su ID; si se deja vacío se usa el nombre escrito (se crea si no existe). */
@@ -411,6 +439,51 @@ export class SolicitudesComponent implements OnInit {
     return this.tiposRemitente.find(x => x.valor === t)?.corta ?? '';
   }
 
+  /** Un escaneo en un formato que el visor sabe mostrar se puede mirar acá mismo, antes de crear el pedido. */
+  puedeVer3d(a: AdjuntoSolicitud): boolean {
+    const nombre = a.fileName.toLowerCase();
+    return a.tipo === 'ESCANEO' && VISUALIZABLES_3D.some(ext => nombre.endsWith(ext));
+  }
+
+  ver3d(s: Solicitud, a: AdjuntoSolicitud): void {
+    if (this.cargandoAdjunto() != null) return;
+    this.cargandoAdjunto.set(a.id);
+    this.svc.descargarAdjunto(s.id, a.id).subscribe({
+      next: blob => {
+        this.cargandoAdjunto.set(null);
+        this.liberarVisor();
+        this.urlVisor = URL.createObjectURL(blob);
+        this.visor.set({ url: this.urlVisor, nombre: a.fileName });
+      },
+      error: err => { this.cargandoAdjunto.set(null); this.notif.errorHttp(err, `No se pudo abrir ${a.fileName}`); },
+    });
+  }
+
+  cerrarVisor(): void {
+    this.visor.set(null);
+    this.liberarVisor();
+  }
+
+  private liberarVisor(): void {
+    if (this.urlVisor) URL.revokeObjectURL(this.urlVisor);
+    this.urlVisor = null;
+  }
+
+  ngOnDestroy(): void {
+    this.liberarVisor();
+  }
+
+  /** «1 escaneo 3D y 2 documentos»: lo que trajo el mail, para decir qué se guarda con el pedido. */
+  resumenAdjuntos(s: Solicitud): string {
+    const escaneos = s.adjuntos.filter(a => a.tipo === 'ESCANEO').length;
+    const documentos = s.adjuntos.length - escaneos;
+    const partes = [
+      escaneos > 0 ? `${escaneos} ${escaneos === 1 ? 'escaneo 3D' : 'escaneos 3D'}` : null,
+      documentos > 0 ? `${documentos} ${documentos === 1 ? 'documento' : 'documentos'}` : null,
+    ].filter((p): p is string => p != null);
+    return partes.join(' y ');
+  }
+
   descargar(s: Solicitud, a: AdjuntoSolicitud): void {
     this.svc.descargarAdjunto(s.id, a.id).subscribe({
       next: blob => {
@@ -432,21 +505,11 @@ export class SolicitudesComponent implements OnInit {
   // ── Presentación ──────────────────────────────────────────────────
 
   tamanio(bytes: number | null): string {
-    if (bytes == null) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-    return `${(bytes / 1024 / 1024).toLocaleString('es-AR', { maximumFractionDigits: 1 })} MB`;
+    return describirTamanio(bytes);
   }
 
   detalleMalla(a: AdjuntoSolicitud): string {
-    if (!a.formato) return '';
-    const partes = [a.formato.replace('_', ' ').toLowerCase().replace('stl', 'STL').replace('ply', 'PLY').replace('obj', 'OBJ').replace('ascii', 'ASCII')];
-    if (a.triangulos != null) partes.push(`${a.triangulos.toLocaleString('es-AR')} triángulos`);
-    if (a.dimXMm != null && a.dimYMm != null && a.dimZMm != null) {
-      const m = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 1 });
-      partes.push(`${m(a.dimXMm)} × ${m(a.dimYMm)} × ${m(a.dimZMm)} mm`);
-    }
-    return partes.join(' · ');
+    return describirMalla(a);
   }
 
   resumen(s: Solicitud): string {

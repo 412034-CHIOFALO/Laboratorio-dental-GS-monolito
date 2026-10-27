@@ -184,6 +184,8 @@ export class SolicitudesService {
   }
 
   descargarAdjunto(solicitudId: number, adjuntoId: number): Observable<Blob> {
+    // En la demostración todos los escaneos son el modelo de muestra, para poder probar el visor sin servidor.
+    if (environment.useMocks) return this.http.get('/sample-escaneo.stl', { responseType: 'blob' });
     return this.http.get(`${this.base}/${solicitudId}/adjuntos/${adjuntoId}/archivo`, { responseType: 'blob' });
   }
 

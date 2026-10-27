@@ -285,6 +285,43 @@ export class FinanzasService {
     return this.http.get<ComprobanteResponse[]>(`${this.base}/comprobantes/odontologo/${odontologoId}`);
   }
 
+  /** Todos los comprobantes emitidos, de todos los odontólogos (para los reportes). */
+  comprobantes(): Observable<ComprobanteResponse[]> {
+    if (environment.useMocks) {
+      const abiertos = this.generarRankingMock().flatMap(o => this.mockComprobantes(o.odontologoId));
+      return of(clonar([...abiertos, ...this.mockCobrados()])).pipe(delay(200));
+    }
+    return this.http.get<ComprobanteResponse[]>(`${this.base}/comprobantes`);
+  }
+
+  /** Comprobantes ya cobrados de los últimos meses, para que los reportes de la demostración tengan historia. */
+  private mockCobrados(): ComprobanteResponse[] {
+    const trabajos = ['Corona Zirconio', 'Placa Hawley', 'Provisorio Acrílico', 'Disyuntor McNamara', 'Placa de Relajación'];
+    return this.generarRankingMock().flatMap(o => [0, 1, 2, 3, 4, 5].map(k => {
+      const monto = 40000 + ((o.odontologoId * 7 + k * 13) % 9) * 12000;
+      const haceCuanto = k * 30 + 10 + (o.odontologoId % 5);
+      const tardanza = 12 + ((k * 5 + o.odontologoId * 3) % 25);
+      const id = 50000 + o.odontologoId * 10 + k;
+      return {
+        id,
+        nroComprobante: `COMP-2026-${id}`,
+        pedidoId: null,
+        nroPedido: `GS-2026-${id}`,
+        odontologoId: o.odontologoId,
+        odontologoNombre: o.odontologoNombre,
+        trabajo: trabajos[(o.odontologoId + k) % trabajos.length],
+        monto,
+        montoPagado: monto,
+        saldoPendiente: 0,
+        estadoPago: 'COBRADO' as const,
+        fechaEmision: this.diasAtras(haceCuanto),
+        fechaVencimiento: null,
+        fechaCobro: this.diasAtras(Math.max(0, haceCuanto - tardanza)),
+        observaciones: null,
+      };
+    }));
+  }
+
   /** Registra un pago manual a la cuenta corriente, imputado a las deudas más viejas. */
   registrarPagoCuentaCorriente(odontologoId: number, req: PagoCuentaCorrienteRequest): Observable<PagoCuentaCorrienteResponse> {
     if (environment.useMocks) {

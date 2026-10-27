@@ -1,19 +1,14 @@
-:host {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-}
+:host { display: block; }
 
+/* La que scrollea es la zona de contenido del panel (.main-content), como en el resto de las pantallas. Antes esta página
+   era además su propia zona de scroll con alto fijo: con una pestaña larga (Finanzas) la columna se quedaba sin lugar y
+   achicaba la barra de pestañas hasta que desaparecía, y en el celular la barra no se podía fijar. */
 .historial-page {
   padding: 1.5rem;
   max-width: 1600px;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
 }
 
 .back-link {
@@ -25,16 +20,6 @@
   text-decoration: none;
   width: fit-content;
   transition: color 0.15s;
-  /* Fija el link de "volver" al scrollear: en Finanzas el contenido es largo
-     y sin esto quedaba imposible volver a Odontólogos sin scrollear hasta
-     arriba del todo. Va arriba de .tabs (que también es sticky) — ver el
-     "top" de .tabs más abajo, que le deja lugar debajo de este. */
-  position: sticky;
-  top: 0;
-  z-index: 6;
-  background: var(--bg);
-  margin: 0 -1.5rem;
-  padding: 0.4rem 1.5rem;
 }
 .back-link:hover { color: var(--text); }
 
@@ -156,57 +141,20 @@
 .kpi strong[data-color=amber] { color: #d97706; }
 .kpi strong[data-color=green] { color: #16a34a; }
 
-/* ─── TABS ──────────────────────────────────────────────────── */
-.tabs {
-  display: flex;
-  gap: 0.4rem;
-  border-bottom: 1px solid var(--border);
-  overflow-x: auto;
-  /* Fija la barra al scrollear: el contenido de algunas pestañas (Finanzas,
-     con saldo + trabajos activos + historial) es largo, y sin esto al bajar
-     se perdía el menú y no había forma de cambiar de pestaña sin volver arriba.
-     El fondo + el sangrado lateral tapan el contenido que pasa por debajo
-     (el sangrado compensa el padding de .historial-page). top offset = alto
-     aproximado de .back-link (arriba, también sticky), para no superponerse. */
+/* ─── PESTAÑAS ──────────────────────────────────────────────── */
+/* La barra queda fija al scrollear, justo debajo de la barra superior del panel (52 px en escritorio; en el celular, la
+   altura de esa barra más el borde seguro del teléfono). El fondo y el sangrado lateral tapan lo que pasa por debajo
+   (compensan el padding de .historial-page). */
+.historial-tabs {
   position: sticky;
-  top: 2.4rem;
+  top: 52px;
   z-index: 5;
   background: var(--bg);
   margin: 0 -1.5rem;
-  padding: 0 1.5rem 1px;
+  padding: 0.5rem 1.5rem 0;
 }
-.tab {
-  padding: 0.65rem 1rem;
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  font-size: 0.85rem;
-  color: var(--muted, #6b7280);
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  transition: color 0.15s, border-color 0.15s;
-  margin-bottom: -1px;
-}
-.tab:hover { color: var(--text); }
-.tab.active {
-  color: var(--text);
-  border-bottom-color: var(--accent, #3b82f6);
-  font-weight: 600;
-}
-.tab-count {
-  font-size: 0.7rem;
-  background: color-mix(in srgb, var(--text) 8%, transparent);
-  padding: 1px 6px;
-  border-radius: 9px;
-  color: var(--muted, #6b7280);
-}
-.tab.active .tab-count {
-  background: var(--accent, #3b82f6);
-  color: white;
+@media (max-width: 1023px) {
+  .historial-tabs { top: calc(var(--topbar-h) + env(safe-area-inset-top)); }
 }
 
 /* ─── CONTENIDO DE TAB ──────────────────────────────────────── */
@@ -333,41 +281,6 @@
 .pedidos-tabla td.muted { color: var(--muted, #6b7280); }
 
 /* ─── Tab Finanzas ──────────────────────────────────────── */
-.finanzas-resumen {
-  display: flex;
-  justify-content: center;
-  padding: 1.5rem 0;
-}
-.big-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 2rem 3rem;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-}
-.big-label {
-  font-size: 0.8rem;
-  color: var(--muted, #6b7280);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 0.5rem;
-}
-.big-val {
-  font-size: 2.2rem;
-  font-weight: 700;
-  color: var(--text);
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-}
-.big-sub {
-  font-size: 0.8rem;
-  color: var(--muted, #6b7280);
-  margin-top: 0.3rem;
-}
-.big-stat.deuda { border-color: rgba(234, 88, 12, 0.4); background: rgba(234, 88, 12, 0.05); }
-.big-stat.deuda .big-val { color: #ea580c; }
-
 .fin-sec { margin-top: 1.25rem; }
 
 .pedidos-tabla tfoot .total-row { background: var(--gs-card-2, #1e2535); }
@@ -397,12 +310,6 @@
 .cc-pago { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 0.4rem 0; color: var(--text); border-bottom: 1px dashed var(--border); }
 .cc-pago span { color: var(--muted, #6b7280); }
 
-.placeholder, .placeholder-info {
-  text-align: center;
-  color: var(--muted, #6b7280);
-  padding: 1rem;
-}
-.placeholder p:first-child { font-size: 1.1rem; margin-bottom: 0.3rem; }
 .empty-mini {
   color: var(--muted, #6b7280);
   font-size: 0.82rem;
@@ -411,13 +318,28 @@
 
 @media (max-width: 768px) {
   .historial-page { padding: 1rem; }
-  /* El sangrado de las barras fijas tiene que seguir al padding de la página. */
-  .back-link { margin: 0 -1rem; padding: 0.4rem 1rem; }
-  .tabs { margin: 0 -1rem; padding: 0 1rem 1px; }
+  /* El sangrado de la barra fija tiene que seguir al padding de la página. */
+  .historial-tabs { margin: 0 -1rem; padding: 0.5rem 1rem 0; }
   .hero { padding: 1rem; }
   .hero-avatar { width: 52px; height: 52px; font-size: 1.1rem; }
   .hero-info h1 { font-size: 1.15rem; }
   .hero-saldo { width: 100%; }
-  .big-stat { padding: 1.5rem 1.5rem; }
-  .big-val { font-size: 1.5rem; }
+}
+
+/* Celular: cada fila de las tablas pasa a ser una tarjeta (lo principal y el monto arriba, el resto en una línea de apoyo).
+   Una tabla de 7 columnas no entra en 375 px: el número de pedido se partía en tres renglones y los montos quedaban cortados. */
+@media (max-width: 700px) {
+  .tabla-wrap { overflow: visible; }
+  .pedidos-tabla, .pedidos-tabla tbody, .pedidos-tabla tfoot, .cc-tabla, .cc-tabla tbody { display: block; width: 100%; }
+  .pedidos-tabla thead, .cc-tabla thead { display: none; }
+  .pedidos-tabla tbody tr, .pedidos-tabla tfoot tr, .cc-tabla tbody tr {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 12px 2px; border-bottom: 1px solid var(--border);
+  }
+  .pedidos-tabla tbody tr:last-child, .cc-tabla tbody tr:last-child { border-bottom: none; }
+  .pedidos-tabla tbody tr::before, .cc-tabla tbody tr::before { content: ''; order: 2; flex: 0 0 100%; height: 0; }
+  .pedidos-tabla td, .cc-tabla td { padding: 0; border: 0; order: 3; font-size: 0.78rem; text-align: left; }
+  .pedidos-tabla tfoot td { padding: 0; border: 0; }
+  .pedidos-tabla td[data-label]::before, .cc-tabla td[data-label]::before { content: attr(data-label) ': '; color: var(--muted, #6b7280); font-size: 0.72rem; font-weight: 500; }
+  .pedidos-tabla td.col-principal, .cc-tabla td.col-principal { order: 1; flex: 1 1 0; min-width: 0; font-size: 0.95rem; font-weight: 600; white-space: normal; }
+  .pedidos-tabla td.col-valor, .cc-tabla td.col-valor { order: 1; margin-left: auto; font-size: 1rem; font-weight: 700; white-space: nowrap; }
 }

@@ -1,23 +1,25 @@
 <div class="rep-page">
 
-  <!-- Header -->
-  <div class="page-header">
-    <div class="header-left">
-      <div class="page-icon purple">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-        </svg>
-      </div>
-      <div>
-        <h1>Reportes</h1>
-        <p class="subtitle">Laboratorio G&amp;S — datos en tiempo real</p>
-      </div>
+  <app-page-header titulo="Reportes" subtitulo="Cómo viene el laboratorio: clientes, producción, cobranzas y caja.">
+    <div acciones class="rep-acciones">
+      @if (usaPeriodo()) {
+        <label class="rep-periodo">
+          <span>Período</span>
+          <select [value]="periodo()" (change)="elegirPeriodo($any($event.target).value)">
+            @for (p of periodos; track p.id) { <option [value]="p.id" [selected]="p.id === periodo()">{{ p.etiqueta }}</option> }
+          </select>
+        </label>
+      }
+      @if (vista() === 'resumen') {
+        <button class="btn-export" (click)="exportarResumenMensual()" [disabled]="loading || generandoPdf">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          {{ generandoPdf ? 'Generando...' : 'Exportar PDF' }}
+        </button>
+      }
     </div>
-    <button class="btn-export" (click)="exportarResumenMensual()" [disabled]="loading || generandoPdf">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-      {{ generandoPdf ? 'Generando...' : 'Exportar PDF' }}
-    </button>
-  </div>
+  </app-page-header>
+
+  <app-section-tabs [secciones]="secciones()" [activa]="vista()" etiquetaAria="Qué reporte ver" (seleccionar)="elegirVista($event)" />
 
   <!-- Loading / Error -->
   @if (loading) {
@@ -32,6 +34,9 @@
 
   @if (!loading && !error) {
 
+  @switch (vista()) {
+
+  @case ('resumen') {
   <!-- KPIs -->
   <div class="kpi-grid">
     @for (k of kpis; track k.label) {
@@ -60,7 +65,7 @@
         <svg viewBox="0 0 460 180" class="bar-svg">
           @for (line of [0, 35, 70, 105, 140]; track line) {
             <line [attr.x1]="15" [attr.y1]="160 - line" [attr.x2]="445" [attr.y2]="160 - line"
-                  stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                  class="grid-line"/>
           }
           @for (d of barData; track d.mes; let i = $index) {
             <rect [attr.x]="barX(i)" [attr.y]="barY(d.valor)"
@@ -91,7 +96,7 @@
         <svg viewBox="0 0 520 180" class="line-svg">
           @for (line of [0, 35, 70, 105, 140]; track line) {
             <line [attr.x1]="15" [attr.y1]="160 - line" [attr.x2]="505" [attr.y2]="160 - line"
-                  stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+                  class="grid-line"/>
           }
           <polyline [attr.points]="linePoints()"
                     fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -114,7 +119,7 @@
       @if (donutData.length > 0) {
         <div class="donut-wrap">
           <svg viewBox="0 0 200 200" class="donut-svg">
-            <circle cx="100" cy="100" r="60" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="22"/>
+            <circle cx="100" cy="100" r="60" fill="none" class="donut-pista" stroke-width="22"/>
             @for (seg of donutData; track seg.label) {
               <circle cx="100" cy="100" r="60" fill="none"
                       [attr.stroke]="seg.color" stroke-width="22"
@@ -185,8 +190,10 @@
       </div>
     </div>
   }
+  }
 
   <!-- Reportes mensuales archivados (solo ADMIN) -->
+  @case ('archivo') {
   @if (esAdmin) {
     <div class="chart-card reportes-archivo">
       <div class="reportes-head">
@@ -232,6 +239,25 @@
         </ul>
       }
     </div>
+  }
+  }
+
+  @case ('clientes') {
+    <app-reportes-clientes [pedidos]="pedidosTodos()" [comprobantes]="comprobantes()" [rango]="rango()" [etiquetaPeriodo]="etiquetaPeriodo()" [hoy]="hoy()" />
+  }
+
+  @case ('produccion') {
+    <app-reportes-produccion [pedidos]="pedidosTodos()" [rango]="rango()" [etiquetaPeriodo]="etiquetaPeriodo()" [hoy]="hoy()" />
+  }
+
+  @case ('cobranzas') {
+    <app-reportes-cobranzas [comprobantes]="comprobantes()" [morosos]="morososTodos()" [rango]="rango()" [etiquetaPeriodo]="etiquetaPeriodo()" [hoy]="hoy()" [meses]="meses()" />
+  }
+
+  @case ('caja') {
+    <app-reportes-caja [movimientos]="movimientos()" [resumen]="resumenCajas()" [rango]="rango()" [etiquetaPeriodo]="etiquetaPeriodo()" [meses]="meses()" />
+  }
+
   }
 
   } <!-- end !loading && !error -->

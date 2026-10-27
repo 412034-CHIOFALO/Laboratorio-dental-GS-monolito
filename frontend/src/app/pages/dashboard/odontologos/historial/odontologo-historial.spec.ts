@@ -51,8 +51,8 @@ describe('OdontologoHistorialComponent: un error de finanzas no se disfraza de "
   it('con todo en orden muestra la deuda real', () => {
     fixture.detectChanges();
 
-    expect(c.saldoDeuda).toBe(50000);
-    expect(c.comprobantes.length).toBe(1);
+    expect(c.saldoDeuda()).toBe(50000);
+    expect(c.comprobantes().length).toBe(1);
     expect(toastr.warning).not.toHaveBeenCalled();
   });
 
@@ -67,7 +67,7 @@ describe('OdontologoHistorialComponent: un error de finanzas no se disfraza de "
 
   it('si falla una actualización de fondo, se conserva la deuda que ya se veía y no se pone en cero', () => {
     fixture.detectChanges();
-    expect(c.saldoDeuda).toBe(50000);
+    expect(c.saldoDeuda()).toBe(50000);
 
     finanzas.saldoPorOdontologo.and.returnValue(falla());
     finanzas.comprobantesPorOdontologo.and.returnValue(falla());
@@ -75,8 +75,8 @@ describe('OdontologoHistorialComponent: un error de finanzas no se disfraza de "
     toastr.warning.calls.reset();
     recargar(true);
 
-    expect(c.saldoDeuda).toBe(50000);
-    expect(c.comprobantes.length).toBe(1);
+    expect(c.saldoDeuda()).toBe(50000);
+    expect(c.comprobantes().length).toBe(1);
     expect(toastr.warning).not.toHaveBeenCalled();   // en segundo plano no se llena la pantalla de avisos cada vez que se consulta
   });
 

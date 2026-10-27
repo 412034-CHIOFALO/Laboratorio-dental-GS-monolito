@@ -166,18 +166,35 @@
             <pre class="sol-texto">{{ s.cuerpo }}</pre>
 
             @if (s.adjuntos.length > 0) {
-              <ul class="sol-adjuntos" aria-label="Adjuntos">
-                @for (a of s.adjuntos; track a.id) {
-                  <li>
-                    <button type="button" class="adj" (click)="descargar(s, a)">
-                      <span class="adj-tipo" [class.escaneo]="a.tipo === 'ESCANEO'">{{ a.tipo === 'ESCANEO' ? '3D' : 'DOC' }}</span>
-                      <span class="adj-nombre">{{ a.fileName }}</span>
-                      <span class="adj-meta">{{ tamanio(a.tamanioBytes) }}@if (detalleMalla(a)) { · {{ detalleMalla(a) }} }</span>
-                    </button>
-                    @for (adv of a.advertencias; track adv) { <span class="adj-aviso" role="note">⚠ {{ adv }}</span> }
-                  </li>
-                }
-              </ul>
+              <div class="sol-archivos">
+                <h3>Archivos del mail <span class="sol-archivos-n">{{ resumenAdjuntos(s) }}</span></h3>
+                <ul class="sol-adjuntos" aria-label="Archivos adjuntos">
+                  @for (a of s.adjuntos; track a.id) {
+                    <li [class.escaneo]="a.tipo === 'ESCANEO'">
+                      <span class="adj-icono" aria-hidden="true">
+                        @if (a.tipo === 'ESCANEO') {
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                        } @else {
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        }
+                      </span>
+                      <div class="adj-datos">
+                        <span class="adj-nombre">{{ a.fileName }}</span>
+                        <span class="adj-meta">{{ a.tipo === 'ESCANEO' ? 'Escaneo 3D' : 'Documento' }}@if (tamanio(a.tamanioBytes)) { · {{ tamanio(a.tamanioBytes) }} }@if (detalleMalla(a)) { · {{ detalleMalla(a) }} }</span>
+                        @for (adv of a.advertencias; track adv) { <span class="adj-aviso" role="note">⚠ {{ adv }}</span> }
+                      </div>
+                      <div class="adj-acciones">
+                        @if (puedeVer3d(a)) {
+                          <button type="button" class="btn-secundario chico" [disabled]="cargandoAdjunto() === a.id" (click)="ver3d(s, a)">
+                            {{ cargandoAdjunto() === a.id ? 'Abriendo…' : 'Ver en 3D' }}
+                          </button>
+                        }
+                        <button type="button" class="btn-secundario chico" (click)="descargar(s, a)">{{ a.tipo === 'DOCUMENTO' ? 'Abrir' : 'Descargar' }}</button>
+                      </div>
+                    </li>
+                  }
+                </ul>
+              </div>
             }
             @if (s.notaAdjuntos) {
               <p class="sol-aviso info" role="note"><strong>Adjuntos que no se guardaron:</strong> {{ s.notaAdjuntos }}</p>
@@ -300,59 +317,88 @@
             </section>
           } @else if (s.estado === 'NUEVA') {
             <form class="sol-form" [formGroup]="form" (ngSubmit)="crearPedido()">
-              <h3>Pedido a crear</h3>
-              <p class="sol-ayuda">Lo que el sistema pudo leer del mail ya está cargado. <strong>Revisalo antes de confirmar</strong>: es una sugerencia, no un dato verificado.</p>
+              <div class="sol-form-cab">
+                <h3>Pedido a crear</h3>
+                <p class="sol-ayuda">Lo que el sistema pudo leer del mail ya está cargado. <strong>Revisalo antes de confirmar</strong>: es una sugerencia, no un dato verificado.</p>
+              </div>
 
-              <div class="campo">
-                <label for="odontologo">Odontólogo</label>
-                <select id="odontologo" formControlName="odontologoId" (change)="alElegirOdontologo()">
-                  <option [ngValue]="null">— Otro / nuevo (escribir el nombre) —</option>
-                  @for (o of odontologos(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}{{ o.clinica ? ' · ' + o.clinica : '' }}</option> }
-                </select>
-                @if (form.controls.odontologoId.value == null) {
-                  <input type="text" formControlName="odontologoNombre" placeholder="Nombre del odontólogo" aria-label="Nombre del odontólogo">
-                  @if (s.remitenteTipo === 'ODONTOLOGO' && s.odontologoId == null) {
-                    <span class="ayuda">Esta casilla la usan varios odontólogos: elegí de cuál es el pedido.</span>
-                  }
+              <div class="sol-bloque">
+                <h4>Para quién</h4>
+                <div class="fila dos">
+                  <div class="campo">
+                    <label for="odontologo">Odontólogo <span class="req">*</span></label>
+                    <select id="odontologo" formControlName="odontologoId" (change)="alElegirOdontologo()">
+                      <option [ngValue]="null">Otro (escribir el nombre)</option>
+                      @for (o of odontologos(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}{{ o.clinica ? ' · ' + o.clinica : '' }}</option> }
+                    </select>
+                    @if (form.controls.odontologoId.value == null) {
+                      <input type="text" formControlName="odontologoNombre" placeholder="Nombre del odontólogo" aria-label="Nombre del odontólogo">
+                      @if (s.remitenteTipo === 'ODONTOLOGO' && s.odontologoId == null) {
+                        <span class="ayuda">Esta casilla la usan varios odontólogos: elegí de cuál es el pedido.</span>
+                      } @else {
+                        <span class="ayuda">Si no está cargado, se agrega a Odontólogos con este nombre.</span>
+                      }
+                    }
+                  </div>
+                  <div class="campo">
+                    <label for="paciente">Paciente <span class="req">*</span></label>
+                    <input id="paciente" type="text" formControlName="paciente" maxlength="150">
+                  </div>
+                </div>
+              </div>
+
+              <div class="sol-bloque">
+                <h4>Trabajo</h4>
+                <div class="fila dos">
+                  <div class="campo">
+                    <label for="trabajo-cat">Trabajo <span class="req">*</span></label>
+                    <select id="trabajo-cat" [formControl]="eleccionTrabajo" (change)="alElegirTrabajo()">
+                      <option [ngValue]="null">— Elegir —</option>
+                      @for (t of trabajos(); track t.id) { <option [ngValue]="t.id">{{ t.nombre }}</option> }
+                      <option [ngValue]="otroTrabajo">Otro trabajo (escribirlo)</option>
+                    </select>
+                  </div>
+                  <div class="campo">
+                    <label for="precio">Precio acordado</label>
+                    <input id="precio" type="number" formControlName="precio" min="0" placeholder="$">
+                  </div>
+                </div>
+                @if (eleccionTrabajo.value === otroTrabajo) {
+                  <div class="campo">
+                    <label for="trabajo">¿Qué trabajo es? <span class="req">*</span></label>
+                    <input id="trabajo" type="text" formControlName="trabajo" maxlength="200" placeholder="Ej: Puente de 3 piezas">
+                  </div>
                 }
               </div>
 
-              <div class="campo">
-                <label for="paciente">Paciente <span class="req">*</span></label>
-                <input id="paciente" type="text" formControlName="paciente" maxlength="150">
-              </div>
-
-              <div class="campo">
-                <label for="trabajo-cat">Trabajo <span class="req">*</span></label>
-                <select id="trabajo-cat" formControlName="catalogoTrabajoId" (change)="alElegirTrabajo()">
-                  <option [ngValue]="null">— Elegir del catálogo —</option>
-                  @for (t of trabajos(); track t.id) { <option [ngValue]="t.id">{{ t.nombre }}</option> }
-                </select>
-                <input type="text" formControlName="trabajo" maxlength="200" placeholder="O escribí el trabajo" aria-label="Trabajo">
-              </div>
-
-              <div class="fila">
-                <div class="campo">
-                  <label for="entrega">Entrega <span class="req">*</span></label>
-                  <input id="entrega" type="date" formControlName="fechaEntrega" [min]="minimaEntrega">
-                </div>
-                <div class="campo">
-                  <label for="prioridad">Prioridad</label>
-                  <select id="prioridad" formControlName="prioridad">
-                    <option value="NORMAL">Normal</option>
-                    <option value="URGENTE">Urgente</option>
-                  </select>
-                </div>
-                <div class="campo">
-                  <label for="precio">Precio acordado</label>
-                  <input id="precio" type="number" formControlName="precio" min="0" placeholder="$">
+              <div class="sol-bloque">
+                <h4>Entrega</h4>
+                <div class="fila dos">
+                  <div class="campo">
+                    <label for="entrega">Fecha de entrega <span class="req">*</span></label>
+                    <input id="entrega" type="date" formControlName="fechaEntrega" [min]="minimaEntrega">
+                  </div>
+                  <div class="campo">
+                    <label for="prioridad">Prioridad</label>
+                    <select id="prioridad" formControlName="prioridad">
+                      <option value="NORMAL">Normal</option>
+                      <option value="URGENTE">Urgente</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
               <div class="campo">
                 <label for="obs">Observaciones</label>
-                <textarea id="obs" formControlName="observaciones" rows="4" maxlength="900"></textarea>
+                <textarea id="obs" formControlName="observaciones" rows="3" maxlength="900"></textarea>
               </div>
+
+              @if (s.adjuntos.length > 0) {
+                <p class="sol-incluye">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                  <span>Se guardan con el pedido: <strong>{{ resumenAdjuntos(s) }}</strong>. Los escaneos quedan en «Escaneos» y los documentos en «Documentos».</span>
+                </p>
+              }
 
               @if (puedeResolver()) {
                 <div class="sol-acciones">
@@ -389,5 +435,9 @@
         </article>
       }
     </div>
+  }
+
+  @if (visor(); as v) {
+    <app-visor3d [url]="v.url" [fileName]="v.nombre" (cerrar)="cerrarVisor()" />
   }
 </div>

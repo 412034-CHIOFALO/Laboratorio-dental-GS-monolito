@@ -179,7 +179,11 @@
 /* Sin conexión */
 .offline-msg { background: rgba(220,38,38,.06); border: 1px solid rgba(220,38,38,.3); border-radius: 10px; padding: 14px 16px; }
 .offline-msg strong { color: #dc2626; display: block; margin-bottom: 4px; font-size: 0.9rem; }
-.offline-msg p { color: var(--text); font-size: 0.83rem; margin: 0; }
+.offline-msg p { color: var(--text); font-size: 0.83rem; margin: 0 0 0.5rem; line-height: 1.5; }
+.offline-msg p:last-child { margin-bottom: 0; }
+.offline-tec { margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px solid rgba(220,38,38,.2); }
+.offline-tec summary { cursor: pointer; font-size: 0.78rem; font-weight: 600; color: var(--muted); }
+.offline-tec p { margin: 0.5rem 0 0; font-size: 0.78rem; color: var(--muted); }
 .offline-msg code {
   background: var(--neutral-tint); border: 1px solid var(--border);
   border-radius: 4px; padding: 1px 5px; font-size: 0.78rem;

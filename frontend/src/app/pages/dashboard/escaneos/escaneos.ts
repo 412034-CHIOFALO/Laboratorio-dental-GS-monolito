@@ -7,6 +7,7 @@ import { EscaneosService, EscaneoResponse } from '../../../services/escaneos.ser
 import { Visor3dComponent } from './visor3d.component';
 import { PedidoDetalleModalComponent } from '../pedidos/pedido-detalle-modal/pedido-detalle-modal.component';
 import { iniciarPolling } from '../../../shared/poll.util';
+import { describirMalla } from '../../../shared/malla.util';
 import { NotificationService } from '../../../services/notification.service';
 
 const EXTENSIONES_3D = ['.stl', '.obj', '.ply', '.3ds', '.step', '.stp', '.iges', '.igs'];
@@ -207,20 +208,12 @@ export class EscaneosComponent implements OnInit {
     });
   }
 
-  /** ¿El formato se puede abrir en el visor 3D embebido? */
   /** "STL binario · 12.340 triángulos · 62 × 48 × 31 mm" — lo que el backend midió al subir; vacío en escaneos viejos. */
   detalleMalla(e: EscaneoResponse): string {
-    if (!e.formato) return '';
-    const formato = e.formato.replace('_', ' ').replace('BINARIO', 'binario').replace('ASCII', 'ASCII');
-    const partes = [formato];
-    if (e.triangulos != null) partes.push(`${e.triangulos.toLocaleString('es-AR')} triángulos`);
-    if (e.dimXMm != null && e.dimYMm != null && e.dimZMm != null) {
-      const m = (n: number) => n.toLocaleString('es-AR', { maximumFractionDigits: 1 });
-      partes.push(`${m(e.dimXMm)} × ${m(e.dimYMm)} × ${m(e.dimZMm)} mm`);
-    }
-    return partes.join(' · ');
+    return describirMalla(e);
   }
 
+  /** ¿El formato se puede abrir en el visor 3D embebido? */
   esVisualizable3d(fileName: string): boolean {
     return VISUALIZABLES_3D.includes(this.extension(fileName));
   }
