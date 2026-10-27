@@ -110,6 +110,42 @@ El bot identifica **quién cargó** el comprobante por su número de WhatsApp.
 
 ---
 
+## 🔍 Cómo lee el monto (y cuándo lo manda a revisión)
+
+- **PDF:** se lee el texto del archivo. Es exacto, no hay OCR.
+- **Imagen:** se lee **dos veces** (`ocr.js`): tal cual llegó y una versión preparada (`imagen.js`: orientación
+  EXIF, grises, modo oscuro invertido, agrandada si es chica). Después se **vuelve a leer solo la zona del monto**
+  con un recorte, restringido a dígitos. Una imagen que no es una imagen (o un sticker) falla antes de llegar a Tesseract.
+- **Confianza del monto** (`lecturaMonto.js`): sale "alta" solo si nada se contradice. Baja a "media" (y el pago
+  queda *pendiente de revisión*) si las dos lecturas dan montos distintos, si Tesseract duda de los dígitos
+  (menos de 70% de seguridad), si el recorte da otro número, o si el monto que escribieron en el pie es distinto
+  al del comprobante. La confianza solo baja con estos controles, nunca sube.
+- **N° de operación y fecha:** si las dos lecturas dicen cosas distintas no se informan, y el pago pasa a revisión por
+  "no se pudo leer".
+- **El motivo** llega al panel y a la respuesta del grupo como *"Cómo se leyó el comprobante: …"*.
+- **Gemini** (opcional, `GEMINI_ENABLED=true`): solo si las reglas no llegaron a "alta". Lo que propone se da por
+  seguro únicamente si el texto leído del comprobante contiene ese mismo monto; si no, queda a revisión.
+- **Se reconocen** montos como `$ 85.000`, `$ 85000`, `$85 000`, `85,000`, `85.OOO` (letras por dígitos) y `120.000,00`.
+  Un número sin `$` ni separador de miles no se toma por monto (podría ser un CBU).
+
+### Medir con comprobantes reales
+
+Los tests usan imágenes inventadas. Para saber cuánto acierta con las de verdad: juntá comprobantes de las distintas
+billeteras en una carpeta **fuera del repositorio** (o en `bot/muestras/`, ignorada por git; tienen datos de terceros),
+agregá un `esperados.json` y corré:
+
+```bash
+npm run medir -- ../ruta/a/la/carpeta
+```
+```json
+{ "mp-001.jpg": { "monto": 85000, "idOperacion": "98765432101", "fecha": "2026-09-12" },
+  "uala-002.png": { "monto": 120000 } }
+```
+Muestra, por archivo, lo esperado contra lo leído y la confianza; y un resumen. El número que importa es
+**"errores con confianza alta": tiene que ser 0** (un monto mal leído que el bot registraría solo).
+
+---
+
 ## 🔁 Mantenerlo andando
 
 - **El celular** con el chip tiene que quedar **prendido y con internet** (en un
@@ -122,7 +158,6 @@ El bot identifica **quién cargó** el comprobante por su número de WhatsApp.
 ---
 
 ## ⚙️ Próximas mejoras (cuando funcione la base)
-- OCR para leer el monto directo del comprobante (sin escribirlo)
 - Subir el comprobante a MinIO y guardar el link
 - Recuperación automática de mensajes perdidos al reconectar
 - Comando `/atrasados` para consultar pedidos atrasados desde el grupo

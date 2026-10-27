@@ -123,6 +123,20 @@ class RevisionPagoTest {
     }
 
     @Test
+    void elDetalleDeLaLecturaExplicaLosMotivosPeroNoLosCrea() {
+        PagoAutomaticoRequest limpiaConDetalle = limpia();
+        limpiaConDetalle.setDetalleLectura("el pie del mensaje dice $85.000 y el comprobante $65.000");
+        assertThat(semaforo.motivos(limpiaConDetalle)).as("sin motivos, el detalle solo no frena nada").isEmpty();
+
+        PagoAutomaticoRequest dudosa = limpia();
+        dudosa.setMontoOrigen("COMPROBANTE_MEDIA");
+        dudosa.setDetalleLectura("el pie del mensaje dice $85.000 y el comprobante $65.000");
+        assertThat(semaforo.motivos(dudosa)).hasSize(2)
+                .anyMatch(x -> x.contains("poca confianza"))
+                .anyMatch(x -> x.contains("Cómo se leyó el comprobante") && x.contains("$65.000"));
+    }
+
+    @Test
     void conElSemaforoApagadoNadaVaARevision() {
         RevisionPago apagado = new RevisionPago(false, new BigDecimal("100000"), 7, Clock.systemUTC());
         PagoAutomaticoRequest r = new PagoAutomaticoRequest();   // peor caso: no trae ninguna señal

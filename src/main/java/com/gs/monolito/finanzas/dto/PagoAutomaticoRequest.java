@@ -69,6 +69,9 @@ public class PagoAutomaticoRequest {
     /** Rastros de edición del archivo (programa de edición, PDF modificado...), separados por "; ". */
     @Size(max = 300)
     private String senalesArchivo;
+    /** Por qué la lectura del comprobante quedó con poca confianza (lecturas que no coinciden, monto distinto al del pie...). */
+    @Size(max = 300)
+    private String detalleLectura;
 
     /** ID del mensaje de WhatsApp del comprobante (clave de idempotencia). Opcional. */
     @Size(max = 128)

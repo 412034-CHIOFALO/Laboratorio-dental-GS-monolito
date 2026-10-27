@@ -32,6 +32,31 @@ test('extraerMonto: sin números con formato de dinero devuelve null y confianza
   assert.deepEqual(P.extraerMonto('Hola, te mando el comprobante'), { monto: null, confianza: 'baja' });
 });
 
+test('extraerMonto: tolera las confusiones típicas del OCR dentro del monto (O por 0, l por 1, coma por punto)', () => {
+  assert.equal(P.extraerMonto('Total $ 85.OOO').monto, 85000);
+  assert.equal(P.extraerMonto('Total $ l.250.000').monto, 1250000);
+  assert.equal(P.extraerMonto('Importe: $ 85,000').monto, 85000);
+  assert.equal(P.extraerMonto('Monto 120.000,00').monto, 120000, 'los centavos no se confunden con miles');
+});
+
+test('extraerMonto: sin separador de miles solo vale si trae el "$" pegado', () => {
+  assert.deepEqual(P.extraerMonto('Transferiste $ 85000'), { monto: 85000, confianza: 'alta' });
+  assert.equal(P.extraerMonto('$85 000').monto, 85000);
+  assert.equal(P.extraerMonto('$500').monto, 500);
+  assert.equal(P.extraerMonto('$ 85000,00').monto, 85000);
+  assert.equal(P.extraerMonto('Total 85000').monto, null, 'sin "$" podría ser cualquier número');
+  assert.equal(P.extraerMonto('$ 120.000').monto, 120000, 'no se corta en el 120');
+  assert.equal(P.extraerMonto('CBU $ 0170099220000067890123').monto, null, 'un número larguísimo no es un monto');
+});
+
+test('corregirConfusiones: solo toca lo que tiene forma de monto', () => {
+  assert.equal(P.corregirConfusiones('Oro Ollantay 85.OOO'), 'Oro Ollantay 85.000');
+  assert.equal(P.corregirConfusiones('Operación 98765432101'), 'Operación 98765432101');
+  assert.equal(P.corregirConfusiones('15,09,2026'), '15,09,2026');
+  assert.equal(P.corregirConfusiones(''), '');
+  assert.equal(P.corregirConfusiones(null), '');
+});
+
 test('extraerIdOperacion: Mercado Pago, Personal Pay y bancos', () => {
   assert.equal(P.extraerIdOperacion('Número de operación de Mercado Pago\n98765432101'), '98765432101');
   assert.equal(P.extraerIdOperacion('Número de operación 5544332211'), '5544332211');

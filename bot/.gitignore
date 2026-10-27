@@ -7,3 +7,6 @@ node_modules/
 # Sesión de WhatsApp (LocalAuth) — NUNCA subir, contiene las credenciales
 .wwebjs_auth/
 .wwebjs_cache/
+
+# Comprobantes reales para medir el OCR (npm run medir): tienen datos de terceros
+muestras/

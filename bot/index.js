@@ -624,16 +624,21 @@ async function procesarPago(msgComprobante, chat, contacto, pie, lectura, msgPie
   const prefijoReconciliacion = reconciliacion ? '🔄 _(recuperado tras una desconexión)_\n' : '';
   const responder = (txt) => (msgPie || msgComprobante).reply(prefijoReconciliacion + txt);
 
-  // Monto: el del comprobante (PDF) o, si no se leyó, el que pusieron en el pie
+  // Monto: el del comprobante (PDF) o, si no se leyó, el que pusieron en el pie.
+  // Si el pie trae un monto y el comprobante dice otro, uno de los dos está mal: baja a "media" y va a revisión.
+  const contraste = contrastarConPie(lectura, pie.montoManual);
+  const confianzaLectura = contraste.confianza;
+  const notasMonto = [...(lectura.notasMonto || []), ...(contraste.nota ? [contraste.nota] : [])];
   const monto = lectura.monto ?? pie.montoManual;
-  const origenMonto = lectura.monto ? `comprobante (${lectura.confianza})` : (pie.montoManual ? 'pie del mensaje' : 'no hay');
-  const confianzaMonto = lectura.monto ? lectura.confianza : (pie.montoManual ? 'manual' : 'baja');
+  const origenMonto = lectura.monto ? `comprobante (${confianzaLectura})` : (pie.montoManual ? 'pie del mensaje' : 'no hay');
+  const confianzaMonto = lectura.monto ? confianzaLectura : (pie.montoManual ? 'manual' : 'baja');
 
   console.log('\n📩 ─────────── COMPROBANTE A PROCESAR ───────────');
   console.log(`   Grupo:        ${chat.name}`);
   console.log(`   Cargado por:  ${cargadoPorNombre} (${cargadoPorTelefono})`);
   console.log(`   Pie:          Emisor="${pie.emisor}"  Receptor="${pie.receptor}"`);
   console.log(`   Monto:        ${monto ?? '⚠ no detectado'} (origen: ${origenMonto})`);
+  if (notasMonto.length) console.log(`   ⚠ Monto:      ${notasMonto.join('; ')}`);
   console.log(`   N° operación: ${lectura.idOperacion ?? '⚠ no detectado'}`);
   console.log(`   Comprobante:  De="${lectura.de ?? '?'}"  Para="${lectura.para ?? '?'}"`);
 
@@ -663,6 +668,7 @@ async function procesarPago(msgComprobante, chat, contacto, pie, lectura, msgPie
       `• Pagó: ${pie.emisor || '(sin emisor)'}\n` +
       `• Recibió: *${pie.receptor}*\n` +
       `• N° operación: ${lectura.idOperacion || '—'}\n` +
+      (notasMonto.length ? `⚠️ *Ojo con el monto:* ${notasMonto.join('; ')}\n` : '') +
       (validacion.ok ? `✅ Los datos coinciden con el comprobante.` : `⚠️ *No coincide:* ${validacion.detalle}`)
     );
     return;
@@ -685,7 +691,8 @@ async function procesarPago(msgComprobante, chat, contacto, pie, lectura, msgPie
       idMensaje: msgComprobante.id._serialized,
       idMensajePie: msgPie && msgPie !== msgComprobante ? msgPie.id._serialized : undefined,
       // De dónde salió el monto (solo un monto leído del comprobante con confianza alta se da por bueno)
-      montoOrigen: lectura.monto ? `COMPROBANTE_${String(lectura.confianza).toUpperCase()}` : (pie.montoManual ? 'MANUAL' : undefined),
+      montoOrigen: lectura.monto ? `COMPROBANTE_${String(confianzaLectura).toUpperCase()}` : (pie.montoManual ? 'MANUAL' : undefined),
+      detalleLectura: notasMonto.join('; ').slice(0, 300) || undefined,
       fechaComprobante: lectura.fecha || undefined,
       // null = el comprobante no traía De/Para y no hubo con qué comparar los nombres
       nombresCoinciden: (lectura.de || lectura.para) ? validacion.ok : null,
@@ -740,7 +747,7 @@ async function procesarPago(msgComprobante, chat, contacto, pie, lectura, msgPie
   // Registrado OK — distinguimos sueldo vs pago a proveedor
   const tipoTxt = resultado.tipoReceptor === 'PROVEEDOR' ? 'Pago a proveedor' : 'Sueldo';
   let aviso = '';
-  if (confianzaMonto === 'baja') aviso += `\n⚠️ No estoy seguro del monto, *verificalo*.`;
+  if (confianzaMonto === 'baja' || confianzaMonto === 'media') aviso += `\n⚠️ No estoy seguro del monto, *verificalo*.`;
   if (!validacion.ok)            aviso += `\n⚠️ El comprobante no coincide del todo con "${pie.receptor}", *revisalo*.`;
 
   await responder(
@@ -899,18 +906,19 @@ async function leerComprobante(msg) {
 
     // 1) Reglas locales primero (gratis, sin gastar cuota de Gemini — resuelven
     // bien MP/Personal Pay, que son los que llegan en la práctica)
+    // Las imágenes se leen dos veces (tal cual y preparada) y se cruzan los resultados: ver ocr.js / lecturaMonto.js.
+    let leida = null;
     if (esImg && !texto && ocrWorker) {
-      texto = await ocrWorker.leerTexto(buffer);
-      console.log('   (imagen — OCR local)');
+      leida = await ocrWorker.leerImagen(buffer);
+      texto = leida.texto;
+      console.log('   (imagen — OCR local, lecturas cruzadas)');
     }
     logTexto(texto);
-    const { monto, confianza } = extraerMonto(texto);
-    const local = {
-      monto,
-      confianza,
-      idOperacion: extraerIdOperacion(texto),
-      ...extraerDePara(texto),
-    };
+    const notasMonto = leida ? [...leida.notas] : [];
+    if (notasMonto.length) console.log('   ⚠ OCR:', notasMonto.join('; '));
+    const local = leida
+      ? { monto: leida.monto, confianza: leida.confianza, idOperacion: leida.idOperacion, fecha: leida.fecha, ...extraerDePara(texto) }
+      : { ...extraerMonto(texto), idOperacion: extraerIdOperacion(texto), fecha: extraerFecha(texto), ...extraerDePara(texto) };
 
     // 2) IA Gemini solo como respaldo — cuando las reglas locales no encontraron
     // un monto confiable (billetera rara, foto mala, etc). Cuota muy limitada,
@@ -918,12 +926,17 @@ async function leerComprobante(msg) {
     if (local.confianza !== 'alta' && GEMINI_ENABLED && geminiModel) {
       const g = await leerConGemini(media, texto);
       if (g && g.monto) {
-        console.log('   ✨ Leído con IA (Gemini)');
-        return { monto: g.monto, confianza: 'alta', idOperacion: g.idOperacion, de: g.de, para: g.para, texto, fecha: extraerFecha(texto), senales, ...archivo };
+        // La IA propone y las reglas confirman: sin que el texto lea el mismo monto, queda a revisión.
+        const ia = confianzaDeIA(g.monto, texto, local);
+        console.log(`   ✨ Leído con IA (Gemini) — confianza ${ia.confianza}${ia.nota ? ': ' + ia.nota : ''}`);
+        return {
+          monto: g.monto, confianza: ia.confianza, idOperacion: g.idOperacion, de: g.de, para: g.para, texto,
+          fecha: local.fecha, senales, notasMonto: ia.nota ? [...notasMonto, ia.nota] : notasMonto, ...archivo,
+        };
       }
     }
 
-    return { ...local, texto, fecha: extraerFecha(texto), senales, ...archivo };
+    return { ...local, texto, senales, notasMonto, ...archivo };
   } catch (e) {
     console.log('   (error leyendo comprobante:', e.message, ')');
     return vacio;
@@ -983,6 +996,7 @@ async function leerConGemini(media, textoPdf) {
 const {
   parsearEfectivo, parsearPie, extraerMonto, extraerIdOperacion, extraerDePara, extraerFecha, validarPersonas,
 } = require('./parsers');
+const { contrastarConPie, confianzaDeIA } = require('./lecturaMonto');
 
 // ─── Backend ─────────────────────────────────────────────────────────────────
 /**
@@ -1048,6 +1062,7 @@ async function registrarPago(datos) {
     nombresCoinciden:  datos.nombresCoinciden,
     detalleNombres:    datos.detalleNombres,
     senalesArchivo:    datos.senalesArchivo,
+    detalleLectura:    datos.detalleLectura,
   };
 
   const MAX_INTENTOS = 3;

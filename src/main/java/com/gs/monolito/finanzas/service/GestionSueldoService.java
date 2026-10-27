@@ -241,7 +241,7 @@ public class GestionSueldoService implements IGestionSueldoService {
             reg.setFuente(FuentePago.TRANSFERENCIA);
             reg.setTipoReceptor(TipoReceptorBot.DESCONOCIDO);
             reg.setMotivosRevision(recortar(String.join(" | ", motivos), 600));
-            reg.setMensaje("Pendiente de revisión: " + String.join("; ", motivos));
+            reg.setMensaje(recortar("Pendiente de revisión: " + String.join("; ", motivos), 300));
             log.info("[BOT] Transferencia a {} por ${} queda pendiente de revisión: {}", req.getReceptorNombre(), req.getMonto(), motivos);
             auditoria.registrar(CurrentUser.usernameOrSistema(), "REVISION", "Comprobante pendiente de revisión", "Receptor " + req.getReceptorNombre(),
                     "$" + req.getMonto() + " — " + String.join("; ", motivos));

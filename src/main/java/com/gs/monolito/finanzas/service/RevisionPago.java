@@ -91,6 +91,11 @@ public class RevisionPago {
         if (req.getMonto() != null && montoMaximo != null && req.getMonto().compareTo(montoMaximo) >= 0) {
             m.add("Monto alto: " + pesos(req.getMonto()) + " (desde " + pesos(montoMaximo) + " siempre se revisa)");
         }
+
+        // El detalle no es un motivo en sí: explica los de arriba (por qué el bot dudó de lo que leyó).
+        if (!m.isEmpty() && req.getDetalleLectura() != null && !req.getDetalleLectura().isBlank()) {
+            m.add("Cómo se leyó el comprobante: " + req.getDetalleLectura().trim());
+        }
         return m;
     }
 

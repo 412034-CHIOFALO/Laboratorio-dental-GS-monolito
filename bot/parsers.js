@@ -47,11 +47,27 @@ function parsearPie(texto) {
 }
 
 /**
+ * Arregla las confusiones típicas del OCR DENTRO de lo que tiene forma de monto, sin tocar el resto del texto:
+ * letras por dígitos ("85.OOO", "l.250.000") y la coma como separador de miles ("85,000" -> "85.000").
+ * Un monto con centavos ("120.000,00") queda igual.
+ */
+function corregirConfusiones(texto) {
+  if (!texto) return '';
+  return texto
+    .replace(/(?<![\p{L}\d.,])[\dOoIl]{1,3}(?:[.,][\dOoIl]{3})+(?![\p{L}\d])/gu, (t) =>
+      ((t.match(/\d/g) || []).length < 2 ? t : t.replace(/[Oo]/g, '0').replace(/[Il]/g, '1')))
+    .replace(/(?<![\d.,])(\d{1,3})((?:,\d{3})+)(?![\d,]|\.\d)/g, (_, a, b) => a + b.replace(/,/g, '.'));
+}
+
+/**
  * Monto: solo números con formato de dinero ($60.000 / $60.000,00). Descarta IDs.
  * Maneja el caso de Personal Pay donde el monto viene partido en líneas
  * ("$" / "60.000" / "00") uniendo el texto antes de buscar.
+ * Un monto sin separador de miles ("$ 85000", "$ 85 000", "$500") solo vale si trae el "$" pegado: sin él,
+ * cualquier número suelto (un CBU, un N° de operación) podría tomarse por monto.
  */
 function extraerMonto(texto) {
+  texto = corregirConfusiones(texto);
   const claves = /(monto|importe|total|transferiste|enviaste|enviaron|pagaste|recibiste|enviado|recibido)/i;
 
   // Unimos líneas para tolerar montos partidos: "$\n60.000\n00" → "$ 60.000 00"
@@ -72,6 +88,12 @@ function extraerMonto(texto) {
       const entero = parseInt(m[2].replace(/\./g, ''), 10);
       if (entero < 100 || entero > 99_000_000) continue;
       candidatos.push({ valor: entero, simbolo, enClave });
+    }
+    const sinMiles = /\$\s*(\d{3,8}|\d{1,3}(?: \d{3})+)(?:,\d{2})?(?![.,]?\d)/g;
+    while ((m = sinMiles.exec(bloque)) !== null) {
+      const entero = parseInt(m[1].replace(/ /g, ''), 10);
+      if (entero < 100 || entero > 99_000_000) continue;
+      candidatos.push({ valor: entero, simbolo: true, enClave });
     }
   }
 
@@ -273,6 +295,6 @@ function extraerFecha(texto) {
 }
 
 module.exports = {
-  parsearEfectivo, parsearPie, extraerMonto, extraerIdOperacion, extraerDePara, extraerFecha,
+  parsearEfectivo, parsearPie, extraerMonto, corregirConfusiones, extraerIdOperacion, extraerDePara, extraerFecha,
   nombresCoinciden, validarPersonas, ETIQ_EMISOR, ETIQ_RECEPTOR,
 };

@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test": "node --test test/parsers.test.js test/envios.test.js test/forense.test.js test/ocr.test.js"
+    "medir": "node medir.js",
+    "test": "node --test test/parsers.test.js test/lecturaMonto.test.js test/envios.test.js test/forense.test.js test/imagen.test.js test/ocr.test.js"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -18,6 +19,7 @@
     "pdf-parse": "^1.1.1",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
+    "sharp": "^0.35.5",
     "tesseract.js": "^5.1.0",
     "whatsapp-web.js": "https://codeload.github.com/wwebjs/whatsapp-web.js/tar.gz/064a3d5a5a3dce1281a6a12740b5a7051339d154"
   }
