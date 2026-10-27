@@ -80,6 +80,22 @@ class ExtractorSolicitudTest {
     }
 
     @Test
+    void unaFechaEscritaConElNombreDelMesSeLee() {
+        assertThat(extraer("melina", "buenas quiero una corona de zirconio para el dia 4 de noviembre").fechaEntrega())
+                .isEqualTo(LocalDate.of(2026, 11, 4));
+        assertThat(extraer("", "Lo necesito para el 2 de setiembre de 2027").fechaEntrega()).isEqualTo(LocalDate.of(2027, 9, 2));
+        assertThat(extraer("", "entrega 30 de octubre").fechaEntrega()).isEqualTo(LocalDate.of(2026, 10, 30));
+        // sin año y ya pasada este año: la del año que viene
+        assertThat(extraer("", "para el 5 de octubre").fechaEntrega()).isEqualTo(LocalDate.of(2027, 10, 5));
+    }
+
+    @Test
+    void unaFechaConNombreDeMesSinPalabraDeEntregaNoSeLee() {
+        assertThat(extraer("", "La paciente nació el 4 de noviembre").fechaEntrega()).isNull();
+        assertThat(extraer("", "para el 31 de febrero").fechaEntrega()).isNull();
+    }
+
+    @Test
     void unaFechaImposibleOPasadaOUnaFraccionNoSonFechas() {
         assertThat(extraer("", "para el 31/02").fechaEntrega()).isNull();
         assertThat(extraer("", "entrega 01/01/2020").fechaEntrega()).isNull();

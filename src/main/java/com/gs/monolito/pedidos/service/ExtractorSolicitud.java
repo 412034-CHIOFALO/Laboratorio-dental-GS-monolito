@@ -36,6 +36,11 @@ public class ExtractorSolicitud {
     /** dd/mm[/aaaa] precedido de una palabra que indica fecha de entrega: así "3/4 de corona" no se lee como 3 de abril. */
     private static final Pattern FECHA_EXPLICITA = Pattern.compile(
             "\\b(?:para|entrega|entregar|antes del|hasta el|fecha|dia)\\b\\D{0,12}?(\\d{1,2})\\s*([/\\-])\\s*(\\d{1,2})(?:\\s*\\2\\s*(\\d{2,4}))?(?!\\d)");
+    /** "para el 4 de noviembre [de 2026]": también necesita una palabra de entrega delante, para no leer una fecha de nacimiento. */
+    private static final Pattern FECHA_EN_PALABRAS = Pattern.compile(
+            "\\b(?:para|entrega|entregar|antes del|hasta el|fecha|dia|necesito|necesitamos)\\b\\D{0,15}?(\\d{1,2})\\s+de\\s+"
+                    + "(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)"
+                    + "(?:\\s+(?:de|del)\\s+(\\d{4}))?(?!\\d)");
     /** Un punto tras una palabra de 3 letras o más cierra la oración; en "M. Pérez" o "Dr. Gómez" el punto es de una abreviatura. */
     private static final Pattern FIN_DE_ORACION = Pattern.compile("(?<=\\p{L}{3})\\.(?:\\s|$)");
     private static final Pattern FECHA_PUNTOS = Pattern.compile("(?<!\\d)(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})(?!\\d)");
@@ -129,6 +134,11 @@ public class ExtractorSolicitud {
             LocalDate f = fecha(m.group(1), m.group(3), m.group(4), hoy);
             if (f != null) return f;
         }
+        m = FECHA_EN_PALABRAS.matcher(normalizado);
+        while (m.find()) {
+            LocalDate f = fecha(m.group(1), String.valueOf(numeroDeMes(m.group(2))), m.group(3), hoy);
+            if (f != null) return f;
+        }
         m = DIA_SEMANA.matcher(normalizado);
         if (m.find()) {
             DayOfWeek dia = switch (m.group(1)) {
@@ -146,6 +156,11 @@ public class ExtractorSolicitud {
         m = MANANA.matcher(normalizado);
         if (m.find()) return hoy.plusDays(m.group(1) == null ? 1 : 2);
         return null;
+    }
+
+    private static int numeroDeMes(String mes) {
+        return List.of("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
+                .indexOf(mes.equals("setiembre") ? "septiembre" : mes) + 1;
     }
 
     /** dd/mm[/aaaa]; sin año, el próximo que venga. Solo devuelve fechas FUTURAS (el pedido exige fecha de entrega futura). */
