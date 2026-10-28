@@ -42,7 +42,7 @@ public class TipoTrabajo {
     @Column(name = "tiempo_estimado_dias")
     private Integer tiempoEstimadoDias;
 
-    @Column(name = "foto_url", columnDefinition = "TEXT")
+    @Column(name = "foto_url", columnDefinition = "MEDIUMTEXT")
     private String fotoUrl;
 
     @Column(nullable = false)

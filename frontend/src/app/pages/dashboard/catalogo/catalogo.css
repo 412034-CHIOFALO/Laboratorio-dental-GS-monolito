@@ -207,12 +207,13 @@
 }
 
 /* PHOTO AREA */
+/* Misma proporción que la foto del catálogo público (16:10), de borde a borde: antes era una caja fija con la foto
+   adentro y «contain», y una foto vertical o apaisada quedaba chiquita, centrada sobre el color de la categoría. */
 .card-photo {
   position: relative;
-  height: 180px;
+  aspect-ratio: 16 / 10;
   overflow: hidden;
   flex-shrink: 0;
-  padding: 6px;
 }
 
 /* Category gradients — kept vibrant, they contrast well on dark cards */
@@ -223,10 +224,10 @@
 .card-photo[data-cat="PERSONALIZADO"] { background: linear-gradient(135deg, #0d1424 0%, #1e293b 100%); }
 
 .photo-img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  border-radius: 6px;
+  object-fit: cover;
 }
 
 .photo-placeholder {
@@ -521,7 +522,10 @@
 /* PHOTO UPLOAD AREA */
 .photo-upload-area {
   position: relative;
-  height: 140px;
+  /* Es una maqueta de la tarjeta del listado: lo que se ve acá es lo que se va a ver allá. */
+  aspect-ratio: 16 / 10;
+  width: min(100%, 340px);
+  align-self: center;
   border: 2px dashed var(--gs-border-md);
   border-radius: 12px;
   display: flex;
@@ -551,6 +555,14 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.foto-ayuda {
+  margin: -0.5rem 0 0;
+  text-align: center;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--gs-text-dim);
 }
 
 .remove-photo {
@@ -719,7 +731,6 @@
   .cards-grid     { grid-template-columns: 1fr; }
   .fields-row     { grid-template-columns: 1fr; }
   .modal          { padding: 1.25rem; border-radius: 14px; }
-  .card-photo     { height: 160px; }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -991,7 +1002,8 @@
   justify-content: center;
   position: relative;
   min-height: 220px;
-  aspect-ratio: 1 / 1;
+  /* Al abrir un trabajo la foto se ve ENTERA (antes un cuadrado la recortaba por los costados). */
+  aspect-ratio: 4 / 3;
 }
 .detalle-photo[data-cat="FIJA"]          { background: linear-gradient(135deg, rgba(6,182,212,0.12), rgba(6,182,212,0.04)); }
 .detalle-photo[data-cat="REMOVIBLE"]     { background: linear-gradient(135deg, rgba(168,85,247,0.12), rgba(168,85,247,0.04)); }
@@ -1001,7 +1013,7 @@
 .detalle-photo img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 .detalle-photo .photo-placeholder {
   color: var(--gs-text-dim);

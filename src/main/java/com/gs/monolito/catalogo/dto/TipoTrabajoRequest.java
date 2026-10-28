@@ -33,7 +33,11 @@ public class TipoTrabajoRequest {
     @PositiveOrZero
     private Integer tiempoEstimadoDias = 0;
 
-    @Size(max = 500)
+    /**
+     * La foto va como texto (imagen en base64). El tope anterior, 500 caracteres, rechazaba cualquier foto real; la que
+     * prepara el panel (achicada, ~1000 px) mide unos 100 a 300 mil caracteres.
+     */
+    @Size(max = 1_000_000, message = "La foto es demasiado pesada. Probá con otra o sacala de nuevo.")
     private String fotoUrl;
 
     @Valid

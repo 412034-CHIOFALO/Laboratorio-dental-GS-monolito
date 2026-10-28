@@ -8,6 +8,7 @@ import { StockService, MaterialResponse } from '../../../services/stock.service'
 import { NotificationService } from '../../../services/notification.service';
 import { iniciarPolling } from '../../../shared/poll.util';
 import { PageHeaderComponent } from '../../../shared/page-header';
+import { prepararFoto } from '../../../shared/foto.util';
 
 export type Categoria = 'FIJA' | 'REMOVIBLE' | 'ORTODONCIA' | 'ATM' | 'PERSONALIZADO';
 
@@ -66,6 +67,7 @@ export class CatalogoComponent implements OnInit {
 
   form: Partial<TipoTrabajo> = {};
   fotoPreview?: string;
+  procesandoFoto = false;
   arrastrando = false;
 
   // ── Receta ─────────────────────────────────────────────────────
@@ -432,8 +434,10 @@ export class CatalogoComponent implements OnInit {
 
   // ── FOTO ───────────────────────────────────────────────────────
   onFotoChange(event: Event) {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (file) this.leerFoto(file);
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) void this.leerFoto(file);
+    input.value = '';   // para poder elegir de nuevo el mismo archivo después de quitarlo
   }
 
   onDragOver(event: DragEvent)  { event.preventDefault(); this.arrastrando = true; }
@@ -443,16 +447,33 @@ export class CatalogoComponent implements OnInit {
     event.preventDefault();
     this.arrastrando = false;
     const file = event.dataTransfer?.files?.[0];
-    if (file?.type.startsWith('image/')) this.leerFoto(file);
+    if (file) void this.leerFoto(file);
   }
 
-  private leerFoto(file: File) {
-    const reader = new FileReader();
-    reader.onload = e => {
-      this.fotoPreview = e.target?.result as string;
-      this.form.foto   = this.fotoPreview;
-    };
-    reader.readAsDataURL(file);
+  /**
+   * La foto se achica y recomprime antes de guardarla (ver foto.util.ts): una foto de celular de varios MB no entra en la
+   * base de datos y, aunque entrara, haría pesadísimo el listado, que trae todas las fotos juntas.
+   */
+  private async leerFoto(file: File): Promise<void> {
+    if (!file.type.startsWith('image/')) {
+      this.notif.alerta('Ese archivo no es una imagen. Elegí una foto JPG, PNG o WEBP.', 'Foto no válida');
+      return;
+    }
+    this.procesandoFoto = true;
+    try {
+      const foto = await prepararFoto(file);
+      this.fotoPreview = foto.dataUrl;
+      this.form.foto   = foto.dataUrl;
+    } catch (e) {
+      this.notif.error((e as Error).message || 'No se pudo leer esa imagen. Probá con otra foto.', 'No se pudo cargar la foto');
+    } finally {
+      this.procesandoFoto = false;
+    }
+  }
+
+  /** Peso aproximado de la foto que se va a guardar, para que se vea que quedó liviana. */
+  get fotoKb(): number {
+    return this.fotoPreview ? Math.round(this.fotoPreview.length * 0.75 / 1024) : 0;
   }
 
   quitarFoto() {

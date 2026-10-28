@@ -251,12 +251,19 @@
                 <rect x="3" y="3" width="18" height="18" rx="2"/>
                 <circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
               </svg>
-              <span>Foto del trabajo</span>
-              <small>PNG · JPG hasta 5 MB · Arrastrar o clic</small>
+              <span>{{ procesandoFoto ? 'Preparando la foto…' : 'Foto del trabajo' }}</span>
+              <small>Tocá o arrastrá una foto</small>
             </div>
           }
           <input #fotoInput type="file" accept="image/*" (change)="onFotoChange($event)" style="display:none"/>
         </div>
+        <p class="foto-ayuda">
+          @if (fotoPreview) {
+            Foto lista ({{ fotoKb }} KB). En el listado se ve recortada al centro; al abrir el trabajo se ve entera.
+          } @else {
+            Sacala <strong>horizontal</strong> (4:3 o 16:9), con el trabajo al centro y fondo liso. No hace falta achicarla: el sistema lo hace solo.
+          }
+        </p>
 
         <!-- NOMBRE -->
         <div class="field-group">
