@@ -79,6 +79,9 @@ if [ -n "$APP" ]; then
     if esperar_sana "$APP"; then echo "$(ts) $APP sana."; else echo "$(ts) $APP no llegó a estar sana en 3 minutos."; fi
 fi
 arrancar '(frontend|backup|duckdns|certbot)'
+# El bot va al final: espera a que la app esté sana. Solo se toca si FALLÓ al crearse (plugin de logs); un bot
+# parado a propósito con 'docker stop' no aparece en $LISTA y se respeta.
+arrancar '(gs-bot)'
 
 # Plan B: si algo sigue sin arrancar se recrea sin el overlay de observabilidad (sin plugin de logs).
 FALTAN=$(fallidos)
@@ -86,7 +89,9 @@ if [ -n "$FALTAN" ]; then
     echo "$(ts) Siguen sin arrancar: $(echo "$FALTAN" | tr '\n' ' ') → plan B: recrearlos sin el envío de logs."
     COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.https.yml)
     [ -n "$(leer_env DUCKDNS_TOKEN)" ] && COMPOSE+=(-f docker-compose.duckdns.yml)
-    if "${COMPOSE[@]}" up -d app frontend backup; then echo "$(ts) Plan B aplicado."; else echo "$(ts) El plan B también falló: revisar a mano."; fi
+    SERVICIOS_B=(app frontend backup)
+    echo "$FALTAN" | grep -q 'gs-bot' && SERVICIOS_B+=(gs-bot)
+    if "${COMPOSE[@]}" up -d "${SERVICIOS_B[@]}"; then echo "$(ts) Plan B aplicado."; else echo "$(ts) El plan B también falló: revisar a mano."; fi
 fi
 
 echo "$(ts) Estado final:"
