@@ -405,6 +405,18 @@ export class ManualComponent {
       queHaces: ['La usás para reconstruir "quién hizo qué y cuándo" ante cualquier duda — cambios de precio, pagos, bajas de usuarios, backups, todo queda registrado.'],
       captura: { id: 'cap-auditoria', descripcion: 'La tabla de auditoría con eventos de distintos tipos.' },
     },
+    {
+      id: 'copias-seguridad',
+      titulo: 'Configuración → Copias de seguridad',
+      grupo: 'Solo Admin',
+      intro: 'El sistema guarda solo, todos los días a las 3:00, la base de datos y todos los archivos (escaneos 3D y comprobantes). Esta pestaña te deja hacerlo a mano y llevarte una copia a tu computadora.',
+      queVes: ['Si Google Drive está conectado, y la lista de las últimas 14 copias con fecha, tamaño y a dónde llegó cada una (solo en el servidor, o también a Drive).'],
+      queHaces: [
+        '"Hacer backup ahora": crea una copia en el momento; avisa cuando termina. Tarda de unos segundos a unos minutos según el peso de los escaneos.',
+        '"Descargar": baja la copia completa a la computadora que estás usando. Hacelo de vez en cuando si Drive no está conectado: si el disco del servidor falla, las copias que están solo ahí se pierden con todo lo demás.',
+        'La copia tiene todos los datos del laboratorio: guardala en un lugar seguro y no la mandes por mail ni por WhatsApp. Cada descarga queda en Auditoría.',
+      ],
+    },
 
     // ─────────────────── TU CUENTA ───────────────────
     {

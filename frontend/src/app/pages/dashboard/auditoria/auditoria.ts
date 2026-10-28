@@ -90,7 +90,7 @@ export class AuditoriaComponent implements OnInit {
     this.http.post(`${this.gatewayUrl}/api/auth/backup/run`, {}).subscribe({
       next: () => {
         this.backupCorriendo = false;
-        this.notif.exito('Backup iniciado. Puede tardar unos minutos; el resultado queda en el log del backup.', 'Backup en curso');
+        this.notif.exito('Backup iniciado. Puede tardar unos minutos; al terminar queda anotado acá y la copia aparece en Configuración → Copias de seguridad.', 'Backup en curso');
         // El backup registra su propio evento en la bitácora al terminar — refrescamos.
         setTimeout(() => this.cargar(true), 3000);
       },

@@ -24,6 +24,7 @@ TMP_DIR="/backups/tmp/$FECHA"
 # (gs_pedidos, gs_stock, ...) son restos vacíos del diseño en microservicios.
 BASES="${BACKUP_BASES:-gs_auth}"
 RETENCION="${BACKUP_RETENCION:-14}"
+RETENCION_DRIVE="${BACKUP_RETENCION_DRIVE:-$RETENCION}"
 HORAS_ENTRE="${BACKUP_HORAS_ENTRE:-20}"
 REMOTE="gdrive:gs-backups/$FECHA"
 
@@ -55,6 +56,13 @@ on_error() {
 }
 trap on_error ERR
 
+# La carpeta de cada copia lleva solo hasta el minuto: un segundo backup en el mismo minuto se movería ADENTRO
+# de la primera. Con la primera recién hecha no hace falta otro.
+if [ -e "$LOCAL_DIR/$FECHA" ]; then
+  echo "[$(date)] Ya hay un backup de este minuto ($FECHA): no se hace otro."
+  exit 0
+fi
+
 set -e
 echo "[$(date)] === Iniciando backup $FECHA ==="
 mkdir -p "$TMP_DIR" "$LOCAL_DIR"
@@ -85,17 +93,35 @@ TAM=$(du -sh "$DESTINO" | cut -f1)
 echo "[$(date)] Copia local guardada en $DESTINO ($TAM)."
 
 DONDE="solo local ($DESTINO, $TAM)"
+ESTADO_DESTINO="local"
 if rclone listremotes 2>/dev/null | grep -q '^gdrive:'; then
   echo "[$(date)] Subiendo a Google Drive ($REMOTE)..."
   if rclone copy "$DESTINO" "$REMOTE" --create-empty-src-dirs; then
     DONDE="local ($TAM) + Google Drive ($REMOTE)"
+    ESTADO_DESTINO="drive"
+    # Como con las copias locales, Drive no puede crecer sin límite (la cuenta gratis tiene 15 GB): se
+    # conservan las últimas $RETENCION_DRIVE. Solo se tocan carpetas con nombre de copia, y se borran de
+    # verdad (sin pasar por la papelera, que también ocupa lugar).
+    rclone lsf "gdrive:gs-backups" --dirs-only 2>/dev/null | sed 's#/$##' \
+      | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}$' | sort | head -n -"$RETENCION_DRIVE" \
+      | while read -r viejo; do
+          echo "[$(date)] Borrando copia vieja de Google Drive: $viejo"
+          rclone purge "gdrive:gs-backups/$viejo" --drive-use-trash=false \
+            || echo "[$(date)] ADVERTENCIA: no se pudo borrar $viejo de Drive."
+        done || true
   else
     DONDE="solo local ($TAM): FALLÓ la subida a Google Drive"
+    ESTADO_DESTINO="drive-fallo"
     echo "[$(date)] ADVERTENCIA: la subida a Drive falló; queda la copia local."
   fi
 else
   echo "[$(date)] Google Drive no está configurado (falta el remoto 'gdrive' de rclone): backup solo local."
 fi
+
+# Marca de copia terminada: el panel (Configuración → Copias de seguridad) solo ofrece para descargar las que
+# la tienen, porque el `mv` desde el volumen temporal copia archivo por archivo y un listado a mitad de camino
+# mostraría una copia incompleta. También dice a dónde llegó la copia.
+echo "$ESTADO_DESTINO" > "$DESTINO/destino.txt"
 
 # Retención: se conservan los últimos $RETENCION backups locales.
 ls -1dt "$LOCAL_DIR"/*/ 2>/dev/null | tail -n +$((RETENCION + 1)) | while read -r viejo; do

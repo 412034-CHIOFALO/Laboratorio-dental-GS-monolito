@@ -1,0 +1,65 @@
+:host { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.cs-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card, 10px);
+  padding: 1.25rem 1.4rem;
+}
+.cs-card h3 { margin: 0 0 0.4rem; font-size: 0.98rem; color: var(--text); }
+
+.cs-fila-info { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; }
+.cs-info p, .cs-nota { margin: 0; color: var(--muted); font-size: 0.85rem; line-height: 1.55; max-width: 62ch; }
+.cs-nota { margin-bottom: 1rem; }
+code { font-family: var(--font-mono); font-size: 0.82em; background: var(--row-hover); padding: 1px 5px; border-radius: 4px; }
+
+.cs-btn {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+  background: var(--card-2); border: 1px solid var(--border-med); color: var(--text);
+  padding: 0.5rem 0.95rem; border-radius: var(--r-btn, 8px); font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.cs-btn:hover:not(:disabled) { border-color: var(--gs-green-border); background: var(--gs-green-soft); color: var(--accent); }
+.cs-btn:disabled { opacity: 0.6; cursor: default; }
+.cs-btn.primario { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.cs-btn.primario:hover:not(:disabled) { background: var(--accent-d); border-color: var(--accent-d); color: var(--on-accent); }
+
+/* ── Estado de Google Drive ── */
+.cs-drive {
+  display: flex; align-items: flex-start; gap: 0.7rem;
+  margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);
+}
+.cs-drive p { margin: 0; color: var(--muted); font-size: 0.83rem; line-height: 1.55; }
+.cs-drive strong { color: var(--text); }
+.cs-punto { flex-shrink: 0; width: 9px; height: 9px; margin-top: 0.4rem; border-radius: 50%; background: var(--color-warning); }
+.cs-drive.on .cs-punto { background: var(--color-success); }
+
+/* ── Lista de copias ── */
+.cs-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.cs-fila {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 1rem;
+  padding: 0.7rem 0; border-top: 1px solid var(--border);
+}
+.cs-fila:first-child { border-top: 0; }
+.cs-dato { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 0.75rem; min-width: 0; font-size: 0.88rem; color: var(--text); font-variant-numeric: tabular-nums; }
+.cs-dato strong { white-space: nowrap; }
+.cs-peso { white-space: nowrap; color: var(--muted); font-size: 0.8rem; }
+
+.cs-chip {
+  white-space: nowrap; padding: 2px 9px; border-radius: var(--r-pill, 999px);
+  font-size: 0.72rem; font-weight: 600;
+  background: var(--gs-neutral-soft); color: var(--muted);
+}
+.cs-chip.ok { background: var(--gs-green-soft); color: var(--accent); }
+.cs-chip.aviso { background: var(--gs-amber-soft); color: var(--color-warning); }
+
+.cs-vacio {
+  display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+  padding: 1rem 0 0.25rem; color: var(--muted); font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .cs-fila-info { flex-direction: column; gap: 1rem; }
+  .cs-fila-info .cs-btn { align-self: stretch; min-height: 44px; }
+  .cs-fila { grid-template-columns: 1fr auto; row-gap: 0.5rem; }
+  .cs-fila .cs-chip { grid-column: 1; justify-self: start; }
+  .cs-fila .cs-btn { grid-column: 2; grid-row: 1 / span 2; min-height: 44px; }
+}

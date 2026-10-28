@@ -6,16 +6,18 @@ import { AuthService } from '../../../services/auth';
 import { PageHeaderComponent } from '../../../shared/page-header';
 import { SectionTabsComponent, SeccionTab } from '../../../shared/section-tabs';
 import { MiPerfilComponent } from '../mi-perfil/mi-perfil';
+import { CopiasSeguridadComponent } from './copias-seguridad/copias-seguridad';
 
-type Seccion = 'perfil' | 'catalogo';
+type Seccion = 'perfil' | 'catalogo' | 'copias';
 
 /**
- * Lo que cada persona puede ajustar. «Mi perfil» (datos y contraseña) es de todos; «Catálogo público» es solo de ADMIN:
- * para los demás roles la pantalla muestra únicamente su perfil y no pide nada que el servidor les negaría.
+ * Lo que cada persona puede ajustar. «Mi perfil» (datos y contraseña) es de todos; «Catálogo público» y «Copias de
+ * seguridad» son solo de ADMIN: para los demás roles la pantalla muestra únicamente su perfil y no pide nada que el
+ * servidor les negaría.
  */
 @Component({
   selector: 'app-configuracion',
-  imports: [PageHeaderComponent, SectionTabsComponent, MiPerfilComponent],
+  imports: [PageHeaderComponent, SectionTabsComponent, MiPerfilComponent, CopiasSeguridadComponent],
   templateUrl: './configuracion.html',
   styleUrls: ['./configuracion.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -29,11 +31,12 @@ export class ConfiguracionComponent implements OnInit {
   readonly esAdmin = this.auth.isAdmin();
   readonly secciones: SeccionTab[] = [
     { id: 'perfil', etiqueta: 'Mi perfil' },
-    ...(this.esAdmin ? [{ id: 'catalogo', etiqueta: 'Catálogo público' }] : []),
+    ...(this.esAdmin ? [{ id: 'catalogo', etiqueta: 'Catálogo público' }, { id: 'copias', etiqueta: 'Copias de seguridad' }] : []),
   ];
   readonly subtitulos: Record<Seccion, string> = {
     perfil: 'Tus datos y tu contraseña.',
     catalogo: 'Qué puede ver cualquiera, sin iniciar sesión, de lo que ofrece el laboratorio.',
+    copias: 'Hacé un backup ahora, mirá las copias que hay y bajalas a tu computadora.',
   };
 
   readonly seccion = signal<Seccion>('perfil');
@@ -43,7 +46,7 @@ export class ConfiguracionComponent implements OnInit {
 
   ngOnInit(): void {
     const pedida = this.ruta.snapshot.queryParamMap.get('seccion');
-    if (pedida === 'catalogo' && this.esAdmin) this.seccion.set('catalogo');
+    if ((pedida === 'catalogo' || pedida === 'copias') && this.esAdmin) this.seccion.set(pedida);
     if (!this.esAdmin) return;
     this.catalogo.obtenerConfiguracionPublica().subscribe({
       next: resp => {
@@ -58,7 +61,7 @@ export class ConfiguracionComponent implements OnInit {
   }
 
   elegir(id: string): void {
-    if (id === 'perfil' || (id === 'catalogo' && this.esAdmin)) this.seccion.set(id);
+    if (id === 'perfil' || ((id === 'catalogo' || id === 'copias') && this.esAdmin)) this.seccion.set(id);
   }
 
   toggleCatalogoPublico(): void {

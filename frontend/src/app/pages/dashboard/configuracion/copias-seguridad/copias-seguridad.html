@@ -1,0 +1,65 @@
+<section class="cs-card">
+  <div class="cs-fila-info">
+    <div class="cs-info">
+      <h3>Copia de seguridad</h3>
+      <p>
+        El sistema guarda solo, todos los días a las 3:00, la base de datos y todos los archivos (escaneos 3D y
+        comprobantes). Si el servidor estaba apagado a esa hora, la hace cuando se prende. Se conservan las últimas 14.
+      </p>
+    </div>
+    <button type="button" class="cs-btn primario" [disabled]="ocupado() || cargando()" (click)="hacerBackup()">
+      {{ ocupado() ? 'Haciendo el backup…' : 'Hacer backup ahora' }}
+    </button>
+  </div>
+
+  @if (estado(); as e) {
+    <div class="cs-drive" [class.on]="e.driveConfigurado">
+      <span class="cs-punto" aria-hidden="true"></span>
+      @if (e.driveConfigurado) {
+        <p><strong>Google Drive conectado.</strong> Cada copia se sube sola a la carpeta <code>gs-backups</code> de la cuenta del laboratorio.</p>
+      } @else {
+        <p>
+          <strong>Google Drive sin conectar.</strong> Las copias están solo en este servidor: si el disco falla, se pierden
+          con todo lo demás. Bajá una a tu computadora de vez en cuando, o conectá Drive (una autorización única de Google,
+          pasos en <code>backup/README.md</code>).
+        </p>
+      }
+    </div>
+  }
+</section>
+
+<section class="cs-card">
+  <h3>Copias guardadas</h3>
+  <p class="cs-nota">
+    «Descargar» baja la copia completa a esta computadora, en un solo archivo. Tiene todos los datos del laboratorio:
+    guardala en un lugar seguro y no la mandes por mail ni por WhatsApp.
+  </p>
+
+  @if (cargando()) {
+    <div class="cs-vacio">Cargando las copias…</div>
+  } @else if (fallo()) {
+    <div class="cs-vacio">
+      No se pudo consultar el servicio de backup.
+      <button type="button" class="cs-btn" (click)="cargar()">Reintentar</button>
+    </div>
+  } @else if (copias().length === 0) {
+    <div class="cs-vacio">Todavía no hay copias. Tocá «Hacer backup ahora» para crear la primera.</div>
+  } @else {
+    <ul class="cs-lista">
+      @for (c of copias(); track c.nombre) {
+        <li class="cs-fila">
+          <div class="cs-dato">
+            <strong>{{ fecha(c.nombre) }}</strong>
+            <span class="cs-peso">{{ tamanio(c.bytes) }}</span>
+          </div>
+          <span class="cs-chip" [class]="etiqueta(c.destino).clase" [attr.title]="etiqueta(c.destino).ayuda">
+            {{ etiqueta(c.destino).texto }}
+          </span>
+          <button type="button" class="cs-btn" [disabled]="bajando() !== null" (click)="descargar(c)">
+            {{ bajando() === c.nombre ? 'Descargando…' : 'Descargar' }}
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</section>
