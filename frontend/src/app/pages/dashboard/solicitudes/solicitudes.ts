@@ -15,6 +15,7 @@ import { PageHeaderComponent } from '../../../shared/page-header';
 import { SectionTabsComponent, SeccionTab } from '../../../shared/section-tabs';
 import { describirMalla, describirTamanio } from '../../../shared/malla.util';
 import { Visor3dComponent } from '../escaneos/visor3d.component';
+import { Faltante, enumerar, faltantesDelPedido } from './solicitudes.validacion';
 
 /** Formatos de escaneo que el visor 3D sabe mostrar. */
 const VISUALIZABLES_3D = ['.stl', '.obj', '.ply'];
@@ -74,6 +75,8 @@ export class SolicitudesComponent implements OnInit, OnDestroy {
   readonly odontologos = signal<OdontologoResponse[]>([]);
   readonly trabajos = signal<TipoTrabajoResponse[]>([]);
   readonly guardando = signal(false);
+  /** Se tocó «Crear pedido» con datos que faltan: recién ahí los campos se marcan en rojo, no antes de que la persona escriba. */
+  readonly intentoCrear = signal(false);
   readonly descartando = signal(false);
   readonly confirmandoDescarte = signal(false);
   readonly aceptando = signal(false);
@@ -154,7 +157,10 @@ export class SolicitudesComponent implements OnInit, OnDestroy {
       error: err => this.notif.errorHttp(err, 'No se pudo cargar la lista de odontólogos'),
     });
     this.catalogoSvc.listar().subscribe({
-      next: t => this.trabajos.set(t.filter(x => x.activo)),
+      next: t => {
+        this.trabajos.set(t.filter(x => x.activo));
+        this.completarPrecioDelCatalogo();
+      },
       error: err => this.notif.errorHttp(err, 'No se pudo cargar el catálogo de trabajos'),
     });
   }
@@ -207,6 +213,7 @@ export class SolicitudesComponent implements OnInit, OnDestroy {
     this.seleccionada.set(s);
     this.confirmandoDescarte.set(false);
     this.confirmandoBloqueo.set(false);
+    this.intentoCrear.set(false);
     this.motivoDescarte.reset('');
     // Si no se pudo verificar el mail no se ofrece recordar la dirección: se acepta este mail y nada más.
     this.formAceptar.reset({
@@ -227,6 +234,19 @@ export class SolicitudesComponent implements OnInit, OnDestroy {
       observaciones: g.observaciones ?? '',
     });
     this.eleccionTrabajo.reset(g.catalogoTrabajoId ?? (g.trabajo ? OTRO_TRABAJO : null));
+    this.completarPrecioDelCatalogo();
+  }
+
+  /**
+   * Si el mail nombra un trabajo del catálogo pero no dice un precio, se propone el de lista, igual que cuando se elige el
+   * trabajo a mano (antes quedaba vacío y parecía que el sistema no lo conocía). Nunca pisa un precio que ya está cargado.
+   */
+  private completarPrecioDelCatalogo(): void {
+    const c = this.form.controls;
+    const id = c.catalogoTrabajoId.value;
+    if (id == null || c.precio.value != null) return;
+    const t = this.trabajos().find(x => x.id === id);
+    if (t?.precio) c.precio.setValue(t.precio);
   }
 
   /**
@@ -259,14 +279,57 @@ export class SolicitudesComponent implements OnInit, OnDestroy {
     }
   }
 
-  get formularioValido(): boolean {
+  /** Lo que impide crear el pedido ahora mismo, con las mismas reglas que valida el servidor. Vacío = se puede crear. */
+  faltantes(): Faltante[] {
     const v = this.form.getRawValue();
-    return this.form.valid && (v.odontologoId != null || v.odontologoNombre.trim().length > 0) && v.fechaEntrega >= this.minimaEntrega;
+    return faltantesDelPedido({
+      odontologoId: v.odontologoId, odontologoNombre: v.odontologoNombre, paciente: v.paciente, trabajo: v.trabajo,
+      eligioOtroTrabajo: this.eleccionTrabajo.value === OTRO_TRABAJO, fechaEntrega: v.fechaEntrega, precio: v.precio,
+    }, this.minimaEntrega);
+  }
+
+  /** «el paciente y la fecha de entrega», para el aviso de arriba del botón. */
+  resumenFaltantes(): string {
+    return enumerar(this.faltantes().map(f => f.resumen));
+  }
+
+  /** El mensaje que va debajo de un campo, solo después de haber tocado «Crear pedido». */
+  errorDe(campoId: string): string | null {
+    if (!this.intentoCrear()) return null;
+    return this.faltantes().find(f => f.campoId === campoId)?.mensaje ?? null;
+  }
+
+  get formularioValido(): boolean {
+    return this.form.valid && this.faltantes().length === 0;
+  }
+
+  /** Lleva el cursor al primer dato que falta (en el celular el formulario es largo: si no, no se ve qué pasó). */
+  private enfocar(campoId: string | undefined): void {
+    if (!campoId) return;
+    const ids = campoId === 'odontologo' ? ['odontologo-nombre', 'odontologo'] : [campoId];
+    setTimeout(() => {
+      const el = ids.map(id => this.host.nativeElement.querySelector<HTMLElement>('#' + id)).find(e => e);
+      // Sin desplazamiento suave: queda a medias cuando el formulario cambia de alto (aparecen los mensajes) y deja el campo
+      // tapado por la barra de arriba.
+      el?.scrollIntoView({ block: 'center' });
+      el?.focus({ preventScroll: true });
+    });
   }
 
   crearPedido(): void {
     const s = this.seleccionada();
-    if (!s || !this.formularioValido || this.guardando()) return;
+    if (!s || this.guardando()) return;
+    if (!this.formularioValido) {
+      // El botón no se desactiva en silencio: se explica qué falta, se marcan los campos y se lleva el foco al primero.
+      this.intentoCrear.set(true);
+      this.form.markAllAsTouched();
+      const faltan = this.faltantes();
+      if (faltan.length === 0) {
+        this.notif.alerta('Hay un dato del formulario que no es válido. Revisá los campos.', 'No se puede crear el pedido');
+      }
+      this.enfocar(faltan[0]?.campoId);
+      return;
+    }
     const v = this.form.getRawValue();
     const pedido: PedidoRequest = {
       odontologoId: v.odontologoId,

@@ -222,9 +222,12 @@ export class ManualComponent {
       id: 'documentos',
       titulo: 'Documentos',
       grupo: 'Para todo el equipo (Técnico, Administrativo y Admin)',
-      intro: 'Archivos generales asociados a un pedido (presupuestos, indicaciones del odontólogo, etc.) que no son escaneos 3D.',
-      queVes: ['Los documentos agrupados por pedido.'],
-      queHaces: ['Subís un archivo eligiendo a qué pedido corresponde y una descripción opcional.'],
+      intro: 'Archivos generales asociados a un pedido que no son escaneos 3D: la orden o receta que manda el odontólogo (una foto o un PDF), presupuestos, radiografías, indicaciones. El sistema los guarda pero no lee su contenido.',
+      queVes: ['Los documentos agrupados por pedido. En la ficha de cada odontólogo, pestaña Documentos, aparecen juntos los de todos sus pedidos.'],
+      queHaces: [
+        'Subís un archivo (PDF, JPG, PNG, GIF o WEBP) eligiendo a qué pedido corresponde y una descripción opcional.',
+        'Si el pedido nace de un mail, los archivos que no son escaneos (la receta en PDF o en foto) llegan solos: se guardan al tocar "Crear pedido" en Solicitudes.',
+      ],
     },
     {
       id: 'escaneos',
@@ -331,7 +334,8 @@ export class ManualComponent {
         'Convertidas y Descartadas: lo que ya se resolvió. Direcciones autorizadas: quién puede escribir directo y a quién bloqueaste.',
       ],
       pasos: [
-        'Para crear el pedido: elegí el mail, revisá y corregí los datos → "Crear pedido". Lo que el sistema leyó (paciente, trabajo, fecha, precio) es una sugerencia: en "Trabajo" elegí uno del catálogo, o "Otro trabajo" para escribirlo. Entiende fechas como "para el 4 de noviembre" y "para el viernes".',
+        'Para crear el pedido: elegí el mail, revisá y corregí los datos → "Crear pedido". Lo que el sistema leyó (paciente, trabajo, fecha, precio) es una sugerencia: en "Trabajo" elegí uno del catálogo, o "Otro trabajo" para escribirlo. Entiende fechas como "para el 4 de noviembre" y "para el viernes". Si el mail nombra un trabajo del catálogo y no dice el precio, se propone el de lista.',
+        'Obligatorios: odontólogo, paciente, trabajo y fecha de entrega (de mañana en adelante). El precio es opcional: sin precio el pedido se crea igual y el monto se pide al entregarlo. Si falta algo, el aviso de arriba del botón dice qué es, y al tocar "Crear pedido" se marca el campo y se lleva el cursor ahí.',
         'Si el mail trae archivos, los ves arriba, en "Archivos del mail". Un escaneo 3D muestra su formato, tamaño y medidas, y "Ver en 3D" lo abre ahí mismo para revisarlo antes de crear el pedido. Al crearlo, los escaneos pasan a Escaneos y los documentos a Documentos.',
         'Si no es un pedido (una consulta, publicidad): "Descartar", con un motivo si querés.',
         'Si el mail es de alguien nuevo: en "Remitentes nuevos" elegí quién es (el odontólogo, su secretaria u otra persona) y "Aceptar este mail". Si el odontólogo todavía no está cargado, tocá "No está en la lista: es un odontólogo nuevo": se lo da de alta ahí mismo (con su mail, así los próximos pedidos entran directo). Marcá "Recordar esta dirección" para que los próximos mails de esa persona entren directo. Si no lo conocés: "Descartar solo este" o "Bloquear a este remitente".',

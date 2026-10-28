@@ -72,6 +72,9 @@
 .campo label { font-size: 0.74rem; font-weight: 600; color: var(--muted); }
 .campo .req { color: var(--color-danger); }
 .campo .ayuda { font-size: 0.72rem; color: var(--dim); }
+.campo .ayuda.mal { color: var(--color-danger); font-weight: 600; }
+.campo.invalido input, .campo.invalido select, .campo.invalido textarea,
+.campo.invalido input:focus, .campo.invalido select:focus, .campo.invalido textarea:focus { border-color: var(--color-danger); }
 .campo input, .campo select, .campo textarea {
   width: 100%; box-sizing: border-box; padding: 0.55rem 0.7rem; font: inherit; font-size: 0.85rem;
   background: var(--card-2); color: var(--text); border: 1px solid var(--border-med); border-radius: 8px;

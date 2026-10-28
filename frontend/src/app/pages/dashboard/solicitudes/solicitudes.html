@@ -325,24 +325,26 @@
               <div class="sol-bloque">
                 <h4>Para quién</h4>
                 <div class="fila dos">
-                  <div class="campo">
+                  <div class="campo" [class.invalido]="errorDe('odontologo')">
                     <label for="odontologo">Odontólogo <span class="req">*</span></label>
                     <select id="odontologo" formControlName="odontologoId" (change)="alElegirOdontologo()">
                       <option [ngValue]="null">Otro (escribir el nombre)</option>
                       @for (o of odontologos(); track o.id) { <option [ngValue]="o.id">{{ o.nombre }}{{ o.clinica ? ' · ' + o.clinica : '' }}</option> }
                     </select>
                     @if (form.controls.odontologoId.value == null) {
-                      <input type="text" formControlName="odontologoNombre" placeholder="Nombre del odontólogo" aria-label="Nombre del odontólogo">
+                      <input id="odontologo-nombre" type="text" formControlName="odontologoNombre" placeholder="Nombre del odontólogo" aria-label="Nombre del odontólogo">
                       @if (s.remitenteTipo === 'ODONTOLOGO' && s.odontologoId == null) {
                         <span class="ayuda">Esta casilla la usan varios odontólogos: elegí de cuál es el pedido.</span>
                       } @else {
                         <span class="ayuda">Si no está cargado, se agrega a Odontólogos con este nombre.</span>
                       }
                     }
+                    @if (errorDe('odontologo'); as e) { <span class="ayuda mal">{{ e }}</span> }
                   </div>
-                  <div class="campo">
+                  <div class="campo" [class.invalido]="errorDe('paciente')">
                     <label for="paciente">Paciente <span class="req">*</span></label>
                     <input id="paciente" type="text" formControlName="paciente" maxlength="150">
+                    @if (errorDe('paciente'); as e) { <span class="ayuda mal">{{ e }}</span> }
                   </div>
                 </div>
               </div>
@@ -350,23 +352,30 @@
               <div class="sol-bloque">
                 <h4>Trabajo</h4>
                 <div class="fila dos">
-                  <div class="campo">
+                  <div class="campo" [class.invalido]="errorDe('trabajo-cat')">
                     <label for="trabajo-cat">Trabajo <span class="req">*</span></label>
                     <select id="trabajo-cat" [formControl]="eleccionTrabajo" (change)="alElegirTrabajo()">
                       <option [ngValue]="null">— Elegir —</option>
                       @for (t of trabajos(); track t.id) { <option [ngValue]="t.id">{{ t.nombre }}</option> }
                       <option [ngValue]="otroTrabajo">Otro trabajo (escribirlo)</option>
                     </select>
+                    @if (errorDe('trabajo-cat'); as e) { <span class="ayuda mal">{{ e }}</span> }
                   </div>
-                  <div class="campo">
+                  <div class="campo" [class.invalido]="errorDe('precio')">
                     <label for="precio">Precio acordado</label>
                     <input id="precio" type="number" formControlName="precio" min="0" placeholder="$">
+                    @if (errorDe('precio'); as e) {
+                      <span class="ayuda mal">{{ e }}</span>
+                    } @else if (form.controls.precio.value == null) {
+                      <span class="ayuda">Es opcional: sin precio el pedido se crea igual y se pedirá el monto al entregarlo.</span>
+                    }
                   </div>
                 </div>
                 @if (eleccionTrabajo.value === otroTrabajo) {
-                  <div class="campo">
+                  <div class="campo" [class.invalido]="errorDe('trabajo')">
                     <label for="trabajo">¿Qué trabajo es? <span class="req">*</span></label>
                     <input id="trabajo" type="text" formControlName="trabajo" maxlength="200" placeholder="Ej: Puente de 3 piezas">
+                    @if (errorDe('trabajo'); as e) { <span class="ayuda mal">{{ e }}</span> }
                   </div>
                 }
               </div>
@@ -374,9 +383,10 @@
               <div class="sol-bloque">
                 <h4>Entrega</h4>
                 <div class="fila dos">
-                  <div class="campo">
+                  <div class="campo" [class.invalido]="errorDe('entrega')">
                     <label for="entrega">Fecha de entrega <span class="req">*</span></label>
                     <input id="entrega" type="date" formControlName="fechaEntrega" [min]="minimaEntrega">
+                    @if (errorDe('entrega'); as e) { <span class="ayuda mal">{{ e }}</span> }
                   </div>
                   <div class="campo">
                     <label for="prioridad">Prioridad</label>
@@ -401,8 +411,13 @@
               }
 
               @if (puedeResolver()) {
+                @if (faltantes().length > 0) {
+                  <p class="sol-aviso" [class.error]="intentoCrear()" [attr.role]="intentoCrear() ? 'alert' : 'status'">
+                    <strong>Todavía no se puede crear el pedido.</strong> Falta completar {{ resumenFaltantes() }}.
+                  </p>
+                }
                 <div class="sol-acciones">
-                  <button type="submit" class="btn-primario" [disabled]="!formularioValido || guardando()">
+                  <button type="submit" class="btn-primario" [disabled]="guardando()">
                     {{ guardando() ? 'Creando…' : 'Crear pedido' }}
                   </button>
                   @if (!confirmandoDescarte()) {
