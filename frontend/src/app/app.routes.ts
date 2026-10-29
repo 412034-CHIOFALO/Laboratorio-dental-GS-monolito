@@ -33,6 +33,7 @@ export const routes: Routes = [
   { path: '', component: LandingPage },
   { path: 'login', component: LoginComponent },
   { path: 'terminos', component: TerminosComponent, canActivate: [authGuard] },
+  { path: 'privacidad', loadComponent: () => import('./pages/privacidad/privacidad').then(m => m.PrivacidadComponent) },
   { path: 'catalogo', component: CatalogoPublicoComponent, canActivate: [catalogoPublicoGuard] },
   { path: 'catalogo-no-disponible', component: ErrorPageComponent, data: { tipo: 'catalogo-deshabilitado' } },
   {

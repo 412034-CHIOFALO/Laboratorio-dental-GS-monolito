@@ -53,7 +53,9 @@ El cliente compartido de rclone está en retiro durante 2026, por eso se crea un
 4. **Publicá la app (pasarla a «En producción»).** Es lo más importante: si queda en «Testing», la
    autorización **vence a los 7 días** y el backup deja de subirse a Drive sin avisar (en el panel las
    copias pasan a decir «Falló Drive»). Para uso propio no pide verificación; solo muestra un cartel de
-   «app no verificada» al autorizar.
+   «app no verificada» al autorizar. Para habilitar **Publicar app**, completá antes *Información de la
+   marca*: correo de asistencia, **página principal** (`https://gsortodoncia.duckdns.org`) y **política de
+   privacidad** (`https://gsortodoncia.duckdns.org/privacidad`, página pública del sistema).
 5. **Credenciales → Crear credenciales → ID de cliente de OAuth → Aplicación de escritorio.** Copiá
    el **ID de cliente** y el **Secreto**.
 
